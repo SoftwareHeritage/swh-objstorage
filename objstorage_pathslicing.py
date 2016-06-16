@@ -16,8 +16,6 @@ from .objstorage import ObjStorage, ID_HASH_ALGO, ID_HASH_LENGTH
 from ..exc import ObjNotFoundError, Error
 
 
-ID_HASH_ALGO = 'sha1'
-
 GZIP_BUFSIZ = 1048576
 
 DIR_MODE = 0o755
