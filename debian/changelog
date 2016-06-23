@@ -1,5 +1,7 @@
-swh-objstorage (0.0.1-1) unstable; urgency=low
+swh-objstorage (0.0.1-1~swh1) unstable-swh; urgency=medium
 
-  *
+  * Initial release
+  * v0.0.1
+  * First version of the independent object storage
 
- -- AUTHOR-NAME <AUTHOR-EMAIL>  <UTC-DATE>
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Thu, 23 Jun 2016 16:30:47 +0200
