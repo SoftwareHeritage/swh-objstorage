@@ -10,10 +10,10 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.core import hashutil
-from swh.storage.exc import ObjNotFoundError, Error
-from swh.storage.tests.server_testing import ServerTestFixture
-from swh.storage.objstorage.api.client import RemoteObjStorage
-from swh.storage.objstorage.api.server import app
+from swh.objstorage.exc import ObjNotFoundError, Error
+from swh.objstorage.tests.server_testing import ServerTestFixture
+from swh.objstorage.api.client import RemoteObjStorage
+from swh.objstorage.api.server import app
 
 
 @attr('db')

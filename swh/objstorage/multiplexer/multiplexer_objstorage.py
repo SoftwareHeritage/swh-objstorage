@@ -6,7 +6,7 @@
 import random
 
 from ..objstorage import ObjStorage
-from ...exc import ObjNotFoundError
+from ..exc import ObjNotFoundError
 
 
 class MultiplexerObjStorage(ObjStorage):

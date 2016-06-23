@@ -8,9 +8,9 @@ import unittest
 
 from nose.tools import istest
 
-from swh.storage.objstorage import PathSlicingObjStorage
-from swh.storage.objstorage.multiplexer import MultiplexerObjStorage
-from swh.storage.objstorage.multiplexer.filter import add_filter, read_only
+from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage.multiplexer import MultiplexerObjStorage
+from swh.objstorage.multiplexer.filter import add_filter, read_only
 
 from objstorage_testing import ObjStorageTestFixture
 

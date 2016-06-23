@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from swh.core import hashutil
 
 from .objstorage import ObjStorage, ID_HASH_ALGO, ID_HASH_LENGTH
-from ..exc import ObjNotFoundError, Error
+from .exc import ObjNotFoundError, Error
 
 
 GZIP_BUFSIZ = 1048576

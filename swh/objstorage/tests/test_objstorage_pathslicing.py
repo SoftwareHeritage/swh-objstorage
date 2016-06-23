@@ -9,8 +9,8 @@ import unittest
 from nose.tools import istest
 
 from swh.core import hashutil
-from swh.storage import exc
-from swh.storage.objstorage import PathSlicingObjStorage
+from swh.objstorage import exc
+from swh.objstorage import PathSlicingObjStorage
 
 from objstorage_testing import ObjStorageTestFixture
 

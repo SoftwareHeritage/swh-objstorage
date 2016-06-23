@@ -6,7 +6,7 @@
 from nose.tools import istest
 
 from swh.core import hashutil
-from swh.storage import exc
+from swh.objstorage import exc
 
 
 class ObjStorageTestFixture():

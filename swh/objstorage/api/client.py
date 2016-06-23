@@ -9,9 +9,9 @@ import pickle
 import requests
 
 from requests.exceptions import ConnectionError
-from ...exc import StorageAPIError
-from ...api.common import (decode_response,
-                           encode_data_client as encode_data)
+from ..exc import ObjStorageAPIError
+from ...storage.api.common import (decode_response,
+                                   encode_data_client as encode_data)
 
 
 class RemoteObjStorage():
@@ -41,7 +41,7 @@ class RemoteObjStorage():
             )
         except ConnectionError as e:
             print(str(e))
-            raise StorageAPIError(e)
+            raise ObjStorageAPIError(e)
 
         # XXX: this breaks language-independence and should be
         # replaced by proper unserialization

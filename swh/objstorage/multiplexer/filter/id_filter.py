@@ -9,7 +9,7 @@ from swh.core import hashutil
 
 from .filter import ObjStorageFilter
 from ...objstorage import ID_HASH_ALGO
-from ....exc import ObjNotFoundError
+from ...exc import ObjNotFoundError
 
 
 def compute_hash(bytes):

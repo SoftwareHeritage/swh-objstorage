@@ -9,7 +9,7 @@ import logging
 from flask import Flask, g, request
 
 from swh.core import config
-from swh.storage.objstorage import PathSlicingObjStorage
+from swh.objstorage import PathSlicingObjStorage
 from swh.storage.api.common import (BytesRequest, decode_request,
                                     error_handler,
                                     encode_data_server as encode_data)

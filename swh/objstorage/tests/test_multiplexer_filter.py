@@ -12,10 +12,10 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.core import hashutil
-from swh.storage.exc import ObjNotFoundError, Error
-from swh.storage.objstorage import ObjStorage
-from swh.storage.objstorage.multiplexer.filter import (add_filter, read_only,
-                                                       id_prefix, id_regex)
+from swh.objstorage.exc import ObjNotFoundError, Error
+from swh.objstorage import ObjStorage
+from swh.objstorage.multiplexer.filter import (add_filter, read_only,
+                                               id_prefix, id_regex)
 
 
 def get_random_content():
