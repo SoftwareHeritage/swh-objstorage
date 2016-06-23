@@ -2,3 +2,14 @@
 # should match https://pypi.python.org/pypi names. For the full spec or
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 vcversioner
+
+# remote storage API client
+requests
+
+# remote storage API server
+flask
+
+# Internal dependencies
+swh.core >= 0.0.20
+
+click

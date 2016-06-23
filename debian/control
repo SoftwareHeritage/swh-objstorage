@@ -1,19 +1,21 @@
-Source: <module-name>
+Source: swh-objstorage
 Maintainer: Software Heritage developers <swh-devel@inria.fr>
 Section: python
 Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python,
                python3-all,
+               python3-flask,
                python3-nose,
+               python3-requests,
                python3-setuptools,
                python3-swh.core,
-               python3-swh.storage,
+               python3-click,
                python3-vcversioner
 Standards-Version: 3.9.6
-Homepage: https://forge.softwareheritage.org/diffusion/<PHABRICATOR_CALLSIGN>/
+Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 
-Package: python3-<dot-separated-name-module>
+Package: python3-swh.objstorage
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}
-Description: Software Heritage <module-description>
+Description: Software Heritage Object Storage

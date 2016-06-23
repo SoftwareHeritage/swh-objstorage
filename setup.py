@@ -16,13 +16,21 @@ def parse_requirements():
 # Edit this part to match your module
 # full sample: https://forge.softwareheritage.org/diffusion/DCORE/browse/master/setup.py
 setup(
-    name='swh.<module-name>',
-    description='Software Heritage <Module\'s intent>',
+    name='swh.objstorage',
+    description='Software Heritage Object Storage',
     author='Software Heritage developers',
     author_email='swh-devel@inria.fr',
-    url='https://forge.softwareheritage.org/diffusion/<module-git-code>',
-    packages=[],  # packages's modules
-    scripts=[],   # scripts to package
+    url='https://forge.softwareheritage.org/diffusion/DOBJS',
+    packages=[
+        'swh.objstorage',
+        'swh.objstorage.api',
+        'swh.objstorage.multiplexer',
+        'swh.objstorage.multiplexer.filter'
+    ],  # packages's modules
+    scripts=[
+        'bin/swh-objstorage-add-dir',
+        'bin/swh-objstorage-fsck'
+    ],   # scripts to package
     install_requires=parse_requirements(),
     setup_requires=['vcversioner'],
     vcversioner={},
