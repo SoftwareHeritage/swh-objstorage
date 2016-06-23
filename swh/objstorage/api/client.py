@@ -10,8 +10,8 @@ import requests
 
 from requests.exceptions import ConnectionError
 from ..exc import ObjStorageAPIError
-from ...storage.api.common import (decode_response,
-                                   encode_data_client as encode_data)
+from .common import (decode_response,
+                     encode_data_client as encode_data)
 
 
 class RemoteObjStorage():

@@ -10,9 +10,10 @@ from flask import Flask, g, request
 
 from swh.core import config
 from swh.objstorage import PathSlicingObjStorage
-from swh.storage.api.common import (BytesRequest, decode_request,
-                                    error_handler,
-                                    encode_data_server as encode_data)
+
+from swh.objstorage.api.common import (BytesRequest, decode_request,
+                                       error_handler,
+                                       encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
     'storage_base': ('str', '/tmp/swh-storage/objects/'),
