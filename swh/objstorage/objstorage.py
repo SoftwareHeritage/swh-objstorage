@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from .exc import ObjNotFoundError
+
 
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
@@ -82,6 +84,26 @@ class ObjStorage():
         raise NotImplementedError(
             "Implementations of ObjStorage must have a 'get' method"
         )
+
+    def get_batch(self, obj_ids, *args, **kwargs):
+        """ Retrieve content in bulk.
+
+        Note: This function does have a default implementation in ObjStorage
+        that is suitable for most cases.
+
+        Args:
+            obj_ids: list of object ids.
+
+        Returns:
+            list of resulting contents, or None if the content could not
+            be retrieved. Do not raise any exception as a fail for one content
+            will not cancel the whole request.
+        """
+        for obj_id in obj_ids:
+            try:
+                yield self.get(obj_id)
+            except ObjNotFoundError:
+                yield None
 
     def check(self, obj_id, *args, **kwargs):
         """ Perform an integrity check for a given object.

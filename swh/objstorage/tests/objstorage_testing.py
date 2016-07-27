@@ -37,6 +37,23 @@ class ObjStorageTestFixture():
         self.assertContentMatch(obj_id, content)
 
     @istest
+    def add_get_batch(self):
+        content1, obj_id1 = self.hash_content(b'add_get_batch_1')
+        content2, obj_id2 = self.hash_content(b'add_get_batch_2')
+        self.storage.add(content1, obj_id1)
+        self.storage.add(content2, obj_id2)
+        cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
+        self.assertEqual(cr1, content1)
+        self.assertEqual(cr2, content2)
+
+    @istest
+    def get_batch_unexisting_content(self):
+        content, obj_id = self.hash_content(b'get_batch_unexisting_content')
+        result = list(self.storage.get_batch([obj_id]))
+        self.assertTrue(len(result) == 1)
+        self.assertIsNone(result[0])
+
+    @istest
     def restore_content(self):
         valid_content, valid_obj_id = self.hash_content(b'restore_content')
         invalid_content = b'unexpected content'
