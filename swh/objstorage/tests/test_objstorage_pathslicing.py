@@ -10,7 +10,7 @@ from nose.tools import istest
 
 from swh.core import hashutil
 from swh.objstorage import exc
-from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage import get_objstorage
 
 from objstorage_testing import ObjStorageTestFixture
 
@@ -21,7 +21,10 @@ class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         super().setUp()
         self.slicing = '0:2/2:4/4:6'
         self.tmpdir = tempfile.mkdtemp()
-        self.storage = PathSlicingObjStorage(self.tmpdir, self.slicing)
+        self.storage = get_objstorage(
+            'pathslicing',
+            {'root': self.tmpdir, 'slicing': self.slicing}
+        )
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)

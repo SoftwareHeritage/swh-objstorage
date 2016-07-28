@@ -8,9 +8,9 @@ import unittest
 
 from nose.plugins.attrib import attr
 
+from swh.objstorage import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 from swh.objstorage.tests.server_testing import ServerTestFixture
-from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.api.server import app
 
 
@@ -25,4 +25,4 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
                        'storage_slicing': '0:1/0:5'}
         self.app = app
         super().setUp()
-        self.storage = RemoteObjStorage(self.url())
+        self.storage = get_objstorage('remote', {'base_url': self.url()})
