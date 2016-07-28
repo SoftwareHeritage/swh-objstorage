@@ -30,7 +30,7 @@ def id_regex(regex):
     return {'type': 'regex', 'regex': regex}
 
 
-def _filter_priority(self, filter_type):
+def _filter_priority(filter_type):
     """ Get the priority of this filter.
 
     Priority is a value that indicates if the operation of the
@@ -69,7 +69,7 @@ def add_filter(storage, filter_conf):
     return filter
 
 
-def add_filters(storage, *filter_confs):
+def add_filters(storage, filter_confs):
     """ Add multiple filters to the given storage.
 
     (See filter.add_filter)
