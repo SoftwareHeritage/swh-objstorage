@@ -7,7 +7,7 @@ from .multiplexer.filter import add_filters
 # TODO remove PathSlicingObjStorage from this list once the config
 # loading will be updated and no hardcoded objstorage types should
 # remains.
-__all__ = ['get_objstorage', 'ObjStorage', 'PathSlicingObjStorage']
+__all__ = ['get_objstorage', 'ObjStorage']
 
 _STORAGE_CLASSES = {
     'pathslicing': PathSlicingObjStorage,
