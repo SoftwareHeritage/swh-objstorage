@@ -8,6 +8,7 @@ import click
 import logging
 
 from swh.core import config
+from swh.storage.archiver.storage import ArchiverStorage
 
 from . import get_objstorage
 from .exc import ObjNotFoundError, Error
@@ -180,6 +181,44 @@ class RepairContentChecker(LogContentChecker):
         return False
 
 
+class ArchiveNotifierContentChecker(LogContentChecker):
+    """ Implementation of the checker that will update the archiver database
+
+    Once the database is updated the archiver may restore the content on it's
+    next scheduling as it won't be present anymore, and this status change
+    will probably make the retention policy invalid.
+    """
+    DEFAULT_CONFIG = {
+        'storage': ('dict',
+                    {'cls': 'pathslicing',
+                     'args': {'root': '/srv/softwareheritage/objects',
+                              'slicing': '0:2/2:4/4:6'}}),
+        'batch_size': ('int', 1000),
+        'log_tag': ('str', 'objstorage.checker'),
+        'storage_name': ('str', 'banco'),
+        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev')
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.archiver_db = ArchiverStorage(self.config['dbconn'])
+        self.storage_name = self.config['storage_name']
+
+    def corrupted_content(self, obj_id):
+        """ Perform an action to treat with a corrupted content.
+        """
+        self._update_status(obj_id, 'corrupted')
+
+    def missing_content(self, obj_id):
+        """ Perform an action to treat with a missing content.
+        """
+        self._update_status(obj_id, 'missing')
+
+    def _update_status(self, obj_id, status):
+        self.archiver_db.content_archive_update(obj_id, self.storage_name,
+                                                new_status=status)
+
+
 @click.command()
 @click.argument('--checker-type', required=1, default='log')
 @click.option('--daemon/--nodaemon', default=True,
@@ -188,7 +227,8 @@ class RepairContentChecker(LogContentChecker):
 def launch(checker_type, is_daemon):
     types = {
         'log': LogContentChecker,
-        'repair': RepairContentChecker
+        'repair': RepairContentChecker,
+        'archiver_notifier': ArchiveNotifierContentChecker
     }
     checker = types[checker_type]()
     if is_daemon:
