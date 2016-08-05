@@ -11,7 +11,7 @@ from ..exc import ObjNotFoundError, Error
 from swh.core import hashutil
 
 from libcloud.storage import providers
-from libcloud.storage.types import ObjectDoesNotExistError
+from libcloud.storage.types import Provider, ObjectDoesNotExistError
 
 
 class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
@@ -139,3 +139,17 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         self.driver.upload_object_via_stream(iter(content), self.container,
                                              hex_obj_id)
+
+
+def AwsCloudObjStorage(CloudObjStorage):
+    """ Cloud-based object storage that works with Amazon's S3
+    """
+    def _get_provider(self):
+        return Provider.S3
+
+
+def OpenStackCloudObjStorage(CloudObjStorage):
+    """ Cloud-based object storage based on OpenStack Swift
+    """
+    def _get_provider(self):
+        return Provider.OPENSTACK_SWIFT
