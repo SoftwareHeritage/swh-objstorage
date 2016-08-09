@@ -5,11 +5,20 @@
 
 import abc
 
+from swh.core import hashutil
+
 from .exc import ObjNotFoundError
 
 
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
+
+
+def compute_hash(content):
+    return hashutil.hashdata(
+        content,
+        algorithms=[ID_HASH_ALGO]
+    ).get(ID_HASH_ALGO)
 
 
 class ObjStorage(metaclass=abc.ABCMeta):

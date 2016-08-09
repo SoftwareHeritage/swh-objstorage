@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from swh.core import hashutil
 
-from .objstorage import ObjStorage, ID_HASH_ALGO, ID_HASH_LENGTH
+from .objstorage import ObjStorage, compute_hash, ID_HASH_ALGO, ID_HASH_LENGTH
 from .exc import ObjNotFoundError, Error
 
 

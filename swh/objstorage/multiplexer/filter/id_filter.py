@@ -9,17 +9,8 @@ import abc
 from swh.core import hashutil
 
 from .filter import ObjStorageFilter
-from ...objstorage import ID_HASH_ALGO
+from ...objstorage import compute_hash
 from ...exc import ObjNotFoundError
-
-
-def compute_hash(bytes):
-    """ Compute the hash of the given content.
-    """
-    # Checksum is missing, compute it on the fly.
-    h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
-    h.update(bytes)
-    return h.digest()
 
 
 class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
