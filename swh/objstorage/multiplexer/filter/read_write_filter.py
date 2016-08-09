@@ -9,7 +9,6 @@ from .filter import ObjStorageFilter
 class ReadObjStorageFilter(ObjStorageFilter):
     """ Filter that disable write operation of the storage.
     """
-
     def add(self, *args, **kwargs):
         return
 

@@ -31,6 +31,12 @@ class ObjStorage():
     """
 
     def __contains__(self, *args, **kwargs):
+    def __contains__(self, obj_id, *args, **kwargs):
+        """ Indicates if the given object is present in the storage
+
+        Returns:
+            True iff the object is present in the current object storage.
+        """
         raise NotImplementedError(
             "Implementations of ObjStorage must have a '__contains__' method"
         )
@@ -58,6 +64,8 @@ class ObjStorage():
 
         This function is identical to add_bytes but does not check if
         the object id is already in the file system.
+        The default implementation provided by the current class is
+        suitable for most cases.
 
         Args:
             content: content of the object to be added to the storage
@@ -65,9 +73,8 @@ class ObjStorage():
                 given, obj_id will be trusted to match bytes. If missing,
                 obj_id will be computed on the fly.
         """
-        raise NotImplemented(
-            "Implementations of ObjStorage must have a 'restore' method"
-        )
+        # check_presence to false will erase the potential previous content.
+        return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id, *args, **kwargs):
         """ Retrieve the content of a given object.
@@ -90,6 +97,9 @@ class ObjStorage():
 
         Note: This function does have a default implementation in ObjStorage
         that is suitable for most cases.
+        For object storages that needs to do the minimal number of requests
+        possible (ex: remote object storages), that method can be overriden
+        to perform a more efficient operation.
 
         Args:
             obj_ids: list of object ids.
@@ -128,7 +138,7 @@ class ObjStorage():
         This method is used in order to get random ids to perform
         content integrity verifications on random contents.
 
-        Attributes:
+        Args:
             batch_size (int): Number of ids that will be given
 
         Yields:

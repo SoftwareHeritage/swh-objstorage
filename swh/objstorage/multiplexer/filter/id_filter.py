@@ -35,23 +35,35 @@ class IdObjStorageFilter(ObjStorageFilter):
                                   'must have a "is_valid" method')
 
     def __contains__(self, obj_id, *args, **kwargs):
+        """ Indicates if the given object is present in the storage
+
+        See base class [ObjStorage].
+        """
         if self.is_valid(obj_id):
             return self.storage.__contains__(*args, obj_id=obj_id, **kwargs)
         return False
 
     def __len__(self):
+        """ See base class [ObjStorageFilter].
+        """
         return sum(1 for i in [id for id in self.storage if self.is_valid(id)])
 
     def __iter__(self):
+        """ See base class [ObjStorageFilter].
+        """
         yield from filter(lambda id: self.is_valid(id), iter(self.storage))
 
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+        """ See base class [ObjStorageFilter].
+        """
         if obj_id is None:
             obj_id = compute_hash(content)
         if self.is_valid(obj_id):
             return self.storage.add(content, *args, obj_id=obj_id, **kwargs)
 
     def restore(self, content, obj_id=None, *args, **kwargs):
+        """ See base class [ObjStorageFilter].
+        """
         if obj_id is None:
             obj_id = compute_hash(content)
         if self.is_valid(obj_id):
@@ -59,16 +71,22 @@ class IdObjStorageFilter(ObjStorageFilter):
                                         obj_id=obj_id, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
+        """ See base class [ObjStorageFilter].
+        """
         if self.is_valid(obj_id):
             return self.storage.get(*args, obj_id=obj_id, **kwargs)
         raise ObjNotFoundError(obj_id)
 
     def check(self, obj_id, *args, **kwargs):
+        """ See base class [ObjStorageFilter].
+        """
         if self.is_valid(obj_id):
             return self.storage.check(*args, obj_id=obj_id, **kwargs)
         raise ObjNotFoundError(obj_id)
 
     def get_random(self, *args, **kwargs):
+        """ See base class [ObjStorageFilter].
+        """
         yield from filter(lambda id: self.is_valid(id),
                           self.storage.get_random(*args, **kwargs))
 
