@@ -196,16 +196,13 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return os.path.join(self._obj_dir(hex_obj_id), hex_obj_id)
 
-    def add(self, bytes, obj_id=None, check_presence=True):
+    def add(self, content, obj_id=None, check_presence=True):
         """ Add a new object to the current object storage.
 
         See base class [ObjStorage].
         """
         if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
-            h.update(bytes)
-            obj_id = h.digest()
+            obj_id = compute_hash(content)
 
         if check_presence and obj_id in self:
             # If the object is already present, return immediatly.
@@ -213,7 +210,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         with _write_obj_file(hex_obj_id, self) as f:
-            f.write(bytes)
+            f.write(content)
 
         return obj_id
 

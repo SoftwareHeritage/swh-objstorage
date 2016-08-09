@@ -62,7 +62,7 @@ class RemoteObjStorage(ObjStorage):
 
         See base class [ObjStorage].
         """
-        return self.post('content/add', {'bytes': content, 'obj_id': obj_id,
+        return self.post('content/add', {'content': content, 'obj_id': obj_id,
                                          'check_presence': check_presence})
 
     def get(self, obj_id):
