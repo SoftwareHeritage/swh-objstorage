@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import abc
+
 from .exc import ObjNotFoundError
 
 
@@ -10,7 +12,7 @@ ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 
 
-class ObjStorage():
+class ObjStorage(metaclass=abc.ABCMeta):
     """ High-level API to manipulate the Software Heritage object storage.
 
     Conceptually, the object storage offers 5 methods:
@@ -30,7 +32,7 @@ class ObjStorage():
     its own way to store the contents.
     """
 
-    def __contains__(self, *args, **kwargs):
+    @abc.abstractmethod
     def __contains__(self, obj_id, *args, **kwargs):
         """ Indicates if the given object is present in the storage
 
@@ -41,6 +43,7 @@ class ObjStorage():
             "Implementations of ObjStorage must have a '__contains__' method"
         )
 
+    @abc.abstractmethod
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
         """ Add a new object to the object storage.
 
@@ -76,6 +79,7 @@ class ObjStorage():
         # check_presence to false will erase the potential previous content.
         return self.add(content, obj_id, check_presence=False)
 
+    @abc.abstractmethod
     def get(self, obj_id, *args, **kwargs):
         """ Retrieve the content of a given object.
 
@@ -115,6 +119,7 @@ class ObjStorage():
             except ObjNotFoundError:
                 yield None
 
+    @abc.abstractmethod
     def check(self, obj_id, *args, **kwargs):
         """ Perform an integrity check for a given object.
 

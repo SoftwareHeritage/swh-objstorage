@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import re
+import abc
 
 from swh.core import hashutil
 
@@ -21,13 +22,14 @@ def compute_hash(bytes):
     return h.digest()
 
 
-class IdObjStorageFilter(ObjStorageFilter):
+class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     """ Filter that only allow operations if the object id match a requirement.
 
     Even for read operations, check before if the id match the requirements.
     This may prevent for unnecesary disk access.
     """
 
+    @abc.abstractmethod
     def is_valid(self, obj_id):
         """ Indicates if the given id is valid.
         """
