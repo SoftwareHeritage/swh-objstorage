@@ -40,7 +40,6 @@ class RemoteObjStorage(ObjStorage):
                 headers={'content-type': 'application/x-msgpack'},
             )
         except ConnectionError as e:
-            print(str(e))
             raise ObjStorageAPIError(e)
 
         # XXX: this breaks language-independence and should be
@@ -51,44 +50,20 @@ class RemoteObjStorage(ObjStorage):
         return decode_response(response)
 
     def __contains__(self, obj_id):
-        """ Indicates if the given object is present in the storage
-
-        See base class [ObjStorage].
-        """
         return self.post('content/contains', {'obj_id': obj_id})
 
     def add(self, content, obj_id=None, check_presence=True):
-        """ Add a new object to the object storage.
-
-        See base class [ObjStorage].
-        """
         return self.post('content/add', {'content': content, 'obj_id': obj_id,
                                          'check_presence': check_presence})
 
     def get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        See base class [ObjStorage].
-        """
         return self.post('content/get', {'obj_id': obj_id})
 
     def get_batch(self, obj_ids):
-        """ Retrieve content in bulk.
-
-        See base class [ObjStorage].
-        """
         return self.post('content/get/batch', {'obj_ids': obj_ids})
 
     def check(self, obj_id):
-        """ Perform an integrity check for a given object.
-
-        See base class [ObjStorage].
-        """
         self.post('content/check', {'obj_id': obj_id})
 
     def get_random(self, batch_size):
-        """ Get random ids of existing contents
-
-        See base class [ObjStorage].
-        """
         return self.post('content/get/random', {'batch_size': batch_size})

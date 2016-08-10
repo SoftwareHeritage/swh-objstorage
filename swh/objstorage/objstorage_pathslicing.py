@@ -131,10 +131,6 @@ class PathSlicingObjStorage(ObjStorage):
             )
 
     def __contains__(self, obj_id):
-        """ Indicates if the given object is present in the storage
-
-        See base class [ObjStorage].
-        """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         return os.path.exists(self._obj_path(hex_obj_id))
 
@@ -197,10 +193,6 @@ class PathSlicingObjStorage(ObjStorage):
         return os.path.join(self._obj_dir(hex_obj_id), hex_obj_id)
 
     def add(self, content, obj_id=None, check_presence=True):
-        """ Add a new object to the current object storage.
-
-        See base class [ObjStorage].
-        """
         if obj_id is None:
             obj_id = compute_hash(content)
 
@@ -215,10 +207,6 @@ class PathSlicingObjStorage(ObjStorage):
         return obj_id
 
     def get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        See base class [ObjStorage].
-        """
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -228,10 +216,6 @@ class PathSlicingObjStorage(ObjStorage):
             return f.read()
 
     def check(self, obj_id):
-        """ Perform an integrity check for a given object.
-
-        See base class [ObjStorage].
-        """
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -266,10 +250,6 @@ class PathSlicingObjStorage(ObjStorage):
             raise Error('Corrupt object %s is not a gzip file' % obj_id)
 
     def get_random(self, batch_size):
-        """ Get random ids of existing contents
-
-        See base class [ObjStorage].
-        """
         def get_random_content(self, batch_size):
             """ Get a batch of content inside a single directory.
 

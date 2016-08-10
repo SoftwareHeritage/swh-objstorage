@@ -53,10 +53,6 @@ class MultiplexerObjStorage(ObjStorage):
         self.storages = storages
 
     def __contains__(self, obj_id):
-        """ Indicates if the given object is present in the storage
-
-        See base class [ObjStorage].
-        """
         for storage in self.storages:
             if obj_id in storage:
                 return True
@@ -111,18 +107,10 @@ class MultiplexerObjStorage(ObjStorage):
                 for storage in self.storages].pop()
 
     def restore(self, content, obj_id=None):
-        """ Restore a content that have been corrupted.
-
-        See base class [ObjStorage] & self.add() method.
-        """
         return [storage.restore(content, obj_id)
                 for storage in self.storages].pop()
 
     def get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        See base class [ObjStorage].
-        """
         for storage in self.storages:
             try:
                 return storage.get(obj_id)
@@ -132,10 +120,6 @@ class MultiplexerObjStorage(ObjStorage):
         raise ObjNotFoundError(obj_id)
 
     def check(self, obj_id):
-        """ Perform an integrity check for a given object.
-
-        See base class [ObjStorage].
-        """
         nb_present = 0
         for storage in self.storages:
             try:
@@ -152,10 +136,6 @@ class MultiplexerObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
     def get_random(self, batch_size):
-        """ Get random ids of existing contents
-
-        See base class [ObjStorage].
-        """
         storages_set = [storage for storage in self.storages
                         if len(storage) > 0]
         if len(storages_set) <= 0:

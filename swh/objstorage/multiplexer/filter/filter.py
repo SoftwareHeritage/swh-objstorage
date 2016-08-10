@@ -24,10 +24,6 @@ class ObjStorageFilter(ObjStorage):
         self.storage = storage
 
     def __contains__(self, *args, **kwargs):
-        """ Indicates if the given object is present in the storage
-
-        See base class [ObjStorage].
-        """
         return self.storage.__contains__(*args, **kwargs)
 
     def __iter__(self):
@@ -50,37 +46,17 @@ class ObjStorageFilter(ObjStorage):
         return self.storage.__len__()
 
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
-        """ Add a new object to the object storage.
-
-        See base class [ObjStorage].
-        """
         return self.storage.add(content, obj_id, check_presence,
                                 *args, **kwargs)
 
     def restore(self, content, obj_id=None, *args, **kwargs):
-        """ Restore a content that have been corrupted.
-
-        See base class [ObjStorage] & self.add() method.
-        """
         return self.storage.restore(content, obj_id, *args, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
-        """ Retrieve the content of a given object.
-
-        See base class [ObjStorage].
-        """
         return self.storage.get(obj_id, *args, **kwargs)
 
     def check(self, obj_id, *args, **kwargs):
-        """ Perform an integrity check for a given object.
-
-        See base class [ObjStorage].
-        """
         return self.storage.check(obj_id, *args, **kwargs)
 
     def get_random(self, batch_size, *args, **kwargs):
-        """ Get random ids of existing contents
-
-        See base class [ObjStorage].
-        """
         return self.storage.get_random(batch_size, *args, **kwargs)
