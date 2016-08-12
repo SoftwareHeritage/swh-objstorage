@@ -5,7 +5,7 @@
 
 import abc
 
-from ..objstorage import ObjStorage, ID_HASH_ALGO
+from ..objstorage import ObjStorage, compute_hash
 from ..exc import ObjNotFoundError, Error
 
 from swh.core import hashutil
@@ -91,9 +91,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
             # Checksum is missing, compute it on the fly.
-            h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
-            h.update(bytes)
-            obj_id = h.digest()
+            obj_id = compute_hash(content)
 
         if check_presence and obj_id in self:
             return obj_id
@@ -112,10 +110,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         self._get_object(obj_id)
         # Check the content integrity
         obj_content = self.get(obj_id)
-        # TODO factorize the hash computation.
-        h = hashutil._new_hash(ID_HASH_ALGO, len(obj_content))
-        h.update(obj_content)
-        content_obj_id = h.digest()
+        content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
