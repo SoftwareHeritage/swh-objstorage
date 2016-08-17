@@ -15,7 +15,7 @@ from swh.objstorage import get_objstorage
 from objstorage_testing import ObjStorageTestFixture
 
 
-class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -31,14 +31,6 @@ class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         return self.storage._obj_path(hex_obj_id)
 
     @istest
-    def contains(self):
-        content_p, obj_id_p = self.hash_content(b'contains_present')
-        content_m, obj_id_m = self.hash_content(b'contains_missing')
-        self.storage.add(content_p, obj_id=obj_id_p)
-        self.assertIn(obj_id_p, self.storage)
-        self.assertNotIn(obj_id_m, self.storage)
-
-    @istest
     def iter(self):
         content, obj_id = self.hash_content(b'iter')
         self.assertEqual(list(iter(self.storage)), [])
@@ -47,7 +39,7 @@ class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     @istest
     def len(self):
-        content, obj_id = self.hash_content(b'check_not_gzip')
+        content, obj_id = self.hash_content(b'len')
         self.assertEqual(len(self.storage), 0)
         self.storage.add(content, obj_id=obj_id)
         self.assertEqual(len(self.storage), 1)
