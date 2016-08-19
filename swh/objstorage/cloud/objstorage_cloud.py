@@ -136,14 +136,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
                                              hex_obj_id)
 
 
-def AwsCloudObjStorage(CloudObjStorage):
+class AwsCloudObjStorage(CloudObjStorage):
     """ Cloud-based object storage that works with Amazon's S3
     """
     def _get_provider(self):
         return Provider.S3
 
 
-def OpenStackCloudObjStorage(CloudObjStorage):
+class OpenStackCloudObjStorage(CloudObjStorage):
     """ Cloud-based object storage based on OpenStack Swift
     """
     def _get_provider(self):
