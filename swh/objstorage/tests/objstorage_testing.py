@@ -18,7 +18,7 @@ class ObjStorageTestFixture():
         obj_id = hashutil.hashdata(content)['sha1']
         return content, obj_id
 
-    def assertContentMatch(self, obj_id, expected_content):
+    def assertContentMatch(self, obj_id, expected_content):  # noqa
         content = self.storage.get(obj_id)
         self.assertEqual(content, expected_content)
 
