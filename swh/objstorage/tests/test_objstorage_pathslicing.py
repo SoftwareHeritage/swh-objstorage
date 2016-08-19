@@ -10,30 +10,25 @@ from nose.tools import istest
 
 from swh.core import hashutil
 from swh.objstorage import exc
-from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage import get_objstorage
 
 from objstorage_testing import ObjStorageTestFixture
 
 
-class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
         self.slicing = '0:2/2:4/4:6'
         self.tmpdir = tempfile.mkdtemp()
-        self.storage = PathSlicingObjStorage(self.tmpdir, self.slicing)
+        self.storage = get_objstorage(
+            'pathslicing',
+            {'root': self.tmpdir, 'slicing': self.slicing}
+        )
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         return self.storage._obj_path(hex_obj_id)
-
-    @istest
-    def contains(self):
-        content_p, obj_id_p = self.hash_content(b'contains_present')
-        content_m, obj_id_m = self.hash_content(b'contains_missing')
-        self.storage.add(content_p, obj_id=obj_id_p)
-        self.assertIn(obj_id_p, self.storage)
-        self.assertNotIn(obj_id_m, self.storage)
 
     @istest
     def iter(self):
@@ -44,7 +39,7 @@ class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     @istest
     def len(self):
-        content, obj_id = self.hash_content(b'check_not_gzip')
+        content, obj_id = self.hash_content(b'len')
         self.assertEqual(len(self.storage), 0)
         self.storage.add(content, obj_id=obj_id)
         self.assertEqual(len(self.storage), 1)

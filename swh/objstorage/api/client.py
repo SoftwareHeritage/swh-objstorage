@@ -1,20 +1,20 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
-
 
 import pickle
 
 import requests
 
 from requests.exceptions import ConnectionError
+from ..objstorage import ObjStorage
 from ..exc import ObjStorageAPIError
 from .common import (decode_response,
                      encode_data_client as encode_data)
 
 
-class RemoteObjStorage():
+class RemoteObjStorage(ObjStorage):
     """ Proxy to a remote object storage.
 
     This class allows to connect to an object storage server via
@@ -40,7 +40,6 @@ class RemoteObjStorage():
                 headers={'content-type': 'application/x-msgpack'},
             )
         except ConnectionError as e:
-            print(str(e))
             raise ObjStorageAPIError(e)
 
         # XXX: this breaks language-independence and should be
@@ -50,54 +49,21 @@ class RemoteObjStorage():
 
         return decode_response(response)
 
-    def content_add(self, bytes, obj_id=None):
-        """ Add a new object to the object storage.
+    def __contains__(self, obj_id):
+        return self.post('content/contains', {'obj_id': obj_id})
 
-        Args:
-            bytes: content of the object to be added to the storage.
-            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
-                given, obj_id will be trusted to match bytes. If missing,
-                obj_id will be computed on the fly.
+    def add(self, content, obj_id=None, check_presence=True):
+        return self.post('content/add', {'content': content, 'obj_id': obj_id,
+                                         'check_presence': check_presence})
 
-        """
-        return self.post('content/add', {'bytes': bytes, 'obj_id': obj_id})
-
-    def content_get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        Args:
-            obj_id: The id of the object.
-
-        Returns:
-            The content of the requested objects as bytes.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing
-        """
+    def get(self, obj_id):
         return self.post('content/get', {'obj_id': obj_id})
 
-    def content_get_random(self, batch_size):
-        """ Retrieve a random sample of existing content.
+    def get_batch(self, obj_ids):
+        return self.post('content/get/batch', {'obj_ids': obj_ids})
 
-        Args:
-            batch_size: Number of content requested.
-
-        Returns:
-            A list of random ids that represents existing contents.
-        """
-        return self.post('content/get/random', {'batch_size': batch_size})
-
-    def content_check(self, obj_id):
-        """ Integrity check for a given object
-
-        verify that the file object is in place, and that the gzipped content
-        matches the object id
-
-        Args:
-            obj_id: The id of the object.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing
-            Error: if the requested object is corrupt
-        """
+    def check(self, obj_id):
         self.post('content/check', {'obj_id': obj_id})
+
+    def get_random(self, batch_size):
+        return self.post('content/get/random', {'batch_size': batch_size})
