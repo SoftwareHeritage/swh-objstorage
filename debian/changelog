@@ -1,8 +1,10 @@
-swh-objstorage (0.0.1-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.2-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.objstorage v0.0.2
+  * Various enhancements to base classes
+  * Add implementation of a cloud object storage
 
- -- Quentin Campos <qcampos@etud.u-pem.fr>  Thu, 23 Jun 2016 16:30:47 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 19 Aug 2016 11:30:31 +0200
 
 swh-objstorage (0.0.1-1~swh1) unstable-swh; urgency=medium
 

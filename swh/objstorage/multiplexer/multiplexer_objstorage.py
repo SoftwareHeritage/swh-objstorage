@@ -59,14 +59,27 @@ class MultiplexerObjStorage(ObjStorage):
         return False
 
     def __iter__(self):
+        """ Iterates over the content of each storages
+
+        Due to the demultiplexer nature, same content can be in multiple
+        storages and may be yielded multiple times.
+
+        Warning: The `__iter__` methods frequently have bad performance. You
+        almost certainly don't want to use this method in production.
+        """
         for storage in self.storages:
             yield from storage
 
     def __len__(self):
-        """ Returns the number of files in the storage.
+        """ Compute the number of objects in the current object storage.
 
-        Warning: Multiple files may represent the same content, so this method
-            does not indicate how many different contents are in the storage.
+        Identical objects present in multiple storages will be counted as
+        multiple objects.
+        Warning: this currently uses `__iter__`, its warning about bad
+        performance applies.
+
+        Returns:
+            number of objects contained in the storage.
         """
         return sum(map(len, self.storages))
 
@@ -94,39 +107,10 @@ class MultiplexerObjStorage(ObjStorage):
                 for storage in self.storages].pop()
 
     def restore(self, content, obj_id=None):
-        """ Restore a content that have been corrupted.
-
-        This function is identical to add_bytes but does not check if
-        the object id is already in the file system.
-
-        (see "add" method)
-
-        Args:
-            content: content of the object to be added to the storage
-            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
-                given, obj_id will be trusted to match bytes. If missing,
-                obj_id will be computed on the fly.
-
-        Returns:
-            an id of the object into the storage. As the write-storages are
-            always readable as well, any id will be valid to retrieve a
-            content.
-        """
         return [storage.restore(content, obj_id)
                 for storage in self.storages].pop()
 
     def get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        Args:
-            obj_id: object id.
-
-        Returns:
-            the content of the requested object as bytes.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
-        """
         for storage in self.storages:
             try:
                 return storage.get(obj_id)
@@ -136,18 +120,6 @@ class MultiplexerObjStorage(ObjStorage):
         raise ObjNotFoundError(obj_id)
 
     def check(self, obj_id):
-        """ Perform an integrity check for a given object.
-
-        Verify that the file object is in place and that the gziped content
-        matches the object id.
-
-        Args:
-            obj_id: object id.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
-            Error: if the request object is corrupted.
-        """
         nb_present = 0
         for storage in self.storages:
             try:
@@ -164,18 +136,6 @@ class MultiplexerObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
     def get_random(self, batch_size):
-        """ Get random ids of existing contents
-
-        This method is used in order to get random ids to perform
-        content integrity verifications on random contents.
-
-        Attributes:
-            batch_size (int): Number of ids that will be given
-
-        Yields:
-            An iterable of ids of contents that are in the current object
-            storage.
-        """
         storages_set = [storage for storage in self.storages
                         if len(storage) > 0]
         if len(storages_set) <= 0:

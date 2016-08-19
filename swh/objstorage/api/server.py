@@ -45,6 +45,11 @@ def content():
     return str(list(g.storage))
 
 
+@app.route('/content/contains', methods=['POST'])
+def contains():
+    return encode_data(g.objstorage.__contains__(**decode_request(request)))
+
+
 @app.route('/content/add', methods=['POST'])
 def add_bytes():
     return encode_data(g.objstorage.add(**decode_request(request)))
@@ -53,6 +58,11 @@ def add_bytes():
 @app.route('/content/get', methods=['POST'])
 def get_bytes():
     return encode_data(g.objstorage.get(**decode_request(request)))
+
+
+@app.route('/content/get/batch', methods=['POST'])
+def get_batch():
+    return encode_data(g.objstorage.get_batch(**decode_request(request)))
 
 
 @app.route('/content/get/random', methods=['POST'])

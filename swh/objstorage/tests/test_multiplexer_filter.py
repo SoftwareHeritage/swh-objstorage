@@ -3,8 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import random
+import tempfile
 import unittest
+import random
 
 from string import ascii_lowercase
 
@@ -13,62 +14,12 @@ from nose.plugins.attrib import attr
 
 from swh.core import hashutil
 from swh.objstorage.exc import ObjNotFoundError, Error
-from swh.objstorage import ObjStorage
-from swh.objstorage.multiplexer.filter import (add_filter, read_only,
-                                               id_prefix, id_regex)
+from swh.objstorage import get_objstorage
+from swh.objstorage.multiplexer.filter import read_only, id_prefix, id_regex
 
 
 def get_random_content():
     return bytes(''.join(random.sample(ascii_lowercase, 10)), 'utf8')
-
-
-class MockObjStorage(ObjStorage):
-    """ Mock an object storage for testing the filters.
-    """
-    def __init__(self):
-        self.objects = {}
-
-    def __contains__(self, obj_id):
-        return obj_id in self.objects
-
-    def __len__(self):
-        return len(self.objects)
-
-    def __iter__(self):
-        return iter(self.objects)
-
-    def id(self, content):
-        # Id is the content itself for easily choose the id of
-        # a content for filtering.
-        return hashutil.hashdata(content)['sha1']
-
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            obj_id = self.id(content)
-
-        if check_presence and obj_id in self.objects:
-            return obj_id
-
-        self.objects[obj_id] = content
-        return obj_id
-
-    def restore(self, content, obj_id=None):
-        return self.add(content, obj_id, check_presence=False)
-
-    def get(self, obj_id):
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-        return self.objects[obj_id]
-
-    def check(self, obj_id):
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-        if obj_id != self.id(self.objects[obj_id]):
-            raise Error(obj_id)
-
-    def get_random(self, batch_size):
-        batch_size = min(len(self), batch_size)
-        return random.sample(list(self.objects), batch_size)
 
 
 @attr('!db')
@@ -77,21 +28,25 @@ class MixinTestReadFilter(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        storage = MockObjStorage()
-
+        pstorage = {'cls': 'pathslicing',
+                    'args': {'root': tempfile.mkdtemp(),
+                             'slicing': '0:5'}}
+        base_storage = get_objstorage(**pstorage)
+        base_storage.id = lambda cont: hashutil.hashdata(cont)['sha1']
+        self.storage = get_objstorage('filtered',
+                                      {'storage_conf': pstorage,
+                                       'filters_conf': [read_only()]})
         self.valid_content = b'pre-existing content'
         self.invalid_content = b'invalid_content'
         self.true_invalid_content = b'Anything that is not correct'
         self.absent_content = b'non-existent content'
         # Create a valid content.
-        self.valid_id = storage.add(self.valid_content)
+        self.valid_id = base_storage.add(self.valid_content)
         # Create an invalid id and add a content with it.
-        self.invalid_id = storage.id(self.true_invalid_content)
-        storage.add(self.invalid_content, obj_id=self.invalid_id)
+        self.invalid_id = base_storage.id(self.true_invalid_content)
+        base_storage.add(self.invalid_content, obj_id=self.invalid_id)
         # Compute an id for a non-existing content.
-        self.absent_id = storage.id(self.absent_content)
-
-        self.storage = add_filter(storage, read_only())
+        self.absent_id = base_storage.id(self.absent_content)
 
     @istest
     def can_contains(self):
@@ -124,21 +79,21 @@ class MixinTestReadFilter(unittest.TestCase):
 
     @istest
     def can_get_random(self):
-        self.assertEqual(1, len(self.storage.get_random(1)))
-        self.assertEqual(len(self.storage), len(self.storage.get_random(1000)))
+        self.assertEqual(1, len(list(self.storage.get_random(1))))
+        print(list(self.storage.get_random(1000)))
+        self.assertEqual(len(list(self.storage)),
+                         len(set(self.storage.get_random(1000))))
 
     @istest
     def cannot_add(self):
         new_id = self.storage.add(b'New content')
         result = self.storage.add(self.valid_content, self.valid_id)
-        self.assertNotIn(new_id, self.storage)
+        self.assertIsNone(new_id, self.storage)
         self.assertIsNone(result)
 
     @istest
     def cannot_restore(self):
-        new_id = self.storage.restore(b'New content')
         result = self.storage.restore(self.valid_content, self.valid_id)
-        self.assertNotIn(new_id, self.storage)
         self.assertIsNone(result)
 
 
@@ -154,11 +109,15 @@ class MixinTestIdFilter():
         # Use a hack here : as the mock uses the content as id, it is easy to
         # create contents that are filtered or not.
         self.prefix = '71'
-        storage = MockObjStorage()
-
         # Make the storage filtered
+        self.sconf = {'cls': 'pathslicing',
+                      'args': {'root': tempfile.mkdtemp(),
+                               'slicing': '0:5'}}
+        storage = get_objstorage(**self.sconf)
         self.base_storage = storage
-        self.storage = self.filter_storage(storage)
+        self.storage = self.filter_storage(self.sconf)
+        # Set the id calculators
+        storage.id = lambda cont: hashutil.hashdata(cont)['sha1']
 
         # Present content with valid id
         self.present_valid_content = self.ensure_valid(b'yroqdtotji')
@@ -208,14 +167,14 @@ class MixinTestIdFilter():
             self.true_missing_corrupted_invalid_content)
 
         # Add the content that are supposed to be present
-        storage.add(self.present_valid_content)
-        storage.add(self.present_invalid_content)
-        storage.add(self.present_corrupted_valid_content,
-                    obj_id=self.present_corrupted_valid_id)
-        storage.add(self.present_corrupted_invalid_content,
-                    obj_id=self.present_corrupted_invalid_id)
+        self.storage.add(self.present_valid_content)
+        self.storage.add(self.present_invalid_content)
+        self.storage.add(self.present_corrupted_valid_content,
+                         obj_id=self.present_corrupted_valid_id)
+        self.storage.add(self.present_corrupted_invalid_content,
+                         obj_id=self.present_corrupted_invalid_id)
 
-    def filter_storage(self, storage):
+    def filter_storage(self, sconf):
         raise NotImplementedError(
             'Id_filter test class must have a filter_storage method')
 
@@ -359,8 +318,10 @@ class TestPrefixFilter(MixinTestIdFilter, unittest.TestCase):
         self.assertFalse(hex_obj_id.startswith(self.prefix))
         return content
 
-    def filter_storage(self, storage):
-        return add_filter(storage, id_prefix(self.prefix))
+    def filter_storage(self, sconf):
+        return get_objstorage('filtered',
+                              {'storage_conf': sconf,
+                               'filters_conf': [id_prefix(self.prefix)]})
 
 
 @attr('!db')
@@ -369,5 +330,7 @@ class TestRegexFilter(MixinTestIdFilter, unittest.TestCase):
         self.regex = r'[a-f][0-9].*'
         super().setUp()
 
-    def filter_storage(self, storage):
-        return add_filter(storage, id_regex(self.regex))
+    def filter_storage(self, sconf):
+        return get_objstorage('filtered',
+                              {'storage_conf': sconf,
+                               'filters_conf': [id_regex(self.regex)]})

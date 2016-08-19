@@ -3,12 +3,25 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import abc
+
+from swh.core import hashutil
+
+from .exc import ObjNotFoundError
+
 
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 
 
-class ObjStorage():
+def compute_hash(content):
+    return hashutil.hashdata(
+        content,
+        algorithms=[ID_HASH_ALGO]
+    ).get(ID_HASH_ALGO)
+
+
+class ObjStorage(metaclass=abc.ABCMeta):
     """ High-level API to manipulate the Software Heritage object storage.
 
     Conceptually, the object storage offers 5 methods:
@@ -28,11 +41,18 @@ class ObjStorage():
     its own way to store the contents.
     """
 
-    def __contains__(self, *args, **kwargs):
+    @abc.abstractmethod
+    def __contains__(self, obj_id, *args, **kwargs):
+        """ Indicates if the given object is present in the storage
+
+        Returns:
+            True iff the object is present in the current object storage.
+        """
         raise NotImplementedError(
             "Implementations of ObjStorage must have a '__contains__' method"
         )
 
+    @abc.abstractmethod
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
         """ Add a new object to the object storage.
 
@@ -56,6 +76,8 @@ class ObjStorage():
 
         This function is identical to add_bytes but does not check if
         the object id is already in the file system.
+        The default implementation provided by the current class is
+        suitable for most cases.
 
         Args:
             content: content of the object to be added to the storage
@@ -63,10 +85,10 @@ class ObjStorage():
                 given, obj_id will be trusted to match bytes. If missing,
                 obj_id will be computed on the fly.
         """
-        raise NotImplemented(
-            "Implementations of ObjStorage must have a 'restore' method"
-        )
+        # check_presence to false will erase the potential previous content.
+        return self.add(content, obj_id, check_presence=False)
 
+    @abc.abstractmethod
     def get(self, obj_id, *args, **kwargs):
         """ Retrieve the content of a given object.
 
@@ -83,6 +105,30 @@ class ObjStorage():
             "Implementations of ObjStorage must have a 'get' method"
         )
 
+    def get_batch(self, obj_ids, *args, **kwargs):
+        """ Retrieve content in bulk.
+
+        Note: This function does have a default implementation in ObjStorage
+        that is suitable for most cases.
+        For object storages that needs to do the minimal number of requests
+        possible (ex: remote object storages), that method can be overriden
+        to perform a more efficient operation.
+
+        Args:
+            obj_ids: list of object ids.
+
+        Returns:
+            list of resulting contents, or None if the content could not
+            be retrieved. Do not raise any exception as a fail for one content
+            will not cancel the whole request.
+        """
+        for obj_id in obj_ids:
+            try:
+                yield self.get(obj_id)
+            except ObjNotFoundError:
+                yield None
+
+    @abc.abstractmethod
     def check(self, obj_id, *args, **kwargs):
         """ Perform an integrity check for a given object.
 
@@ -106,7 +152,7 @@ class ObjStorage():
         This method is used in order to get random ids to perform
         content integrity verifications on random contents.
 
-        Attributes:
+        Args:
             batch_size (int): Number of ids that will be given
 
         Yields:

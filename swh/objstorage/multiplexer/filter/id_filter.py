@@ -4,30 +4,23 @@
 # See top-level LICENSE file for more information
 
 import re
+import abc
 
 from swh.core import hashutil
 
 from .filter import ObjStorageFilter
-from ...objstorage import ID_HASH_ALGO
+from ...objstorage import compute_hash
 from ...exc import ObjNotFoundError
 
 
-def compute_hash(bytes):
-    """ Compute the hash of the given content.
-    """
-    # Checksum is missing, compute it on the fly.
-    h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
-    h.update(bytes)
-    return h.digest()
-
-
-class IdObjStorageFilter(ObjStorageFilter):
+class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     """ Filter that only allow operations if the object id match a requirement.
 
     Even for read operations, check before if the id match the requirements.
     This may prevent for unnecesary disk access.
     """
 
+    @abc.abstractmethod
     def is_valid(self, obj_id):
         """ Indicates if the given id is valid.
         """
@@ -76,7 +69,6 @@ class IdObjStorageFilter(ObjStorageFilter):
 class RegexIdObjStorageFilter(IdObjStorageFilter):
     """ Filter that allow operations if the content's id as hex match a regex.
     """
-
     def __init__(self, storage, regex):
         super().__init__(storage)
         self.regex = re.compile(regex)
@@ -89,7 +81,6 @@ class RegexIdObjStorageFilter(IdObjStorageFilter):
 class PrefixIdObjStorageFilter(IdObjStorageFilter):
     """ Filter that allow operations if the hexlified id have a given prefix.
     """
-
     def __init__(self, storage, prefix):
         super().__init__(storage)
         self.prefix = str(prefix)
