@@ -1,0 +1,5 @@
+click
+flask
+requests
+swh.core>=0.0.20
+vcversioner

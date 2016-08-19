@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from swh.core import hashutil
 
-from .objstorage import ObjStorage, ID_HASH_ALGO, ID_HASH_LENGTH
+from .objstorage import ObjStorage, compute_hash, ID_HASH_ALGO, ID_HASH_LENGTH
 from .exc import ObjNotFoundError, Error
 
 
@@ -131,11 +131,6 @@ class PathSlicingObjStorage(ObjStorage):
             )
 
     def __contains__(self, obj_id):
-        """ Check whether the given object is present in the storage or not.
-
-        Returns:
-            True iff the object is present in the storage.
-        """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         return os.path.exists(self._obj_path(hex_obj_id))
 
@@ -167,7 +162,6 @@ class PathSlicingObjStorage(ObjStorage):
 
         Return:
             number of objects contained in the storage
-
         """
         return sum(1 for i in self)
 
@@ -198,25 +192,9 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return os.path.join(self._obj_dir(hex_obj_id), hex_obj_id)
 
-    def add(self, bytes, obj_id=None, check_presence=True):
-        """ Add a new object to the object storage.
-
-        Args:
-            bytes: content of the object to be added to the storage.
-            obj_id: checksum of [bytes] using [ID_HASH_ALGO] algorithm. When
-                given, obj_id will be trusted to match the bytes. If missing,
-                obj_id will be computed on the fly.
-            check_presence: indicate if the presence of the content should be
-                verified before adding the file.
-
-        Returns:
-            the id of the object into the storage.
-        """
+    def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
-            h.update(bytes)
-            obj_id = h.digest()
+            obj_id = compute_hash(content)
 
         if check_presence and obj_id in self:
             # If the object is already present, return immediatly.
@@ -224,36 +202,11 @@ class PathSlicingObjStorage(ObjStorage):
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         with _write_obj_file(hex_obj_id, self) as f:
-            f.write(bytes)
+            f.write(content)
 
         return obj_id
 
-    def restore(self, bytes, obj_id=None):
-        """ Restore a content that have been corrupted.
-
-        This function is identical to add_bytes but does not check if
-        the object id is already in the file system.
-
-        Args:
-            bytes: content of the object to be added to the storage
-            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
-                given, obj_id will be trusted to match bytes. If missing,
-                obj_id will be computed on the fly.
-        """
-        return self.add(bytes, obj_id, check_presence=False)
-
     def get(self, obj_id):
-        """ Retrieve the content of a given object.
-
-        Args:
-            obj_id: object id.
-
-        Returns:
-            the content of the requested object as bytes.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
-        """
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -263,18 +216,6 @@ class PathSlicingObjStorage(ObjStorage):
             return f.read()
 
     def check(self, obj_id):
-        """ Perform an integrity check for a given object.
-
-        Verify that the file object is in place and that the gziped content
-        matches the object id.
-
-        Args:
-            obj_id: object id.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
-            Error: if the request object is corrupted.
-        """
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -309,18 +250,6 @@ class PathSlicingObjStorage(ObjStorage):
             raise Error('Corrupt object %s is not a gzip file' % obj_id)
 
     def get_random(self, batch_size):
-        """ Get random ids of existing contents
-
-        This method is used in order to get random ids to perform
-        content integrity verifications on random contents.
-
-        Attributes:
-            batch_size (int): Number of ids that will be given
-
-        Yields:
-            An iterable of ids of contents that are in the current object
-            storage.
-        """
         def get_random_content(self, batch_size):
             """ Get a batch of content inside a single directory.
 

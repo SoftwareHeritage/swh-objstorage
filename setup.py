@@ -24,6 +24,7 @@ setup(
     packages=[
         'swh.objstorage',
         'swh.objstorage.api',
+        'swh.objstorage.cloud',
         'swh.objstorage.multiplexer',
         'swh.objstorage.multiplexer.filter'
     ],  # packages's modules
