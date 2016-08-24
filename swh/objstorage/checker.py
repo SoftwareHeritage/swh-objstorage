@@ -234,18 +234,18 @@ class ArchiveNotifierContentChecker(LogContentChecker):
 
 
 @click.command()
-@click.argument('--checker-type', required=1, default='log')
+@click.argument('checker-type', required=1, default='log')
 @click.option('--daemon/--nodaemon', default=True,
               help='Indicates if the checker should run forever '
               'or on a single batch of content')
-def launch(checker_type, is_daemon):
+def launch(checker_type, daemon):
     types = {
         'log': LogContentChecker,
         'repair': RepairContentChecker,
         'archiver_notifier': ArchiveNotifierContentChecker
     }
     checker = types[checker_type]()
-    if is_daemon:
+    if daemon:
         checker.run_as_daemon()
     else:
         checker.run()
