@@ -15,14 +15,17 @@ from .exc import ObjNotFoundError, Error
 
 
 class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
-    """ Abstract class of the content integrity checker.
+    """Abstract class of the content integrity checker.
 
     This checker's purpose is to iterate over the contents of a storage and
     check the integrity of each file.
     Behavior of the checker to deal with corrupted status will be specified
     by subclasses.
-    """
 
+    You should override the DEFAULT_CONFIG and CONFIG_BASE_FILENAME
+    variables if you need it.
+
+    """
     DEFAULT_CONFIG = {
         'storage': ('dict',
                     {'cls': 'pathslicing',
@@ -30,6 +33,7 @@ class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
                               'slicing': '0:2/2:4/4:6'}}),
         'batch_size': ('int', 1000),
     }
+
     CONFIG_BASE_FILENAME = 'objstorage_checker'
 
     def __init__(self):
@@ -110,6 +114,8 @@ class LogContentChecker(BaseContentChecker):
         'log_tag': ('str', 'objstorage.checker')
     }
 
+    CONFIG_BASE_FILENAME = 'objstorage_log_checker'
+
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.config['log_tag'])
@@ -143,6 +149,8 @@ class RepairContentChecker(LogContentChecker):
                             }})
     }
 
+    CONFIG_BASE_FILENAME = 'objstorage_repair_checker'
+
     def __init__(self):
         super().__init__()
         self.backups = [get_objstorage(**storage)
@@ -151,11 +159,13 @@ class RepairContentChecker(LogContentChecker):
     def corrupted_content(self, obj_id):
         """ Perform an action to treat with a corrupted content.
         """
+        super().corrupted_content(obj_id)
         self._restore(obj_id)
 
     def missing_content(self, obj_id):
         """ Perform an action to treat with a missing content.
         """
+        super().missing_content(obj_id)
         self._restore(obj_id)
 
     def _restore(self, obj_id):
@@ -199,6 +209,8 @@ class ArchiveNotifierContentChecker(LogContentChecker):
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev')
     }
 
+    CONFIG_BASE_FILENAME = 'objstorage_archive_notifier_checker'
+
     def __init__(self):
         super().__init__()
         self.archiver_db = ArchiverStorage(self.config['dbconn'])
@@ -207,11 +219,13 @@ class ArchiveNotifierContentChecker(LogContentChecker):
     def corrupted_content(self, obj_id):
         """ Perform an action to treat with a corrupted content.
         """
+        super().corrupted_content(obj_id)
         self._update_status(obj_id, 'corrupted')
 
     def missing_content(self, obj_id):
         """ Perform an action to treat with a missing content.
         """
+        super().missing_content(obj_id)
         self._update_status(obj_id, 'missing')
 
     def _update_status(self, obj_id, status):
@@ -220,18 +234,18 @@ class ArchiveNotifierContentChecker(LogContentChecker):
 
 
 @click.command()
-@click.argument('--checker-type', required=1, default='log')
+@click.argument('checker-type', required=1, default='log')
 @click.option('--daemon/--nodaemon', default=True,
               help='Indicates if the checker should run forever '
               'or on a single batch of content')
-def launch(checker_type, is_daemon):
+def launch(checker_type, daemon):
     types = {
         'log': LogContentChecker,
         'repair': RepairContentChecker,
         'archiver_notifier': ArchiveNotifierContentChecker
     }
     checker = types[checker_type]()
-    if is_daemon:
+    if daemon:
         checker.run_as_daemon()
     else:
         checker.run()
