@@ -15,14 +15,17 @@ from .exc import ObjNotFoundError, Error
 
 
 class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
-    """ Abstract class of the content integrity checker.
+    """Abstract class of the content integrity checker.
 
     This checker's purpose is to iterate over the contents of a storage and
     check the integrity of each file.
     Behavior of the checker to deal with corrupted status will be specified
     by subclasses.
-    """
 
+    You should override the DEFAULT_CONFIG and CONFIG_BASE_FILENAME
+    variables if you need it.
+
+    """
     DEFAULT_CONFIG = {
         'storage': ('dict',
                     {'cls': 'pathslicing',
@@ -30,6 +33,7 @@ class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
                               'slicing': '0:2/2:4/4:6'}}),
         'batch_size': ('int', 1000),
     }
+
     CONFIG_BASE_FILENAME = 'objstorage_checker'
 
     def __init__(self):
@@ -110,6 +114,8 @@ class LogContentChecker(BaseContentChecker):
         'log_tag': ('str', 'objstorage.checker')
     }
 
+    CONFIG_BASE_FILENAME = 'objstorage_log_checker'
+
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.config['log_tag'])
@@ -142,6 +148,8 @@ class RepairContentChecker(LogContentChecker):
                                 'args': {'base_url': 'http://banco:5003/'}
                             }})
     }
+
+    CONFIG_BASE_FILENAME = 'objstorage_repair_checker'
 
     def __init__(self):
         super().__init__()
@@ -200,6 +208,8 @@ class ArchiveNotifierContentChecker(LogContentChecker):
         'storage_name': ('str', 'banco'),
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev')
     }
+
+    CONFIG_BASE_FILENAME = 'objstorage_archive_notifier_checker'
 
     def __init__(self):
         super().__init__()
