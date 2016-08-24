@@ -151,11 +151,13 @@ class RepairContentChecker(LogContentChecker):
     def corrupted_content(self, obj_id):
         """ Perform an action to treat with a corrupted content.
         """
+        super().corrupted_content(obj_id)
         self._restore(obj_id)
 
     def missing_content(self, obj_id):
         """ Perform an action to treat with a missing content.
         """
+        super().missing_content(obj_id)
         self._restore(obj_id)
 
     def _restore(self, obj_id):
@@ -207,11 +209,13 @@ class ArchiveNotifierContentChecker(LogContentChecker):
     def corrupted_content(self, obj_id):
         """ Perform an action to treat with a corrupted content.
         """
+        super().corrupted_content(obj_id)
         self._update_status(obj_id, 'corrupted')
 
     def missing_content(self, obj_id):
         """ Perform an action to treat with a missing content.
         """
+        super().missing_content(obj_id)
         self._update_status(obj_id, 'missing')
 
     def _update_status(self, obj_id, status):
