@@ -19,3 +19,10 @@ Package: python3-swh.objstorage
 Architecture: all
 Depends: python3-swh.core (>= 0.0.20~), ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage Object Storage
+
+Package: python3-swh.objstorage.checker
+Architecture: all
+Depends: python3-swh.objstorage (= ${binary:Version}), python3-swh.core (>= 0.0.20~),
+         ${misc:Depends}, ${python3:Depends}
+Description: Software Heritage Object Storage Checker
+
