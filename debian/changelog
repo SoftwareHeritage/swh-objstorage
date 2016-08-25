@@ -1,8 +1,10 @@
-swh-objstorage (0.0.3-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.4-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.4
+  * Fix configuration path to look for in
+  * /etc/softwareheritage/objstorage/*_checker.yml
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 24 Aug 2016 16:32:42 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 25 Aug 2016 12:08:13 +0200
 
 swh-objstorage (0.0.3-1~swh1) unstable-swh; urgency=medium
 
