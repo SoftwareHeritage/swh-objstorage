@@ -34,7 +34,7 @@ class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
         'batch_size': ('int', 1000),
     }
 
-    CONFIG_BASE_FILENAME = 'objstorage_checker'
+    CONFIG_BASE_FILENAME = 'objstorage/objstorage_checker'
 
     def __init__(self):
         """ Create a checker that ensure the objstorage have no corrupted file
@@ -114,7 +114,7 @@ class LogContentChecker(BaseContentChecker):
         'log_tag': ('str', 'objstorage.checker')
     }
 
-    CONFIG_BASE_FILENAME = 'objstorage_log_checker'
+    CONFIG_BASE_FILENAME = 'objstorage/log_checker'
 
     def __init__(self):
         super().__init__()
@@ -149,7 +149,7 @@ class RepairContentChecker(LogContentChecker):
                             }})
     }
 
-    CONFIG_BASE_FILENAME = 'objstorage_repair_checker'
+    CONFIG_BASE_FILENAME = 'objstorage/repair_checker'
 
     def __init__(self):
         super().__init__()
@@ -209,7 +209,7 @@ class ArchiveNotifierContentChecker(LogContentChecker):
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev')
     }
 
-    CONFIG_BASE_FILENAME = 'objstorage_archive_notifier_checker'
+    CONFIG_BASE_FILENAME = 'objstorage/archive_notifier_checker'
 
     def __init__(self):
         super().__init__()
