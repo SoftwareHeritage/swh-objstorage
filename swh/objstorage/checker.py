@@ -10,8 +10,8 @@ import logging
 from swh.core import config
 from swh.storage.archiver.storage import ArchiverStorage
 
-from . import get_objstorage
-from .exc import ObjNotFoundError, Error
+from swh.objstorage import get_objstorage
+from swh.objstorage.exc import ObjNotFoundError, Error
 
 
 class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
