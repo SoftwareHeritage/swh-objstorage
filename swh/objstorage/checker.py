@@ -153,8 +153,10 @@ class RepairContentChecker(LogContentChecker):
 
     def __init__(self):
         super().__init__()
-        self.backups = [get_objstorage(**storage)
-                        for name, storage in self.config['backup_storages']]
+        self.backups = [
+            get_objstorage(**storage)
+            for name, storage in self.config['backup_storages'].items()
+        ]
 
     def corrupted_content(self, obj_id):
         """ Perform an action to treat with a corrupted content.
