@@ -51,7 +51,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         This method must be overriden by subclasses to specify which of the
         native libcloud driver the current storage should connect to.
         Alternatively, provider for a custom driver may be returned, in which
-        case the provider will have tu support `get_driver` method.
+        case the provider will have to support `get_driver` method.
         """
         raise NotImplementedError('%s must implement `get_provider` method'
                                   % type(self))
@@ -117,7 +117,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def _get_object(self, obj_id):
         """ Get a Libcloud wrapper for an object pointer.
 
-        This wrapper does not retrieve the content of the object direclty.
+        This wrapper does not retrieve the content of the object directly.
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         try:
@@ -128,7 +128,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def _put_object(self, content, obj_id):
         """ Create an object in the cloud storage.
 
-        Created object will contains the content and be referenced by the
+        Created object will contain the content and be referenced by the
         given id.
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
@@ -137,14 +137,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
 
 class AwsCloudObjStorage(CloudObjStorage):
-    """ Cloud-based object storage that works with Amazon's S3
+    """ Amazon's S3 Cloud-based object storage
     """
     def _get_provider(self):
         return Provider.S3
 
 
 class OpenStackCloudObjStorage(CloudObjStorage):
-    """ Cloud-based object storage based on OpenStack Swift
+    """ OpenStack Swift Cloud based object storage
     """
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT
