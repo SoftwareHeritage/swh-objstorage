@@ -15,14 +15,14 @@ from libcloud.storage.types import Provider, ObjectDoesNotExistError
 
 
 class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
-    """ Abstract ObjStorage that allows connection to a cloud using Libcloud
+    """Abstract ObjStorage that connect to a cloud using Libcloud
 
-    Implementations of this class must redefine the _get_provider method to
-    make it return a driver provider (i.e. object that supports `get_driver`
-    method) which return a LibCloud driver
-    (see https://libcloud.readthedocs.io/en/latest/storage/api.html).
+    Implementations of this class must redefine the _get_provider
+    method to make it return a driver provider (i.e. object that
+    supports `get_driver` method) which return a LibCloud driver (see
+    https://libcloud.readthedocs.io/en/latest/storage/api.html).
+
     """
-
     def __init__(self, api_key, api_secret_key, container_name):
         self.driver = self._get_driver(api_key, api_secret_key)
         self.container_name = container_name
@@ -30,7 +30,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             container_name=container_name)
 
     def _get_driver(self, api_key, api_secret_key):
-        """ Initialize a driver to communicate with the cloud
+        """Initialize a driver to communicate with the cloud
 
         Args:
             api_key: key to connect to the API.
@@ -38,6 +38,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         Returns:
             a Libcloud driver to a cloud storage.
+
         """
         # Get the driver class from its description.
         cls = providers.get_driver(self._get_provider())
@@ -46,12 +47,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def _get_provider(self):
-        """ Get a libcloud driver provider
+        """Get a libcloud driver provider
 
-        This method must be overriden by subclasses to specify which of the
-        native libcloud driver the current storage should connect to.
-        Alternatively, provider for a custom driver may be returned, in which
-        case the provider will have to support `get_driver` method.
+        This method must be overriden by subclasses to specify which
+        of the native libcloud driver the current storage should
+        connect to.  Alternatively, provider for a custom driver may
+        be returned, in which case the provider will have tu support
+        `get_driver` method.
+
         """
         raise NotImplementedError('%s must implement `get_provider` method'
                                   % type(self))
@@ -59,7 +62,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def __contains__(self, obj_id):
         try:
             self._get_object(obj_id)
-        except ObjectDoesNotExistError:
+        except ObjNotFoundError:
             return False
         else:
             return True
@@ -78,13 +81,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
                        self.driver.iterate_container_objects(self.container))
 
     def __len__(self):
-        """ Compute the number of objects in the current object storage.
+        """Compute the number of objects in the current object storage.
 
         Warning: this currently uses `__iter__`, its warning about bad
         performance applies.
 
         Returns:
             number of objects contained in the storage.
+
         """
         return sum(1 for i in self)
 
@@ -100,7 +104,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         return obj_id
 
     def restore(self, content, obj_id=None):
-        return self.add(content, obj_id, chech_presence=False)
+        return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):
         return bytes(self._get_object(obj_id).as_stream())
@@ -115,9 +119,11 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             raise Error(obj_id)
 
     def _get_object(self, obj_id):
-        """ Get a Libcloud wrapper for an object pointer.
+        """Get a Libcloud wrapper for an object pointer.
 
-        This wrapper does not retrieve the content of the object directly.
+        This wrapper does not retrieve the content of the object
+        directly.
+
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         try:
@@ -126,10 +132,11 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             raise ObjNotFoundError(e.object_name)
 
     def _put_object(self, content, obj_id):
-        """ Create an object in the cloud storage.
+        """Create an object in the cloud storage.
 
-        Created object will contain the content and be referenced by the
-        given id.
+        Created object will contains the content and be referenced by
+        the given id.
+
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         self.driver.upload_object_via_stream(iter(content), self.container,
@@ -138,6 +145,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
 class AwsCloudObjStorage(CloudObjStorage):
     """ Amazon's S3 Cloud-based object storage
+
     """
     def _get_provider(self):
         return Provider.S3
@@ -145,6 +153,7 @@ class AwsCloudObjStorage(CloudObjStorage):
 
 class OpenStackCloudObjStorage(CloudObjStorage):
     """ OpenStack Swift Cloud based object storage
+
     """
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT
