@@ -28,3 +28,10 @@ Depends: python3-swh.objstorage (= ${binary:Version}), python3-swh.storage.archi
          ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage Object Storage Checker
 
+Package: python3-swh.objstorage.cloud
+Architecture: all
+Depends: python3-swh.objstorage (= ${binary:Version}), python3-libcloud,
+         ${misc:Depends}, ${python3:Depends}
+Breaks: python3-swh.objstorage (<= 0.0.7~)
+Description: Software Heritage Cloud Object Storage
+

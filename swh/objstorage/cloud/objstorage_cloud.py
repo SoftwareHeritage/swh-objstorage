@@ -5,10 +5,9 @@
 
 import abc
 
-from ..objstorage import ObjStorage, compute_hash
-from ..exc import ObjNotFoundError, Error
-
 from swh.core import hashutil
+from swh.objstorage.objstorage import ObjStorage, compute_hash
+from swh.objstorage.exc import ObjNotFoundError, Error
 
 from libcloud.storage import providers
 from libcloud.storage.types import Provider, ObjectDoesNotExistError
