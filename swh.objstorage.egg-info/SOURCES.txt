@@ -41,6 +41,7 @@ swh/objstorage/tests/server_testing.py
 swh/objstorage/tests/test_checker.py
 swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
+swh/objstorage/tests/test_objstorage_cloud.py
 swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
 swh/objstorage/tests/test_objstorage_pathslicing.py

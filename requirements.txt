@@ -13,3 +13,5 @@ flask
 swh.core >= 0.0.20
 swh.storage.archiver >= 0.0.52
 click
+
+apache-libcloud

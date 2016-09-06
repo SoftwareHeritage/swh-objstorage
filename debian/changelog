@@ -1,8 +1,10 @@
-swh-objstorage (0.0.7-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.8-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.8
+  * Create new package python3-swh.objstorage.cloud
+  * Add tests on cloud modules
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 26 Aug 2016 11:33:22 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 06 Sep 2016 16:27:59 +0200
 
 swh-objstorage (0.0.7-1~swh1) unstable-swh; urgency=medium
 
