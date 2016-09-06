@@ -11,6 +11,9 @@ override_dh_install:
 		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.checker/usr/lib/python$$pyvers/dist-packages/swh/objstorage/ ; \
 		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/checker.py \
 		$(CURDIR)/debian/python3-swh.objstorage.checker/usr/lib/python$$pyvers/dist-packages/swh/objstorage/ ; \
+		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud ; \
+		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud/* \
+		$(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud/ ; \
 	done
 
 

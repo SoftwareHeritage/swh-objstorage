@@ -1,3 +1,4 @@
+apache-libcloud
 click
 flask
 requests
