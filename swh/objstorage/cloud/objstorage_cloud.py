@@ -156,3 +156,11 @@ class OpenStackCloudObjStorage(CloudObjStorage):
     """
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT
+
+
+class AzureCloudObjStorage(CloudObjStorage):
+    """ Azure Cloud based object storage
+
+    """
+    def _get_provider(self):
+        return Provider.AZURE_BLOBS
