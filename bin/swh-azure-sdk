@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+# Copyright (C) 2015  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import click
+
+from azure.storage.blob import BlockBlobService
+from azure.storage.blob import ContentSettings
+
+from swh.core import config
+
+import requests
+import logging
+
+# These two lines enable debugging at httplib level
+# (requests->urllib3->http.client) You will see the REQUEST, including
+# HEADERS and DATA, and RESPONSE with HEADERS but without DATA.  The
+# only thing missing will be the response.body which is not logged.
+try:
+    import http.client as http_client
+except ImportError:
+    # Python 2
+    import httplib as http_client
+http_client.HTTPConnection.debuglevel = 1
+
+import logging
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
+requests_log = logging.getLogger("requests.packages.urllib3")
+requests_log.setLevel(logging.DEBUG)
+requests_log.propagate = True
+
+
+class AzureAccess(config.SWHConfig):
+    DEFAULT_CONFIG = {
+        'storage_account_name': ('str', 'account-name-as-access-key'),
+        'storage_secret_key': ('str', 'associated-secret-key'),
+        'container_name': ('str', 'sample-container'),
+    }
+
+    CONFIG_BASE_FILENAME = 'objstorage/azure'
+
+    def __init__(self):
+        super().__init__()
+        self.config = self.parse_config_file()
+
+        self.block_blob_service = BlockBlobService(
+            account_name=self.config['storage_account_name'],
+            account_key=self.config['storage_secret_key'])
+        # container already exists
+        self.container_name = self.config['container_name']
+
+    def create_content(self, content_name, content_path, content_type):
+        self.block_blob_service.create_blob_from_path(
+            self.container_name,
+            content_name,
+            content_path,
+            content_settings=ContentSettings(content_type=content_type))
+
+    def list_containers(self):
+        l = self.block_blob_service.list_containers()
+        print('Containers:')
+        for container in l:
+            print(container.name)
+
+    def list_contents(self):
+        print('Blobs:')
+        l = self.block_blob_service.list_blobs(self.container_name)
+        for content in l:
+            print(content.name)
+
+
+
+@click.command()
+def tryout():
+    azure = AzureAccess()
+    # azure.create_content('img-tryout2', './bin/img-tryout.png', 'image/png')
+    azure.list_contents()
+    azure.list_containers()
+
+
+if __name__ == '__main__':
+    tryout()

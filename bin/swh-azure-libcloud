@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+# Copyright (C) 2016  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import click
+
+from libcloud.storage.types import Provider
+from libcloud.storage.providers import get_driver
+
+from swh.objstorage.cloud.objstorage_cloud import AzureCloudObjStorage
+from swh.core import config
+
+import sys
+
+
+# def info(type, value, tb):
+#    if hasattr(sys, 'ps1') or not sys.stderr.isatty():
+#       # we are in interactive mode or we don't have a tty-like
+#       # device, so we call the default hook
+#       sys.__excepthook__(type, value, tb)
+#    else:
+#       import traceback, ipdb
+#       # we are NOT in interactive mode, print the exception...
+#       traceback.print_exception(type, value, tb)
+#       print()
+#       # ...then start the debugger in post-mortem mode.
+#       ipdb.pm()
+
+# sys.excepthook = info
+
+
+class AzureAccess(config.SWHConfig):
+    DEFAULT_CONFIG = {
+        'storage_account_name': ('str', 'account-name-as-access-key'),
+        'storage_secret_key': ('str', 'associated-secret-key'),
+        'container_name': ('str', 'sample-container'),
+    }
+
+    CONFIG_BASE_FILENAME = 'objstorage/azure'
+
+    def __init__(self):
+        super().__init__()
+        self.config = self.parse_config_file()
+
+        # cls = get_driver(Provider.AZURE_BLOBS)
+        # self.driver = cls(key=self.config['storage_account_name'],
+        #                   secret=self.config['storage_secret_key'])
+
+        container_name = self.config['container_name']
+        # self.container = self.driver.get_container(
+        #     container_name=container_name)
+
+        self.azure_cloud_storage = AzureCloudObjStorage(
+            api_key=self.config['storage_account_name'],
+            api_secret_key=self.config['storage_secret_key'],
+            container_name=container_name)
+
+    def list_contents(self):
+        for c in self.driver.iterate_container_objects(self.container):
+            print(c)
+
+    def list_contents(self):
+        for c in self.azure_cloud_storage:
+            print(c)
+
+
+@click.command()
+def list_content():
+    AzureAccess().list_contents()
+
+
+if __name__ == '__main__':
+    list_content()
