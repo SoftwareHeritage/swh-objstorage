@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+
+# Copyright (C) 2016  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+# NOT FOR PRODUCTION
+
+import click
+
+from swh.objstorage import get_objstorage
+from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
+from swh.core import config, hashutil
+
+
+class AzureAccess(config.SWHConfig):
+    """This is an orchestration class to try and check objstorage_azure
+    implementation."""
+
+    DEFAULT_CONFIG = {
+        # Output storage
+        'storage_account_name': ('str', 'account-name-as-access-key'),
+        'storage_secret_key': ('str', 'associated-secret-key'),
+        'container_name': ('str', 'sample-container'),
+
+        # Input storage
+        'storage': ('dict',
+                    {'cls': 'pathslicing',
+                     'args': {'root': '/srv/softwareheritage/objects',
+                              'slicing': '0:2/2:4/4:6'}}),
+    }
+
+    CONFIG_BASE_FILENAME = 'objstorage/azure'
+
+    def __init__(self):
+        super().__init__()
+        self.config = self.parse_config_file()
+
+        container_name = self.config['container_name']
+
+        self.azure_cloud_storage = AzureCloudObjStorage(
+            account_name=self.config['storage_account_name'],
+            api_secret_key=self.config['storage_secret_key'],
+            container_name=container_name)
+
+        self.read_objstorage = get_objstorage(**self.config['storage'])
+
+    def _to_id(self, hex_obj_id):
+        return hashutil.hex_to_hash(hex_obj_id)
+
+    def list_contents(self):
+        for c in self.azure_cloud_storage:
+            print(c)
+
+    def send_one_content(self, hex_obj_id):
+        obj_id = self._to_id(hex_obj_id)
+        obj_content = self.read_objstorage.get(obj_id)
+
+        self.azure_cloud_storage.add(content=obj_content,
+                                     obj_id=obj_id)
+
+    def check_integrity(self, hex_obj_id):
+        obj_id = self._to_id(hex_obj_id)
+        self.azure_cloud_storage.check(obj_id)  # will raise if problem
+
+    def check_presence(self, hex_obj_id):
+        obj_id = self._to_id(hex_obj_id)
+        return obj_id in self.azure_cloud_storage
+
+    def download(self, hex_obj_id):
+        obj_id = self._to_id(hex_obj_id)
+        return self.azure_cloud_storage.get(obj_id)
+
+
+@click.command()
+def tryout():
+    obj_azure = AzureAccess()
+
+    # hex_sample_id = '00000008e22217b439f3e582813bd875e7141a0e'
+    hex_sample_id = '0001001d2879dd009fc11d0c5f0691940989a76b'
+
+    check_presence = obj_azure.check_presence(hex_sample_id)
+    print('presence first time should be False:', check_presence)
+    obj_azure.send_one_content(hex_sample_id)
+    obj_azure.check_integrity(hex_sample_id)
+
+    check_presence = obj_azure.check_presence(hex_sample_id)
+    print('presence True:', check_presence)
+    check_presence = obj_azure.check_presence('dfeffffeffff17b439f3e582813bd875e7141a0e')
+    print('presence False:', check_presence)
+
+    print()
+    print('Download a blob')
+    blob_content = obj_azure.download(hex_sample_id)
+    print(blob_content)
+
+    print()
+    try:
+        obj_azure.download(hex_sample_id.replace('0', 'f'))
+    except:
+        print('Expected `blob does not exist`!')
+
+    print()
+    print('blobs:')
+    obj_azure.list_contents()
+
+
+if __name__ == '__main__':
+   tryout()
