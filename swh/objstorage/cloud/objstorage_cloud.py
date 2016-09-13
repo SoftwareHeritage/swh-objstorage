@@ -51,7 +51,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         This method must be overriden by subclasses to specify which
         of the native libcloud driver the current storage should
         connect to.  Alternatively, provider for a custom driver may
-        be returned, in which case the provider will have tu support
+        be returned, in which case the provider will have to support
         `get_driver` method.
 
         """
@@ -133,7 +133,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def _put_object(self, content, obj_id):
         """Create an object in the cloud storage.
 
-        Created object will contains the content and be referenced by
+        Created object will contain the content and be referenced by
         the given id.
 
         """
