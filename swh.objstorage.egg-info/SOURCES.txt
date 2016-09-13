@@ -7,6 +7,7 @@ requirements.txt
 setup.py
 version.txt
 bin/swh-objstorage-add-dir
+bin/swh-objstorage-azure
 bin/swh-objstorage-fsck
 debian/changelog
 debian/compat
@@ -29,6 +30,7 @@ swh/objstorage/api/client.py
 swh/objstorage/api/common.py
 swh/objstorage/api/server.py
 swh/objstorage/cloud/__init__.py
+swh/objstorage/cloud/objstorage_azure.py
 swh/objstorage/cloud/objstorage_cloud.py
 swh/objstorage/multiplexer/__init__.py
 swh/objstorage/multiplexer/multiplexer_objstorage.py
@@ -41,6 +43,7 @@ swh/objstorage/tests/server_testing.py
 swh/objstorage/tests/test_checker.py
 swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
+swh/objstorage/tests/test_objstorage_azure.py
 swh/objstorage/tests/test_objstorage_cloud.py
 swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
