@@ -83,7 +83,6 @@ def tryout():
     check_presence = obj_azure.check_presence(hex_sample_id)
     print('presence first time should be False:', check_presence)
     obj_azure.send_one_content(hex_sample_id)
-    obj_azure.check_integrity(hex_sample_id)
 
     check_presence = obj_azure.check_presence(hex_sample_id)
     print('presence True:', check_presence)
@@ -105,6 +104,11 @@ def tryout():
     print('blobs:')
     obj_azure.list_contents()
 
+    print()
+    print('content of %s' % hex_sample_id)
+    print(obj_azure.download(hex_sample_id))
+
+    obj_azure.check_integrity(hex_sample_id)
 
 if __name__ == '__main__':
    tryout()

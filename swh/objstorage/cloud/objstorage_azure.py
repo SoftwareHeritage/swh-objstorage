@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import gzip
+
 from swh.core import hashutil
 from swh.objstorage.objstorage import ObjStorage, compute_hash
 from swh.objstorage.exc import ObjNotFoundError, Error
@@ -54,9 +56,13 @@ class AzureCloudObjStorage(ObjStorage):
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        self.block_blob_service.create_blob_from_bytes(self.container_name,
-                                                       hex_obj_id,
-                                                       content)
+
+        # Send the gzipped content
+        self.block_blob_service.create_blob_from_bytes(
+            container_name=self.container_name,
+            blob_name=hex_obj_id,
+            blob=gzip.compress(content))
+
         return obj_id
 
     def restore(self, content, obj_id=None):
@@ -69,7 +75,7 @@ class AzureCloudObjStorage(ObjStorage):
             blob_name=hex_obj_id)
         if not blob:
             raise ObjNotFoundError('Content %s not found!' % hex_obj_id)
-        return blob.content
+        return gzip.decompress(blob.content)
 
     def check(self, obj_id):
         # Check the content integrity
