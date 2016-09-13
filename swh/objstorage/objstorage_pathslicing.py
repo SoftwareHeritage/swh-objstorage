@@ -197,7 +197,7 @@ class PathSlicingObjStorage(ObjStorage):
             obj_id = compute_hash(content)
 
         if check_presence and obj_id in self:
-            # If the object is already present, return immediatly.
+            # If the object is already present, return immediately.
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
