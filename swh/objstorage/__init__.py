@@ -57,7 +57,7 @@ def get_objstorage(cls, args):
     try:
         return _STORAGE_CLASSES[cls](**args)
     except KeyError:
-        raise ValueError('Storage class %s does not exists' % cls)
+        raise ValueError('Storage class %s does not exist' % cls)
 
 
 def _construct_filtered_objstorage(storage_conf, filters_conf):
