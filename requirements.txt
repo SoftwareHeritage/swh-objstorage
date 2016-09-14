@@ -15,3 +15,4 @@ swh.storage.archiver >= 0.0.52
 click
 
 apache-libcloud
+azure-storage
