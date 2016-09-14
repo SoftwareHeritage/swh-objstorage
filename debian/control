@@ -13,6 +13,7 @@ Build-Depends: debhelper (>= 9),
                python3-swh.storage.archiver (>= 0.0.52~),
                python3-click,
                python3-libcloud,
+               python3-azure-storage,
                python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
@@ -30,7 +31,7 @@ Description: Software Heritage Object Storage Checker
 
 Package: python3-swh.objstorage.cloud
 Architecture: all
-Depends: python3-swh.objstorage (= ${binary:Version}), python3-libcloud,
+Depends: python3-swh.objstorage (= ${binary:Version}), python3-libcloud, python3-azure-storage,
          ${misc:Depends}, ${python3:Depends}
 Breaks: python3-swh.objstorage (<= 0.0.7~)
 Description: Software Heritage Cloud Object Storage
