@@ -9,15 +9,18 @@ import logging
 from flask import Flask, g, request
 
 from swh.core import config
-from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage import get_objstorage
 
 from swh.objstorage.api.common import (BytesRequest, decode_request,
                                        error_handler,
                                        encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
-    'storage_base': ('str', '/tmp/swh-storage/objects/'),
-    'storage_slicing': ('str', '0:2/2:4/4:6')
+    'cls': ('str', 'pathslicing'),
+    'args': ('dict', {
+        'root': '/srv/softwareheritage/objects',
+        'slicing': '0:2/2:4/4:6',
+    })
 }
 
 app = Flask(__name__)
@@ -31,8 +34,7 @@ def my_error_handler(exception):
 
 @app.before_request
 def before_request():
-    g.objstorage = PathSlicingObjStorage(app.config['storage_base'],
-                                         app.config['storage_slicing'])
+    g.objstorage = get_objstorage(app.config['cls'], app.config['args'])
 
 
 @app.route('/')
