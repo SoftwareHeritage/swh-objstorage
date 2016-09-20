@@ -5,6 +5,8 @@
 
 import unittest
 
+from azure.common import AzureMissingResourceHttpError
+
 from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
 
 from objstorage_testing import ObjStorageTestFixture
@@ -32,7 +34,9 @@ class MockBlockBlobService():
 
     def get_blob_to_bytes(self, container_name, blob_name):
         if blob_name not in self.data[container_name]:
-            return None
+            raise AzureMissingResourceHttpError(
+                'Blob %s not found' % blob_name,
+                404)
         return MockBlob(name=blob_name,
                         content=self.data[container_name][blob_name])
 
