@@ -5,7 +5,7 @@ from .multiplexer import MultiplexerObjStorage
 from .multiplexer.filter import add_filters
 
 
-__all__ = ['get_objstorage', 'ObjStorage', 'register_objstorages']
+__all__ = ['get_objstorage', 'ObjStorage']
 
 
 _STORAGE_CLASSES = {
@@ -13,30 +13,11 @@ _STORAGE_CLASSES = {
     'remote': RemoteObjStorage,
 }
 
-
-def register_objstorages(objstorages_map):
-    """A function to register new objstorage instances.
-
-    This is expected to be called from the client.
-
-    Use example:
-        from swh.objstorage import register_objstorage, get_objstorage
-        from .objstorage_cloud import AwsCloudObjStorage
-        from .objstorage_cloud import OpenStackCloudObjStorage
-        from .objstorage_azure import AzureCloudObjStorage
-
-        objstorage.register_objstorage({
-            'aws-storage': AwsCloudObjStorage,
-            'openstack-storage': OpenStackCloudObjStorage,
-            'azure-storage': AzureCloudObjStorage
-        })
-
-        # from now on, one can instanciate a new objstorage
-        get_objstorage('azure-storage',
-                       {'storage-account-name': 'account-name'}...)
-
-    """
-    _STORAGE_CLASSES.update(objstorages_map)
+try:
+    from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
+    _STORAGE_CLASSES['azure-storage'] = AzureCloudObjStorage
+except ImportError:
+    pass
 
 
 def get_objstorage(cls, args):
