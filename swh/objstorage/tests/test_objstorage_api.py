@@ -21,8 +21,16 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
     """
 
     def setUp(self):
-        self.config = {'storage_base': tempfile.mkdtemp(),
-                       'storage_slicing': '0:1/0:5'}
+        self.config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': tempfile.mkdtemp(),
+                'slicing': '0:1/0:5',
+            }
+        }
+
         self.app = app
         super().setUp()
-        self.storage = get_objstorage('remote', {'base_url': self.url()})
+        self.storage = get_objstorage('remote', {
+            'base_url': self.url()
+        })
