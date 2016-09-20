@@ -1,5 +1,3 @@
-import functools
-
 from .read_write_filter import ReadObjStorageFilter
 from .id_filter import RegexIdObjStorageFilter, PrefixIdObjStorageFilter
 
@@ -66,9 +64,9 @@ def add_filter(storage, filter_conf):
 
     """
     type = filter_conf['type']
-    args = {k: v for k, v in filter_conf.items() if k is not 'type'}
-    filter = _FILTERS_CLASSES[type](storage=storage, **args)
-    return filter
+    args = {k: v for k, v in filter_conf.items() if k != 'type'}
+    filtered_storage = _FILTERS_CLASSES[type](storage=storage, **args)
+    return filtered_storage
 
 
 def add_filters(storage, filter_confs):
@@ -94,7 +92,7 @@ def add_filters(storage, filter_confs):
     # Add the bigest filter to the storage, and reduce it to accumulate filters
     # on top of it, until the smallest (fastest, see filter.filter_priority) is
     # added.
-    return functools.reduce(
-        lambda stor, conf: add_filter(stor, conf),
-        [storage] + filter_confs
-    )
+    for filter_conf in filter_confs:
+        storage = add_filter(storage, filter_conf)
+
+    return storage
