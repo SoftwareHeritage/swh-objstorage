@@ -10,15 +10,17 @@ from ..exc import ObjNotFoundError
 
 
 class MultiplexerObjStorage(ObjStorage):
-    """ Implementation of ObjStorage that distribute between multiple storages
+    """Implementation of ObjStorage that distributes between multiple
+    storages.
 
     The multiplexer object storage allows an input to be demultiplexed
-    among multiple storages that will or will not accept it by themselves
-    (see .filter package).
+    among multiple storages that will or will not accept it by
+    themselves (see .filter package).
 
-    As the ids can be differents, no pre-computed ids should be submitted.
-    Also, there are no guarantees that the returned ids can be used directly
-    into the storages that the multiplexer manage.
+    As the ids can be differents, no pre-computed ids should be
+    submitted.  Also, there are no guarantees that the returned ids
+    can be used directly into the storages that the multiplexer
+    manage.
 
 
     Use case examples could be:
@@ -28,8 +30,8 @@ class MultiplexerObjStorage(ObjStorage):
         storage_v2 = PathSlicingObjStorage('/dir2', '0:1/0:5')
         storage = MultiplexerObjStorage([storage_v1, storage_v2])
 
-        When using 'storage', all the new contents will only be added to the v2
-        storage, while it will be retrievable from both.
+        When using 'storage', all the new contents will only be added
+        to the v2 storage, while it will be retrievable from both.
 
     Example 2:
         storage_v1 = filter.id_regex(
@@ -42,11 +44,12 @@ class MultiplexerObjStorage(ObjStorage):
         )
         storage = MultiplexerObjStorage([storage_v1, storage_v2])
 
-        When using this storage, the contents with a sha1 starting with 0, 1 or
-        2 will be redirected (read AND write) to the storage_v2, while the
-        others will be redirected to the storage_v1.
-        If a content starting with 0, 1 or 2 is present in the storage_v1, it
-        would be ignored anyway.
+        When using this storage, the contents with a sha1 starting
+        with 0, 1 or 2 will be redirected (read AND write) to the
+        storage_v2, while the others will be redirected to the
+        storage_v1.  If a content starting with 0, 1 or 2 is present
+        in the storage_v1, it would be ignored anyway.
+
     """
 
     def __init__(self, storages):
@@ -59,19 +62,20 @@ class MultiplexerObjStorage(ObjStorage):
         return False
 
     def __iter__(self):
-        """ Iterates over the content of each storages
+        """Iterates over the content of each storages
 
         Due to the demultiplexer nature, same content can be in multiple
         storages and may be yielded multiple times.
 
         Warning: The `__iter__` methods frequently have bad performance. You
         almost certainly don't want to use this method in production.
+
         """
         for storage in self.storages:
             yield from storage
 
     def __len__(self):
-        """ Compute the number of objects in the current object storage.
+        """Compute the number of objects in the current object storage.
 
         Identical objects present in multiple storages will be counted as
         multiple objects.
@@ -80,6 +84,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         Returns:
             number of objects contained in the storage.
+
         """
         return sum(map(len, self.storages))
 

@@ -31,37 +31,39 @@ def id_regex(regex):
 
 
 def _filter_priority(filter_type):
-    """ Get the priority of this filter.
+    """Get the priority of this filter.
 
-    Priority is a value that indicates if the operation of the
-    filter is time-consuming (smaller values means quick execution),
-    or very likely to be almost always the same value (False being small,
-    and True high).
+    Priority is a value that indicates if the operation of the filter
+    is time-consuming (smaller values means quick execution), or very
+    likely to be almost always the same value (False being small, and
+    True high).
 
-    In case the filters are chained, they will be ordered in a way that
-    small priorities (quick execution or instantly break the chain) are
-    executed first.
+    In case the filters are chained, they will be ordered in a way
+    that small priorities (quick execution or instantly break the
+    chain) are executed first.
 
-    Default value is 1. Value 0 is recommended for storages that change
-    behavior only by disabling some operations (making the method return
-    None).
+    Default value is 1. Value 0 is recommended for storages that
+    change behavior only by disabling some operations (making the
+    method return None).
+
     """
     return _FILTERS_PRIORITY.get(filter_type, 1)
 
 
 def add_filter(storage, filter_conf):
-    """ Add a filter to the given storage.
+    """Add a filter to the given storage.
 
     Args:
         storage (ObjStorage): storage which will be filtered.
         filter_conf (dict): configuration of an ObjStorageFilter, given as
             a dictionnary that contains the keys:
                 - type: which represent the type of filter, one of the keys
-                    of FILTERS
-                - Every arguments that this type of filter require.
+                    of _FILTERS_CLASSES
+                - Every arguments that this type of filter requires.
 
     Returns:
         A filtered storage that perform only the valid operations.
+
     """
     type = filter_conf['type']
     args = {k: v for k, v in filter_conf.items() if k is not 'type'}

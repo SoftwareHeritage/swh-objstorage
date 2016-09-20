@@ -7,17 +7,20 @@ from ...objstorage import ObjStorage
 
 
 class ObjStorageFilter(ObjStorage):
-    """ Base implementation of a filter that allow inputs on ObjStorage or not
+    """Base implementation of a filter that allow inputs on ObjStorage or
+    not.
 
-    This class copy the API of ...objstorage in order to filter the inputs
-    of this class.
+    This class copy the API of ...objstorage in order to filter the
+    inputs of this class.
+
     If the operation is allowed, return the result of this operation
     applied to the destination implementation. Otherwise, just return
     without any operation.
 
-    This class is an abstract base class for a classic read/write storage.
-    Filters can inherit from it and only redefine some methods in order
-    to change behavior.
+    This class is an abstract base class for a classic read/write
+    storage.  Filters can inherit from it and only redefine some
+    methods in order to change behavior.
+
     """
 
     def __init__(self, storage):
