@@ -10,6 +10,7 @@ from swh.objstorage.objstorage import ObjStorage, compute_hash
 from swh.objstorage.exc import ObjNotFoundError, Error
 
 from azure.storage.blob import BlockBlobService
+from azure.common import AzureMissingResourceHttpError
 
 
 class AzureCloudObjStorage(ObjStorage):
@@ -70,11 +71,13 @@ class AzureCloudObjStorage(ObjStorage):
 
     def get(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        blob = self.block_blob_service.get_blob_to_bytes(
-            container_name=self.container_name,
-            blob_name=hex_obj_id)
-        if not blob:
+        try:
+            blob = self.block_blob_service.get_blob_to_bytes(
+                container_name=self.container_name,
+                blob_name=hex_obj_id)
+        except AzureMissingResourceHttpError:
             raise ObjNotFoundError('Content %s not found!' % hex_obj_id)
+
         return gzip.decompress(blob.content)
 
     def check(self, obj_id):
