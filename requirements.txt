@@ -14,5 +14,6 @@ swh.core >= 0.0.20
 swh.storage.archiver >= 0.0.52
 click
 
-apache-libcloud
-azure-storage
+# optional dependencies
+# apache-libcloud
+# azure-storage
