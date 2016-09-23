@@ -1,5 +1,3 @@
-apache-libcloud
-azure-storage
 click
 flask
 requests
