@@ -24,17 +24,20 @@ class AzureCloudObjStorage(ObjStorage):
         self.container_name = container_name
 
     def __contains__(self, obj_id):
+        """Does the storage contains the obj_id.
+
+        """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         return self.block_blob_service.exists(
             container_name=self.container_name,
             blob_name=hex_obj_id)
 
     def __iter__(self):
-        """ Iterate over the objects present in the storage
+        """Iterate over the objects present in the storage.
 
         """
         for obj in self.block_blob_service.list_blobs(self.container_name):
-            yield obj.name
+            yield hashutil.hash_from_hex(obj.name)
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
