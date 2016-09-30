@@ -43,36 +43,38 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def __contains__(self, obj_id, *args, **kwargs):
-        """ Indicates if the given object is present in the storage
+        """Indicate if the given object is present in the storage.
+
+        Args:
+            obj_id (bytes): object identifier.
 
         Returns:
             True iff the object is present in the current object storage.
+
         """
-        raise NotImplementedError(
-            "Implementations of ObjStorage must have a '__contains__' method"
-        )
+        pass
 
     @abc.abstractmethod
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
-        """ Add a new object to the object storage.
+        """Add a new object to the object storage.
 
         Args:
-            content: content of the object to be added to the storage.
-            obj_id: checksum of [bytes] using [ID_HASH_ALGO] algorithm. When
-                given, obj_id will be trusted to match the bytes. If missing,
-                obj_id will be computed on the fly.
-            check_presence: indicate if the presence of the content should be
-                verified before adding the file.
+            content (bytes): object's raw content to add in storage.
+            obj_id (bytes): checksum of [bytes] using [ID_HASH_ALGO]
+                algorithm. When given, obj_id will be trusted to match
+                the bytes. If missing, obj_id will be computed on the
+                fly.
+            check_presence (bool): indicate if the presence of the
+                content should be verified before adding the file.
 
         Returns:
-            the id of the object into the storage.
+            the id (bytes) of the object into the storage.
+
         """
-        raise NotImplementedError(
-            "Implementations of ObjStorage must have a 'add' method"
-        )
+        pass
 
     def restore(self, content, obj_id=None, *args, **kwargs):
-        """ Restore a content that have been corrupted.
+        """Restore a content that have been corrupted.
 
         This function is identical to add_bytes but does not check if
         the object id is already in the file system.
@@ -80,47 +82,50 @@ class ObjStorage(metaclass=abc.ABCMeta):
         suitable for most cases.
 
         Args:
-            content: content of the object to be added to the storage
-            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
-                given, obj_id will be trusted to match bytes. If missing,
-                obj_id will be computed on the fly.
+            content (bytes): object's raw content to add in storage
+            obj_id (bytes): checksum of `bytes` as computed by
+                ID_HASH_ALGO. When given, obj_id will be trusted to
+                match bytes. If missing, obj_id will be computed on
+                the fly.
+
         """
         # check_presence to false will erase the potential previous content.
         return self.add(content, obj_id, check_presence=False)
 
     @abc.abstractmethod
     def get(self, obj_id, *args, **kwargs):
-        """ Retrieve the content of a given object.
+        """Retrieve the content of a given object.
 
         Args:
-            obj_id: object id.
+            obj_id (bytes): object id.
 
         Returns:
             the content of the requested object as bytes.
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
+
         """
-        raise NotImplementedError(
-            "Implementations of ObjStorage must have a 'get' method"
-        )
+        pass
 
     def get_batch(self, obj_ids, *args, **kwargs):
-        """ Retrieve content in bulk.
+        """Retrieve objects' raw content in bulk from storage.
 
-        Note: This function does have a default implementation in ObjStorage
-        that is suitable for most cases.
-        For object storages that needs to do the minimal number of requests
-        possible (ex: remote object storages), that method can be overriden
-        to perform a more efficient operation.
+        Note: This function does have a default implementation in
+        ObjStorage that is suitable for most cases.
+
+        For object storages that needs to do the minimal number of
+        requests possible (ex: remote object storages), that method
+        can be overriden to perform a more efficient operation.
 
         Args:
-            obj_ids: list of object ids.
+            obj_ids ([bytes]: list of object ids.
 
         Returns:
-            list of resulting contents, or None if the content could not
-            be retrieved. Do not raise any exception as a fail for one content
-            will not cancel the whole request.
+            list of resulting contents, or None if the content could
+            not be retrieved. Do not raise any exception as a fail for
+            one content will not cancel the whole request.
+
         """
         for obj_id in obj_ids:
             try:
@@ -130,24 +135,23 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def check(self, obj_id, *args, **kwargs):
-        """ Perform an integrity check for a given object.
+        """Perform an integrity check for a given object.
 
         Verify that the file object is in place and that the gziped content
         matches the object id.
 
         Args:
-            obj_id: object id.
+            obj_id (bytes): object identifier.
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
             Error: if the request object is corrupted.
+
         """
-        raise NotImplementedError(
-            "Implementations of ObjStorage must have a 'check' method"
-        )
+        pass
 
     def get_random(self, batch_size, *args, **kwargs):
-        """ Get random ids of existing contents
+        """Get random ids of existing contents.
 
         This method is used in order to get random ids to perform
         content integrity verifications on random contents.
@@ -156,10 +160,8 @@ class ObjStorage(metaclass=abc.ABCMeta):
             batch_size (int): Number of ids that will be given
 
         Yields:
-            An iterable of ids of contents that are in the current object
-            storage.
+            An iterable of ids (bytes) of contents that are in the
+            current object storage.
+
         """
-        raise NotImplementedError(
-            "The current implementation of ObjStorage does not support "
-            "'get_random' operation"
-        )
+        pass
