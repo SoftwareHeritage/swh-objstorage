@@ -1,8 +1,10 @@
-swh-objstorage (0.0.12-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.13-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.13
+  * Fix wrong implementation contract on reading content from
+  * objstorage (sending hex id instead of bytes id)
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 23 Sep 2016 14:26:05 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 30 Sep 2016 15:14:35 +0200
 
 swh-objstorage (0.0.12-1~swh1) unstable-swh; urgency=medium
 
