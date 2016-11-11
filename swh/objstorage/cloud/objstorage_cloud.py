@@ -58,6 +58,11 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         raise NotImplementedError('%s must implement `get_provider` method'
                                   % type(self))
 
+    def check_config(self, *, check_write):
+        """Check the configuration for this object storage"""
+        # FIXME: hopefully this blew up during instantiation
+        return True
+
     def __contains__(self, obj_id):
         try:
             self._get_object(obj_id)
