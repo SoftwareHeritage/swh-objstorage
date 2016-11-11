@@ -29,6 +29,15 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return hashutil.hash_to_hex(obj_id)
 
+    def check_config(self, *, check_write):
+        """Check the configuration for this object storage"""
+        props = self.block_blob_service.get_container_properties(
+            self.container_name
+        )
+
+        # FIXME: check_write is ignored here
+        return bool(props)
+
     def __contains__(self, obj_id):
         """Does the storage contains the obj_id.
 

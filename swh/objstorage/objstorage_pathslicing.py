@@ -109,11 +109,6 @@ class PathSlicingObjStorage(ObjStorage):
                 on the hash of the content to know the path where it should
                 be stored.
         """
-        if not os.path.isdir(root):
-            raise ValueError(
-                'PathSlicingObjStorage root "%s" is not a directory' % root
-            )
-
         self.root = root
         # Make a list of tuples where each tuple contains the beginning
         # and the end of each slicing.
@@ -123,12 +118,32 @@ class PathSlicingObjStorage(ObjStorage):
             if sbounds
         ]
 
+        self.check_config(check_write=False)
+
+    def check_config(self, *, check_write):
+        """Check whether this object storage is properly configured"""
+
+        root = self.root
+
+        if not os.path.isdir(root):
+            raise ValueError(
+                'PathSlicingObjStorage root "%s" is not a directory' % root
+            )
+
         max_endchar = max(map(lambda bound: bound.stop, self.bounds))
         if ID_HASH_LENGTH < max_endchar:
             raise ValueError(
                 'Algorithm %s has too short hash for slicing to char %d'
                 % (ID_HASH_ALGO, max_endchar)
             )
+
+        if check_write:
+            if not os.access(self.root, os.W_OK):
+                raise PermissionError(
+                    'PathSlicingObjStorage root "%s" is not writable' % root
+                )
+
+        return True
 
     def __contains__(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)

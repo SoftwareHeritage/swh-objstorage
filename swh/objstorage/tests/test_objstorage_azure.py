@@ -29,6 +29,9 @@ class MockBlockBlobService():
         # do not care for the account_name and the api_secret_key here
         self.data[container_name] = {}
 
+    def get_container_properties(self, container_name):
+        return container_name in self.data
+
     def create_blob_from_bytes(self, container_name, blob_name, blob):
         self.data[container_name][blob_name] = blob
 

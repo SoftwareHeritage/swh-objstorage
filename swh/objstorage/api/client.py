@@ -49,6 +49,9 @@ class RemoteObjStorage(ObjStorage):
 
         return decode_response(response)
 
+    def check_config(self, *, check_write):
+        return self.post('check_config', {'check_write': check_write})
+
     def __contains__(self, obj_id):
         return self.post('content/contains', {'obj_id': obj_id})
 

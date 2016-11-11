@@ -1,8 +1,8 @@
-swh-objstorage (0.0.13-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.14-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.14
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 30 Sep 2016 15:14:35 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 11 Nov 2016 02:08:55 +0100
 
 swh-objstorage (0.0.13-1~swh1) unstable-swh; urgency=medium
 

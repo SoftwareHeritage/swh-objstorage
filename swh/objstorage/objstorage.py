@@ -24,8 +24,9 @@ def compute_hash(content):
 class ObjStorage(metaclass=abc.ABCMeta):
     """ High-level API to manipulate the Software Heritage object storage.
 
-    Conceptually, the object storage offers 5 methods:
+    Conceptually, the object storage offers the following methods:
 
+    - check_config()  check if the object storage is properly configured
     - __contains__()  check if an object is present, by object id
     - add()           add a new object, returning an object id
     - restore()       same as add() but erase an already existed content
@@ -40,6 +41,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
     """
+
+    @abc.abstractmethod
+    def check_config(self, *, check_write):
+        """Check whether the object storage is properly configured.
+
+        Args:
+            check_write (bool): if True, check if writes to the object storage
+            can succeed.
+
+        Returns:
+            True if the configuration check worked, an exception if it didn't.
+        """
+        pass
 
     @abc.abstractmethod
     def __contains__(self, obj_id, *args, **kwargs):
