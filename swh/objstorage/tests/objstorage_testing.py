@@ -23,6 +23,11 @@ class ObjStorageTestFixture():
         self.assertEqual(content, expected_content)
 
     @istest
+    def check_config(self):
+        self.assertTrue(self.storage.check_config(check_write=False))
+        self.assertTrue(self.storage.check_config(check_write=True))
+
+    @istest
     def contains(self):
         content_p, obj_id_p = self.hash_content(b'contains_present')
         content_m, obj_id_m = self.hash_content(b'contains_missing')

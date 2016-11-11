@@ -8,7 +8,12 @@ from .filter import ObjStorageFilter
 
 class ReadObjStorageFilter(ObjStorageFilter):
     """ Filter that disable write operation of the storage.
+
+    Writes will always succeed without doing any actual write operations.
     """
+    def check_config(self, *, check_write):
+        return self.storage.check_config(check_write=False)
+
     def add(self, *args, **kwargs):
         return
 

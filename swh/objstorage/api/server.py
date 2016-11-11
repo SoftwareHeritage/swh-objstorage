@@ -42,6 +42,11 @@ def index():
     return "SWH Objstorage API server"
 
 
+@app.route('/check_config', methods=['POST'])
+def check_config():
+    return encode_data(g.objstorage.check_config(**decode_request(request)))
+
+
 @app.route('/content')
 def content():
     return str(list(g.storage))

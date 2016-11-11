@@ -26,6 +26,16 @@ class ObjStorageFilter(ObjStorage):
     def __init__(self, storage):
         self.storage = storage
 
+    def check_config(self, *, check_write):
+        """Check the object storage for proper configuration.
+
+        Args:
+            check_write: check whether writes to the objstorage will succeed
+        Returns:
+            True if the storage is properly configured
+        """
+        return self.storage.check_config(check_write=check_write)
+
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
 

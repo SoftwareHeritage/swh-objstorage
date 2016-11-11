@@ -55,7 +55,20 @@ class MultiplexerObjStorage(ObjStorage):
     def __init__(self, storages):
         self.storages = storages
 
+    def check_config(self, *, check_write):
+        return all(
+            storage.check_config(check_write=check_write)
+            for storage in self.storages
+        )
+
     def __contains__(self, obj_id):
+        """Check the object storage for proper configuration.
+
+        Args:
+            check_write: check whether writes to the objstorage will succeed
+        Returns:
+            True if the storage is properly configured
+        """
         for storage in self.storages:
             if obj_id in storage:
                 return True
