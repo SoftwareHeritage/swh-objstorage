@@ -51,6 +51,8 @@ def _construct_filtered_objstorage(storage_conf, filters_conf):
         get_objstorage(**storage_conf),
         filters_conf
     )
+
+
 _STORAGE_CLASSES['filtered'] = _construct_filtered_objstorage
 
 
@@ -58,4 +60,6 @@ def _construct_multiplexer_objstorage(objstorages):
     storages = [get_objstorage(**conf)
                 for conf in objstorages]
     return MultiplexerObjStorage(storages)
+
+
 _STORAGE_CLASSES['multiplexer'] = _construct_multiplexer_objstorage

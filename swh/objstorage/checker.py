@@ -252,5 +252,6 @@ def launch(checker_type, daemon):
     else:
         checker.run()
 
+
 if __name__ == '__main__':
     launch()
