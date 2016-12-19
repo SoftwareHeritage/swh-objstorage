@@ -27,10 +27,13 @@ class BaseContentChecker(config.SWHConfig, metaclass=abc.ABCMeta):
 
     """
     DEFAULT_CONFIG = {
-        'storage': ('dict',
-                    {'cls': 'pathslicing',
-                     'args': {'root': '/srv/softwareheritage/objects',
-                              'slicing': '0:2/2:4/4:6'}}),
+        'storage': ('dict', {
+            'cls': 'pathslicing',
+            'args': {
+                'root': '/srv/softwareheritage/objects',
+                'slicing': '0:2/2:4/4:6'
+            }
+        }),
         'batch_size': ('int', 1000),
     }
 
@@ -106,10 +109,13 @@ class LogContentChecker(BaseContentChecker):
     """
 
     DEFAULT_CONFIG = {
-        'storage': ('dict',
-                    {'cls': 'pathslicing',
-                     'args': {'root': '/srv/softwareheritage/objects',
-                              'slicing': '0:2/2:4/4:6'}}),
+        'storage': ('dict', {
+            'cls': 'pathslicing',
+            'args': {
+                'root': '/srv/softwareheritage/objects',
+                'slicing': '0:2/2:4/4:6'
+            }
+        }),
         'batch_size': ('int', 1000),
         'log_tag': ('str', 'objstorage.checker')
     }
@@ -136,17 +142,21 @@ class RepairContentChecker(LogContentChecker):
     """
 
     DEFAULT_CONFIG = {
-        'storage': ('dict',
-                    {'cls': 'pathslicing',
-                     'args': {'root': '/srv/softwareheritage/objects',
-                              'slicing': '0:2/2:4/4:6'}}),
+        'storage': ('dict', {
+            'cls': 'pathslicing',
+            'args': {
+                'root': '/srv/softwareheritage/objects',
+                'slicing': '0:2/2:4/4:6'
+            }
+        }),
         'batch_size': ('int', 1000),
         'log_tag': ('str', 'objstorage.checker'),
-        'backup_storages': ('dict',
-                            {'banco': {
-                                'cls': 'remote',
-                                'args': {'url': 'http://banco:5003/'}
-                            }})
+        'backup_storages': ('dict', {
+            'banco': {
+                'cls': 'remote',
+                'args': {'url': 'http://banco:5003/'}
+            }
+        })
     }
 
     CONFIG_BASE_FILENAME = 'objstorage/repair_checker'
@@ -201,10 +211,13 @@ class ArchiveNotifierContentChecker(LogContentChecker):
     will probably make the retention policy invalid.
     """
     DEFAULT_CONFIG = {
-        'storage': ('dict',
-                    {'cls': 'pathslicing',
-                     'args': {'root': '/srv/softwareheritage/objects',
-                              'slicing': '0:2/2:4/4:6'}}),
+        'storage': ('dict', {
+            'cls': 'pathslicing',
+            'args': {
+                'root': '/srv/softwareheritage/objects',
+                'slicing': '0:2/2:4/4:6'
+            }
+        }),
         'batch_size': ('int', 1000),
         'log_tag': ('str', 'objstorage.checker'),
         'storage_name': ('str', 'banco'),
