@@ -32,5 +32,5 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
         self.app = app
         super().setUp()
         self.storage = get_objstorage('remote', {
-            'base_url': self.url()
+            'url': self.url()
         })
