@@ -1,3 +1,8 @@
+# Copyright (C) 2016  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
 from .objstorage import ObjStorage
 from .objstorage_pathslicing import PathSlicingObjStorage
 from .api.client import RemoteObjStorage
@@ -46,6 +51,8 @@ def _construct_filtered_objstorage(storage_conf, filters_conf):
         get_objstorage(**storage_conf),
         filters_conf
     )
+
+
 _STORAGE_CLASSES['filtered'] = _construct_filtered_objstorage
 
 
@@ -53,4 +60,6 @@ def _construct_multiplexer_objstorage(objstorages):
     storages = [get_objstorage(**conf)
                 for conf in objstorages]
     return MultiplexerObjStorage(storages)
+
+
 _STORAGE_CLASSES['multiplexer'] = _construct_multiplexer_objstorage
