@@ -10,7 +10,6 @@
 import click
 
 from swh.objstorage import get_objstorage
-from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
 from swh.core import config, hashutil
 
 
@@ -37,7 +36,6 @@ class AzureAccess(config.SWHConfig):
         super().__init__()
         self.config = self.parse_config_file()
 
-        container_name = 'contents'
         self.azure_cloud_storage = get_objstorage(
             **self.config['storage_azure'])
         self.read_objstorage = get_objstorage(
@@ -109,5 +107,6 @@ def tryout():
 
     obj_azure.check_integrity(sample_id)
 
+
 if __name__ == '__main__':
-   tryout()
+    tryout()

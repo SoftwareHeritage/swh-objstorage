@@ -41,7 +41,9 @@ class TestObjStorageInitialization(ServerTestFixture, unittest.TestCase):
     def remote_objstorage(self):
         conf = {
             'cls': 'remote',
-            'args': {'base_url': self.url()}
+            'args': {
+                'url': self.url()
+            }
         }
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, RemoteObjStorage))
