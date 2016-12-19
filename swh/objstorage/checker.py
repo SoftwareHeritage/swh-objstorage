@@ -145,7 +145,7 @@ class RepairContentChecker(LogContentChecker):
         'backup_storages': ('dict',
                             {'banco': {
                                 'cls': 'remote',
-                                'args': {'base_url': 'http://banco:5003/'}
+                                'args': {'url': 'http://banco:5003/'}
                             }})
     }
 

@@ -21,21 +21,21 @@ class RemoteObjStorage(ObjStorage):
     http protocol.
 
     Attributes:
-        base_url (string): The url of the server to connect. Must end
+        url (string): The url of the server to connect. Must end
             with a '/'
         session: The session to send requests.
     """
-    def __init__(self, base_url):
-        self.base_url = base_url
+    def __init__(self, url):
+        self.url = url
         self.session = requests.Session()
 
-    def url(self, endpoint):
-        return '%s%s' % (self.base_url, endpoint)
+    def _url(self, endpoint):
+        return '%s%s' % (self.url, endpoint)
 
     def post(self, endpoint, data):
         try:
             response = self.session.post(
-                self.url(endpoint),
+                self._url(endpoint),
                 data=encode_data(data),
                 headers={'content-type': 'application/x-msgpack'},
             )
