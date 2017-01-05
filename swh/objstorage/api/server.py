@@ -88,7 +88,7 @@ def run_from_webserver(environ, start_response):
     """Run the WSGI app from the webserver, loading the configuration.
 
     """
-    config_path = '/etc/softwareheritage/storage/objstorage.ini'
+    config_path = '/etc/softwareheritage/storage/objstorage.yml'
 
     app.config.update(config.read(config_path, DEFAULT_CONFIG))
 
