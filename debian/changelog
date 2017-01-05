@@ -1,3 +1,10 @@
+swh-objstorage (0.0.16-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.16
+  * Default configuration is now a yml file
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 05 Jan 2017 16:43:25 +0100
+
 swh-objstorage (0.0.15-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.15
