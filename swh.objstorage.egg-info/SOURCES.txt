@@ -27,7 +27,6 @@ swh/objstorage/objstorage.py
 swh/objstorage/objstorage_pathslicing.py
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
-swh/objstorage/api/common.py
 swh/objstorage/api/server.py
 swh/objstorage/cloud/__init__.py
 swh/objstorage/cloud/objstorage_azure.py
