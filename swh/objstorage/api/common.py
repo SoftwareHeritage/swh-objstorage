@@ -24,14 +24,6 @@ def encode_data_server(data):
     )
 
 
-def encode_data_client(data):
-    try:
-        return msgpack_dumps(data)
-    except OverflowError as e:
-        raise ValueError('Limits were reached. Please, check your input.\n' +
-                         str(e))
-
-
 def decode_request(request):
     content_type = request.mimetype
     data = request.get_data()
@@ -42,20 +34,6 @@ def decode_request(request):
         r = json.loads(data, cls=SWHJSONDecoder)
     else:
         raise ValueError('Wrong content type `%s` for API request'
-                         % content_type)
-
-    return r
-
-
-def decode_response(response):
-    content_type = response.headers['content-type']
-
-    if content_type.startswith('application/x-msgpack'):
-        r = msgpack_loads(response.content)
-    elif content_type.startswith('application/json'):
-        r = response.json(cls=SWHJSONDecoder)
-    else:
-        raise ValueError('Wrong content type `%s` for API response'
                          % content_type)
 
     return r
