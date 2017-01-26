@@ -3,14 +3,11 @@
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 vcversioner
 
-# remote storage API client
-requests
-
 # remote storage API server
 flask
 
 # Internal dependencies
-swh.core >= 0.0.20
+swh.core >= 0.0.28
 swh.storage.archiver >= 0.0.52
 click
 
