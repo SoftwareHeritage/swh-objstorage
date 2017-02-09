@@ -1,0 +1,2 @@
+swh.core >= 0.0.28
+swh.storage.archiver >= 0.0.52
