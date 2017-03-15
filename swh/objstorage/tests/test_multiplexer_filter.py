@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,7 @@ from string import ascii_lowercase
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core import hashutil
+from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.objstorage import get_objstorage
 from swh.objstorage.multiplexer.filter import read_only, id_prefix, id_regex
@@ -32,7 +32,7 @@ class MixinTestReadFilter(unittest.TestCase):
                     'args': {'root': tempfile.mkdtemp(),
                              'slicing': '0:5'}}
         base_storage = get_objstorage(**pstorage)
-        base_storage.id = lambda cont: hashutil.hashdata(cont)['sha1']
+        base_storage.id = lambda cont: hashutil.hash_data(cont)['sha1']
         self.storage = get_objstorage('filtered',
                                       {'storage_conf': pstorage,
                                        'filters_conf': [read_only()]})
@@ -117,7 +117,7 @@ class MixinTestIdFilter():
         self.base_storage = storage
         self.storage = self.filter_storage(self.sconf)
         # Set the id calculators
-        storage.id = lambda cont: hashutil.hashdata(cont)['sha1']
+        storage.id = lambda cont: hashutil.hash_data(cont)['sha1']
 
         # Present content with valid id
         self.present_valid_content = self.ensure_valid(b'yroqdtotji')
@@ -307,13 +307,13 @@ class TestPrefixFilter(MixinTestIdFilter, unittest.TestCase):
         super().setUp()
 
     def ensure_valid(self, content):
-        obj_id = hashutil.hashdata(content)['sha1']
+        obj_id = hashutil.hash_data(content)['sha1']
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         self.assertTrue(hex_obj_id.startswith(self.prefix))
         return content
 
     def ensure_invalid(self, content):
-        obj_id = hashutil.hashdata(content)['sha1']
+        obj_id = hashutil.hash_data(content)['sha1']
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         self.assertFalse(hex_obj_id.startswith(self.prefix))
         return content
