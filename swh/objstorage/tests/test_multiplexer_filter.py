@@ -80,7 +80,6 @@ class MixinTestReadFilter(unittest.TestCase):
     @istest
     def can_get_random(self):
         self.assertEqual(1, len(list(self.storage.get_random(1))))
-        print(list(self.storage.get_random(1000)))
         self.assertEqual(len(list(self.storage)),
                          len(set(self.storage.get_random(1000))))
 
