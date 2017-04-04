@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import aiohttp.web
 import multiprocessing
 import socket
 import time
@@ -46,7 +47,7 @@ class ServerTestFixture():
 
         # WSGI app configuration
         for key, value in self.config.items():
-            self.app.config[key] = value
+            self.app[key] = value
         # Get an available port number
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind(('127.0.0.1', 0))
@@ -55,7 +56,7 @@ class ServerTestFixture():
 
         # Worker function for multiprocessing
         def worker(app, port):
-            return app.run(port=port, use_reloader=False)
+            return aiohttp.web.run_app(app, port=port)
 
         self.process = multiprocessing.Process(
             target=worker, args=(self.app, self.port)

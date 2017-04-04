@@ -5,8 +5,9 @@
 
 
 from swh.core.api import SWHRemoteAPI
+from swh.model import hashutil
 
-from ..objstorage import ObjStorage
+from ..objstorage import ObjStorage, DEFAULT_CHUNK_SIZE
 from ..exc import ObjStorageAPIError
 
 
@@ -42,7 +43,22 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
         return self.post('content/get/batch', {'obj_ids': obj_ids})
 
     def check(self, obj_id):
-        self.post('content/check', {'obj_id': obj_id})
+        return self.post('content/check', {'obj_id': obj_id})
+
+    # Management methods
 
     def get_random(self, batch_size):
         return self.post('content/get/random', {'batch_size': batch_size})
+
+    # Streaming methods
+
+    def add_stream(self, content_iter, obj_id, check_presence=True):
+        obj_id = hashutil.hash_to_hex(obj_id)
+        return self.post_stream('content/add_stream/{}'.format(obj_id),
+                                params={'check_presence': check_presence},
+                                data=content_iter)
+
+    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
+        obj_id = hashutil.hash_to_hex(obj_id)
+        return super().get_stream('content/get_stream/{}'.format(obj_id),
+                                  chunk_size=chunk_size)
