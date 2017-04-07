@@ -1,3 +1,10 @@
+swh-objstorage (0.0.18-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.objstorage v0.0.18
+  * Use swh.model.hashutil instead of swh.core.hashutil
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 07 Apr 2017 14:22:19 +0200
+
 swh-objstorage (0.0.17-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.17
