@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,7 @@ import random
 
 from contextlib import contextmanager
 
-from swh.core import hashutil
+from swh.model import hashutil
 
 from .objstorage import ObjStorage, compute_hash, ID_HASH_ALGO, ID_HASH_LENGTH
 from .exc import ObjNotFoundError, Error
@@ -75,11 +75,12 @@ def _read_obj_file(hex_obj_id, objstorage):
 
 
 class PathSlicingObjStorage(ObjStorage):
-    """ Implementation of the ObjStorage API based on the hash of the content.
+    """Implementation of the ObjStorage API based on the hash of the content.
 
-    On disk, an object storage is a directory tree containing files named after
-    their object IDs. An object ID is a checksum of its content, depending on
-    the value of the ID_HASH_ALGO constant (see hashutil for its meaning).
+    On disk, an object storage is a directory tree containing files
+    named after their object IDs. An object ID is a checksum of its
+    content, depending on the value of the ID_HASH_ALGO constant (see
+    swh.model.hashutil for its meaning).
 
     To avoid directories that contain too many files, the object storage has a
     given slicing. Each slicing correspond to a directory that is named
@@ -97,6 +98,7 @@ class PathSlicingObjStorage(ObjStorage):
         root (string): path to the root directory of the storage on the disk.
         bounds: list of tuples that indicates the beginning and the end of
             each subdirectory for a content.
+
     """
 
     def __init__(self, root, slicing):
@@ -254,8 +256,8 @@ class PathSlicingObjStorage(ObjStorage):
                             break
                     f.rewind()
 
-                checksums = hashutil._hash_file_obj(f, length,
-                                                    algorithms=[ID_HASH_ALGO])
+                checksums = hashutil.hash_file(f, length,
+                                               algorithms=[ID_HASH_ALGO])
                 actual_obj_id = checksums[ID_HASH_ALGO]
                 if obj_id != actual_obj_id:
                     raise Error(
@@ -285,7 +287,7 @@ class PathSlicingObjStorage(ObjStorage):
             path = os.path.join(self.root, *dirs)
             content_list = next(os.walk(path))[2]
             length = min(batch_size, len(content_list))
-            return length, map(hashutil.hex_to_hash,
+            return length, map(hashutil.hash_to_bytes,
                                random.sample(content_list, length))
 
         while batch_size:
