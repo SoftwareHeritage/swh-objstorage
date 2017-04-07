@@ -1,13 +1,13 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import gzip
 
-from swh.core import hashutil
 from swh.objstorage.objstorage import ObjStorage, compute_hash
 from swh.objstorage.exc import ObjNotFoundError, Error
+from swh.model import hashutil
 
 from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
@@ -52,7 +52,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         """
         for obj in self.block_blob_service.list_blobs(self.container_name):
-            yield hashutil.hex_to_hash(obj.name)
+            yield hashutil.hash_to_bytes(obj.name)
 
     def __len__(self):
         """Compute the number of objects in the current object storage.

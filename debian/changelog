@@ -1,8 +1,9 @@
-swh-objstorage (0.0.17-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.18-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.objstorage v0.0.18
+  * Use swh.model.hashutil instead of swh.core.hashutil
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 26 Jan 2017 15:01:42 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 07 Apr 2017 14:22:19 +0200
 
 swh-objstorage (0.0.17-1~swh1) unstable-swh; urgency=medium
 

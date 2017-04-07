@@ -3,6 +3,7 @@ AUTHORS
 LICENSE
 MANIFEST.in
 Makefile
+requirements-swh.txt
 requirements.txt
 setup.py
 version.txt

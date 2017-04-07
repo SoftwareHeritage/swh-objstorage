@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,9 +10,9 @@ import unittest
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.checker import RepairContentChecker
+from swh.model import hashutil
 
 
 class MockBackupObjStorage():
@@ -91,7 +91,7 @@ class TestRepairChecker(unittest.TestCase):
 
     @istest
     def check_missing_content(self):
-        obj_id = hashutil.hashdata(b'check_missing_content')['sha1']
+        obj_id = hashutil.hash_data(b'check_missing_content')['sha1']
         self.assertFalse(self._is_corrupted(obj_id))
         self.assertTrue(self._is_missing(obj_id))
 
