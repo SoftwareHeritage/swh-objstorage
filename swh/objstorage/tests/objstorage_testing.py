@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import time
+
 from nose.tools import istest
 
 from swh.model import hashutil
@@ -98,3 +100,38 @@ class ObjStorageTestFixture():
             self.storage.check(obj_id)
         except:
             self.fail('Integrity check failed')
+
+    @istest
+    def add_stream(self):
+        content = [b'chunk1', b'chunk2']
+        _, obj_id = self.hash_content(b''.join(content))
+        try:
+            self.storage.add_stream(iter(content), obj_id=obj_id)
+        except NotImplementedError:
+            return
+        self.assertContentMatch(obj_id, b''.join(content))
+
+    @istest
+    def add_stream_sleep(self):
+        def gen_content():
+            yield b'chunk1'
+            time.sleep(0.5)
+            yield b'chunk2'
+        _, obj_id = self.hash_content(b'placeholder_id')
+        try:
+            self.storage.add_stream(gen_content(), obj_id=obj_id)
+        except NotImplementedError:
+            return
+        self.assertContentMatch(obj_id, b'chunk1chunk2')
+
+    @istest
+    def get_stream(self):
+        content_l = [b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']
+        content = b''.join(content_l)
+        _, obj_id = self.hash_content(content)
+        self.storage.add(content, obj_id=obj_id)
+        try:
+            r = list(self.storage.get_stream(obj_id, chunk_size=1))
+        except NotImplementedError:
+            return
+        self.assertEqual(r, content_l)
