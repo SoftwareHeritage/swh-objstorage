@@ -8,14 +8,12 @@ import unittest
 
 from nose.tools import istest
 
-from swh.objstorage.tests.server_testing import ServerTestFixture
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage_pathslicing import PathSlicingObjStorage
 from swh.objstorage.api.client import RemoteObjStorage
-from swh.objstorage.api.server import app
 
 
-class TestObjStorageInitialization(ServerTestFixture, unittest.TestCase):
+class TestObjStorageInitialization(unittest.TestCase):
     """ Test that the methods for ObjStorage initializations with
     `get_objstorage` works properly.
     """
@@ -23,7 +21,6 @@ class TestObjStorageInitialization(ServerTestFixture, unittest.TestCase):
     def setUp(self):
         self.path = tempfile.mkdtemp()
         # Server is launched at self.url()
-        self.app = app
         self.config = {'storage_base': tempfile.mkdtemp(),
                        'storage_slicing': '0:1/0:5'}
         super().setUp()
@@ -42,7 +39,7 @@ class TestObjStorageInitialization(ServerTestFixture, unittest.TestCase):
         conf = {
             'cls': 'remote',
             'args': {
-                'url': self.url()
+                'url': 'http://127.0.0.1:4242/'
             }
         }
         st = get_objstorage(**conf)

@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import functools
 import os
 import gzip
 import tempfile
@@ -12,7 +13,8 @@ from contextlib import contextmanager
 
 from swh.model import hashutil
 
-from .objstorage import ObjStorage, compute_hash, ID_HASH_ALGO, ID_HASH_LENGTH
+from .objstorage import (ObjStorage, compute_hash, ID_HASH_ALGO,
+                         ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE)
 from .exc import ObjNotFoundError, Error
 
 
@@ -269,6 +271,8 @@ class PathSlicingObjStorage(ObjStorage):
             # IOError is for compatibility with older python versions
             raise Error('Corrupt object %s is not a gzip file' % obj_id)
 
+    # Management methods
+
     def get_random(self, batch_size):
         def get_random_content(self, batch_size):
             """ Get a batch of content inside a single directory.
@@ -294,3 +298,30 @@ class PathSlicingObjStorage(ObjStorage):
             length, it = get_random_content(self, batch_size)
             batch_size = batch_size - length
             yield from it
+
+    # Streaming methods
+
+    @contextmanager
+    def chunk_writer(self, obj_id):
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        with _write_obj_file(hex_obj_id, self) as f:
+            yield f.write
+
+    def add_stream(self, content_iter, obj_id, check_presence=True):
+        if check_presence and obj_id in self:
+            return obj_id
+
+        with self.chunk_writer(obj_id) as writer:
+            for chunk in content_iter:
+                writer(chunk)
+
+        return obj_id
+
+    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
+        if obj_id not in self:
+            raise ObjNotFoundError(obj_id)
+
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        with _read_obj_file(hex_obj_id, self) as f:
+            reader = functools.partial(f.read, chunk_size)
+            yield from iter(reader, b'')

@@ -11,7 +11,7 @@ from nose.plugins.attrib import attr
 from swh.objstorage import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 from swh.objstorage.tests.server_testing import ServerTestFixture
-from swh.objstorage.api.server import app
+from swh.objstorage.api.server import make_app
 
 
 @attr('db')
@@ -29,7 +29,7 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
             }
         }
 
-        self.app = app
+        self.app = make_app(self.config)
         super().setUp()
         self.storage = get_objstorage('remote', {
             'url': self.url()
