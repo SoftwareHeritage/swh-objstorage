@@ -1,3 +1,10 @@
+swh-objstorage (0.0.19-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.objstorage v0.0.19
+  * move from flask to aiohttp
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 13 Jun 2017 15:41:08 +0200
+
 swh-objstorage (0.0.18-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.objstorage v0.0.18
