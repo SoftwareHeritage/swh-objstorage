@@ -12,6 +12,7 @@ from .exc import ObjNotFoundError
 
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
+DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
 
 
 def compute_hash(content):
@@ -37,6 +38,12 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     - get_random()    get random object id of existing contents (used for the
                       content integrity checker).
+
+    Some of the methods have available streaming equivalents:
+
+    - add_stream()     same as add() but with a chunked iterator
+    - restore_stream() same as add_stream() but erase already existing content
+    - get_stream()     same as get() but returns a chunked iterator
 
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
@@ -90,7 +97,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def restore(self, content, obj_id=None, *args, **kwargs):
         """Restore a content that have been corrupted.
 
-        This function is identical to add_bytes but does not check if
+        This function is identical to add but does not check if
         the object id is already in the file system.
         The default implementation provided by the current class is
         suitable for most cases.
@@ -164,6 +171,8 @@ class ObjStorage(metaclass=abc.ABCMeta):
         """
         pass
 
+    # Management methods
+
     def get_random(self, batch_size, *args, **kwargs):
         """Get random ids of existing contents.
 
@@ -179,3 +188,56 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
         """
         pass
+
+    # Streaming methods
+
+    def add_stream(self, content_iter, obj_id, check_presence=True):
+        """Add a new object to the object storage using streaming.
+
+        This function is identical to add() except it takes a generator that
+        yields the chunked content instead of the whole content at once.
+
+        Args:
+            content (bytes): chunked generator that yields the object's raw
+                content to add in storage.
+            obj_id (bytes): object identifier
+            check_presence (bool): indicate if the presence of the
+                content should be verified before adding the file.
+
+        Returns:
+            the id (bytes) of the object into the storage.
+
+        """
+        raise NotImplementedError
+
+    def restore_stream(self, content_iter, obj_id=None):
+        """Restore a content that have been corrupted using streaming.
+
+        This function is identical to restore() except it takes a generator
+        that yields the chunked content instead of the whole content at once.
+        The default implementation provided by the current class is
+        suitable for most cases.
+
+        Args:
+            content (bytes): chunked generator that yields the object's raw
+                content to add in storage.
+            obj_id (bytes): object identifier
+
+        """
+        # check_presence to false will erase the potential previous content.
+        return self.add_stream(content_iter, obj_id, check_presence=False)
+
+    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
+        """Retrieve the content of a given object as a chunked iterator.
+
+        Args:
+            obj_id (bytes): object id.
+
+        Returns:
+            the content of the requested object as bytes.
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing.
+
+        """
+        raise NotImplementedError

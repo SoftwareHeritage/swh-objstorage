@@ -3,15 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
+import aiohttp.web
 import click
-import logging
-
-from flask import g, request
 
 from swh.core import config
-from swh.core.api import (SWHServerAPIApp, decode_request,
-                          error_handler,
-                          encode_data_server as encode_data)
+from swh.core.api_async import (SWHRemoteAPI, decode_request,
+                                encode_data_server as encode_data)
+from swh.model import hashutil
 from swh.objstorage import get_objstorage
 
 
@@ -23,78 +22,104 @@ DEFAULT_CONFIG = {
     })
 }
 
-app = SWHServerAPIApp(__name__)
+
+@asyncio.coroutine
+def index(request):
+    return aiohttp.web.Response(body="SWH Objstorage API server")
 
 
-@app.errorhandler(Exception)
-def my_error_handler(exception):
-    return error_handler(exception, encode_data)
+@asyncio.coroutine
+def check_config(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].check_config(**req))
 
 
-@app.before_request
-def before_request():
-    g.objstorage = get_objstorage(app.config['cls'], app.config['args'])
+@asyncio.coroutine
+def contains(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].__contains__(**req))
 
 
-@app.route('/')
-def index():
-    return "SWH Objstorage API server"
+@asyncio.coroutine
+def add_bytes(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].add(**req))
 
 
-@app.route('/check_config', methods=['POST'])
-def check_config():
-    return encode_data(g.objstorage.check_config(**decode_request(request)))
+@asyncio.coroutine
+def get_bytes(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].get(**req))
 
 
-@app.route('/content')
-def content():
-    return str(list(g.storage))
+@asyncio.coroutine
+def get_batch(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].get_batch(**req))
 
 
-@app.route('/content/contains', methods=['POST'])
-def contains():
-    return encode_data(g.objstorage.__contains__(**decode_request(request)))
+@asyncio.coroutine
+def check(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].check(**req))
 
 
-@app.route('/content/add', methods=['POST'])
-def add_bytes():
-    return encode_data(g.objstorage.add(**decode_request(request)))
+# Management methods
+
+@asyncio.coroutine
+def get_random_contents(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].get_random(**req))
 
 
-@app.route('/content/get', methods=['POST'])
-def get_bytes():
-    return encode_data(g.objstorage.get(**decode_request(request)))
+# Streaming methods
+
+@asyncio.coroutine
+def add_stream(request):
+    hex_id = request.match_info['hex_id']
+    obj_id = hashutil.hash_to_bytes(hex_id)
+    check_pres = (request.query.get('check_presence', '').lower() == 'true')
+    objstorage = request.app['objstorage']
+
+    if check_pres and obj_id in objstorage:
+        return encode_data(obj_id)
+
+    with objstorage.chunk_writer(obj_id) as write:
+        # XXX (3.5): use 'async for chunk in request.content.iter_any()'
+        while not request.content.at_eof():
+            chunk = yield from request.content.readany()
+            write(chunk)
+
+    return encode_data(obj_id)
 
 
-@app.route('/content/get/batch', methods=['POST'])
-def get_batch():
-    return encode_data(g.objstorage.get_batch(**decode_request(request)))
+@asyncio.coroutine
+def get_stream(request):
+    hex_id = request.match_info['hex_id']
+    obj_id = hashutil.hash_to_bytes(hex_id)
+    response = aiohttp.web.StreamResponse()
+    yield from response.prepare(request)
+    for chunk in request.app['objstorage'].get_stream(obj_id, 2 << 20):
+        response.write(chunk)
+        yield from response.drain()
+    return response
 
 
-@app.route('/content/get/random', methods=['POST'])
-def get_random_contents():
-    return encode_data(
-        g.objstorage.get_random(**decode_request(request))
-    )
-
-
-@app.route('/content/check', methods=['POST'])
-def check():
-    return encode_data(g.objstorage.check(**decode_request(request)))
-
-
-def run_from_webserver(environ, start_response):
-    """Run the WSGI app from the webserver, loading the configuration.
-
-    """
-    config_path = '/etc/softwareheritage/storage/objstorage.yml'
-
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
-
-    handler = logging.StreamHandler()
-    app.logger.addHandler(handler)
-
-    return app(environ, start_response)
+def make_app(config, **kwargs):
+    app = SWHRemoteAPI(**kwargs)
+    app.router.add_route('GET', '/', index)
+    app.router.add_route('POST', '/check_config', check_config)
+    app.router.add_route('POST', '/content/contains', contains)
+    app.router.add_route('POST', '/content/add', add_bytes)
+    app.router.add_route('POST', '/content/get', get_bytes)
+    app.router.add_route('POST', '/content/get/batch', get_batch)
+    app.router.add_route('POST', '/content/get/random', get_random_contents)
+    app.router.add_route('POST', '/content/check', check)
+    app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
+    app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
+    app.update(config)
+    app['objstorage'] = get_objstorage(app['cls'], app['args'])
+    return app
 
 
 @click.command()
@@ -105,8 +130,8 @@ def run_from_webserver(environ, start_response):
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
 def launch(config_path, host, port, debug):
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
-    app.run(host, port=int(port), debug=bool(debug))
+    app = make_app(config.read(config_path, DEFAULT_CONFIG), debug=bool(debug))
+    aiohttp.web.run_app(app, host=host, port=int(port))
 
 
 if __name__ == '__main__':

@@ -4,8 +4,7 @@
 vcversioner
 
 # remote storage API server
-flask
-
+aiohttp
 click
 
 # optional dependencies
