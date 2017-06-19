@@ -45,6 +45,13 @@ class ObjStorageTestFixture():
         self.assertContentMatch(obj_id, content)
 
     @istest
+    def add_big(self):
+        content, obj_id = self.hash_content(b'add_big' * 1024 * 1024)
+        r = self.storage.add(content, obj_id=obj_id)
+        self.assertEqual(obj_id, r)
+        self.assertContentMatch(obj_id, content)
+
+    @istest
     def add_get_wo_id(self):
         content, obj_id = self.hash_content(b'add_get_wo_id')
         r = self.storage.add(content)
