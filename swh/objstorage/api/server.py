@@ -20,7 +20,8 @@ DEFAULT_CONFIG = {
     'args': ('dict', {
         'root': '/srv/softwareheritage/objects',
         'slicing': '0:2/2:4/4:6',
-    })
+    }),
+    'client_max_size': ('int', 1024 * 1024 * 1024),
 }
 
 
@@ -107,6 +108,9 @@ def get_stream(request):
 
 
 def make_app(config, **kwargs):
+    if 'client_max_size' in config:
+        kwargs['client_max_size'] = config['client_max_size']
+
     app = SWHRemoteAPI(**kwargs)
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/check_config', check_config)
