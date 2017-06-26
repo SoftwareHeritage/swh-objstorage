@@ -4,6 +4,7 @@ Section: python
 Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python (>= 2),
+               python3-aiohttp (>= 2.1.0),
                python3-all,
                python3-flask,
                python3-nose,
@@ -19,7 +20,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 
 Package: python3-swh.objstorage
 Architecture: all
-Depends: python3-swh.core (>= 0.0.28~), ${misc:Depends}, ${python3:Depends}
+Depends: python3-swh.core (>= 0.0.28~), ${misc:Depends}, ${python3:Depends}, python3-aiohttp (>= 2.1.0)
 Description: Software Heritage Object Storage
 
 Package: python3-swh.objstorage.cloud
