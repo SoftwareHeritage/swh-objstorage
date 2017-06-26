@@ -8,9 +8,6 @@ export PYBUILD_NAME=swh.objstorage
 override_dh_install:
 	dh_install
 	for pyvers in $(shell py3versions -vr); do \
-		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.checker/usr/lib/python$$pyvers/dist-packages/swh/objstorage/ ; \
-		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/checker.py \
-		$(CURDIR)/debian/python3-swh.objstorage.checker/usr/lib/python$$pyvers/dist-packages/swh/objstorage/ ; \
 		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud ; \
 		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud/* \
 		$(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/cloud/ ; \
