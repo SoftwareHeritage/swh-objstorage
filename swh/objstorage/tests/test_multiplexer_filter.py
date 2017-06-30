@@ -10,7 +10,6 @@ import random
 from string import ascii_lowercase
 
 from nose.tools import istest
-from nose.plugins.attrib import attr
 
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError, Error
@@ -22,7 +21,6 @@ def get_random_content():
     return bytes(''.join(random.sample(ascii_lowercase, 10)), 'utf8')
 
 
-@attr('!db')
 class MixinTestReadFilter(unittest.TestCase):
     # Read only filter should not allow writing
 
@@ -299,7 +297,6 @@ class MixinTestIdFilter():
         self.storage.check(valid_id)
 
 
-@attr('!db')
 class TestPrefixFilter(MixinTestIdFilter, unittest.TestCase):
     def setUp(self):
         self.prefix = b'71'
@@ -323,7 +320,6 @@ class TestPrefixFilter(MixinTestIdFilter, unittest.TestCase):
                                'filters_conf': [id_prefix(self.prefix)]})
 
 
-@attr('!db')
 class TestRegexFilter(MixinTestIdFilter, unittest.TestCase):
     def setUp(self):
         self.regex = r'[a-f][0-9].*'

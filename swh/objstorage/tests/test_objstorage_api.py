@@ -6,15 +6,12 @@
 import tempfile
 import unittest
 
-from nose.plugins.attrib import attr
-
 from swh.objstorage import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 from swh.objstorage.tests.server_testing import ServerTestFixture
 from swh.objstorage.api.server import make_app
 
 
-@attr('db')
 class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
                            unittest.TestCase):
     """ Test the remote archive API.

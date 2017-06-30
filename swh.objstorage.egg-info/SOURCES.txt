@@ -22,7 +22,6 @@ swh.objstorage.egg-info/dependency_links.txt
 swh.objstorage.egg-info/requires.txt
 swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
-swh/objstorage/checker.py
 swh/objstorage/exc.py
 swh/objstorage/objstorage.py
 swh/objstorage/objstorage_pathslicing.py
@@ -40,7 +39,6 @@ swh/objstorage/multiplexer/filter/id_filter.py
 swh/objstorage/multiplexer/filter/read_write_filter.py
 swh/objstorage/tests/objstorage_testing.py
 swh/objstorage/tests/server_testing.py
-swh/objstorage/tests/test_checker.py
 swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
