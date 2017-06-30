@@ -1,3 +1,2 @@
 swh.core >= 0.0.28
 swh.model >= 0.0.14
-swh.storage.archiver >= 0.0.52

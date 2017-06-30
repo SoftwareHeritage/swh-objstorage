@@ -1,8 +1,10 @@
-swh-objstorage (0.0.21-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.22-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.objstorage v0.0.22
+  * Move the checker to the archiver module
+  * Prepare building for stretch
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Mon, 19 Jun 2017 19:49:12 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 30 Jun 2017 14:37:55 +0200
 
 swh-objstorage (0.0.21-1~swh1) unstable-swh; urgency=medium
 
