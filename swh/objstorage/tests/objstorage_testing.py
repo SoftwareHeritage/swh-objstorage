@@ -109,6 +109,20 @@ class ObjStorageTestFixture():
             self.fail('Integrity check failed')
 
     @istest
+    def delete_missing(self):
+        content, obj_id = self.hash_content(b'missing_content_to_delete')
+        with self.assertRaises(exc.Error):
+            self.storage.delete(obj_id)
+
+    @istest
+    def delete_present(self):
+        content, obj_id = self.hash_content(b'content_to_delete')
+        self.storage.add(content, obj_id=obj_id)
+        self.assertTrue(self.storage.delete(obj_id))
+        with self.assertRaises(exc.Error):
+            self.storage.get(obj_id)
+
+    @istest
     def add_stream(self):
         content = [b'chunk1', b'chunk2']
         _, obj_id = self.hash_content(b''.join(content))
