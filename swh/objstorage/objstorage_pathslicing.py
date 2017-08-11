@@ -271,6 +271,17 @@ class PathSlicingObjStorage(ObjStorage):
             # IOError is for compatibility with older python versions
             raise Error('Corrupt object %s is not a gzip file' % obj_id)
 
+    def delete(self, obj_id):
+        if obj_id not in self:
+            raise ObjNotFoundError(obj_id)
+
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        try:
+            os.remove(self._obj_path(hex_obj_id))
+        except FileNotFoundError:
+            raise ObjNotFoundError(obj_id)
+        return True
+
     # Management methods
 
     def get_random(self, batch_size):

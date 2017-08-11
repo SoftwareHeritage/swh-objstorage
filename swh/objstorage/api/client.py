@@ -45,6 +45,9 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
     def check(self, obj_id):
         return self.post('content/check', {'obj_id': obj_id})
 
+    def delete(self, obj_id):
+        return self.post('content/delete', {'obj_id': obj_id})
+
     # Management methods
 
     def get_random(self, batch_size):

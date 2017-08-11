@@ -155,6 +155,9 @@ class MultiplexerObjStorage(ObjStorage):
         if nb_present == 0:
             raise ObjNotFoundError(obj_id)
 
+    def delete(self, obj_id):
+        return all(storage.delete(obj_id) for storage in self.storages)
+
     def get_random(self, batch_size):
         storages_set = [storage for storage in self.storages
                         if len(storage) > 0]

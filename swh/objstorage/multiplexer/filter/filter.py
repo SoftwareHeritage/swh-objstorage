@@ -71,5 +71,8 @@ class ObjStorageFilter(ObjStorage):
     def check(self, obj_id, *args, **kwargs):
         return self.storage.check(obj_id, *args, **kwargs)
 
+    def delete(self, obj_id, *args, **kwargs):
+        return self.storage.delete(obj_id, *args, **kwargs)
+
     def get_random(self, batch_size, *args, **kwargs):
         return self.storage.get_random(batch_size, *args, **kwargs)

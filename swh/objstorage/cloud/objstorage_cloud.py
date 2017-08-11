@@ -122,6 +122,10 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
+    def delete(self, obj_id):
+        obj = self._get_object(obj_id)
+        return self.driver.delete_object(obj)
+
     def _get_object(self, obj_id):
         """Get a Libcloud wrapper for an object pointer.
 

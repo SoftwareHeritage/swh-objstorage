@@ -112,3 +112,15 @@ class AzureCloudObjStorage(ObjStorage):
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
+
+    def delete(self, obj_id):
+        """Delete an object."""
+        hex_obj_id = self._internal_id(obj_id)
+        try:
+            self.block_blob_service.delete_blob(
+                container_name=self.container_name,
+                blob_name=hex_obj_id)
+        except AzureMissingResourceHttpError:
+            raise ObjNotFoundError('Content {} not found!'.format(hex_obj_id))
+
+        return True

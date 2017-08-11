@@ -33,6 +33,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     - restore()       same as add() but erase an already existed content
     - get()           retrieve the content of an object, by object id
     - check()         check the integrity of an object, by object id
+    - delete()        remove an object
 
     And some management methods:
 
@@ -167,6 +168,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
         Raises:
             ObjNotFoundError: if the requested object is missing.
             Error: if the request object is corrupted.
+
+        """
+        pass
+
+    @abc.abstractmethod
+    def delete(self, obj_id, *args, **kwargs):
+        """Delete an object.
+
+        Args:
+            obj_id (bytes): object identifier.
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing.
 
         """
         pass
