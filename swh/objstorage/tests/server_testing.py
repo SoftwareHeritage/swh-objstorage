@@ -56,7 +56,7 @@ class ServerTestFixture():
 
         # Worker function for multiprocessing
         def worker(app, port):
-            return aiohttp.web.run_app(app, port=port, print=(lambda _: None))
+            return aiohttp.web.run_app(app, port=port, print=lambda *_: None)
 
         self.process = multiprocessing.Process(
             target=worker, args=(self.app, self.port)
