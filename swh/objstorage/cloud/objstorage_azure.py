@@ -17,7 +17,8 @@ class AzureCloudObjStorage(ObjStorage):
     """ObjStorage with azure abilities.
 
     """
-    def __init__(self, account_name, api_secret_key, container_name):
+    def __init__(self, account_name, api_secret_key, container_name, **kwargs):
+        super().__init__(**kwargs)
         self.block_blob_service = BlockBlobService(
             account_name=account_name,
             account_key=api_secret_key)
@@ -115,6 +116,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     def delete(self, obj_id):
         """Delete an object."""
+        super().delete(obj_id)  # Check delete permission
         hex_obj_id = self._internal_id(obj_id)
         try:
             self.block_blob_service.delete_blob(

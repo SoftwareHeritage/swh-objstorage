@@ -103,7 +103,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    def __init__(self, root, slicing):
+    def __init__(self, root, slicing, **kwargs):
         """ Create an object to access a hash-slicing based object storage.
 
         Args:
@@ -113,6 +113,7 @@ class PathSlicingObjStorage(ObjStorage):
                 on the hash of the content to know the path where it should
                 be stored.
         """
+        super().__init__(**kwargs)
         self.root = root
         # Make a list of tuples where each tuple contains the beginning
         # and the end of each slicing.
@@ -272,6 +273,7 @@ class PathSlicingObjStorage(ObjStorage):
             raise Error('Corrupt object %s is not a gzip file' % obj_id)
 
     def delete(self, obj_id):
+        super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 

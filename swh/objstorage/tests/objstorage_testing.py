@@ -110,17 +110,34 @@ class ObjStorageTestFixture():
 
     @istest
     def delete_missing(self):
+        self.storage.allow_delete = True
         content, obj_id = self.hash_content(b'missing_content_to_delete')
         with self.assertRaises(exc.Error):
             self.storage.delete(obj_id)
 
     @istest
     def delete_present(self):
+        self.storage.allow_delete = True
         content, obj_id = self.hash_content(b'content_to_delete')
         self.storage.add(content, obj_id=obj_id)
         self.assertTrue(self.storage.delete(obj_id))
         with self.assertRaises(exc.Error):
             self.storage.get(obj_id)
+
+    @istest
+    def delete_not_allowed(self):
+        self.storage.allow_delete = False
+        content, obj_id = self.hash_content(b'content_to_delete')
+        self.storage.add(content, obj_id=obj_id)
+        with self.assertRaises(PermissionError):
+            self.assertTrue(self.storage.delete(obj_id))
+
+    @istest
+    def delete_not_allowed_by_default(self):
+        content, obj_id = self.hash_content(b'content_to_delete')
+        self.storage.add(content, obj_id=obj_id)
+        with self.assertRaises(PermissionError):
+            self.assertTrue(self.storage.delete(obj_id))
 
     @istest
     def add_stream(self):

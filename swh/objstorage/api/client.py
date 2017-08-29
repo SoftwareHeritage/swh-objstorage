@@ -23,8 +23,8 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
         session: The session to send requests.
 
     """
-    def __init__(self, url):
-        super().__init__(api_exception=ObjStorageAPIError, url=url)
+    def __init__(self, url, **kwargs):
+        super().__init__(api_exception=ObjStorageAPIError, url=url, **kwargs)
 
     def check_config(self, *, check_write):
         return self.post('check_config', {'check_write': check_write})
@@ -46,6 +46,7 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
         return self.post('content/check', {'obj_id': obj_id})
 
     def delete(self, obj_id):
+        super().delete(obj_id)  # Check delete permission
         return self.post('content/delete', {'obj_id': obj_id})
 
     # Management methods

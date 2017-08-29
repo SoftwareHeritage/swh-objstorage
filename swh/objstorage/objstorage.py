@@ -49,6 +49,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
     """
+    def __init__(self, *, allow_delete=False, **kwargs):
+        # A more complete permission system could be used in place of that if
+        # it becomes needed
+        super().__init__(**kwargs)
+        self.allow_delete = allow_delete
 
     @abc.abstractmethod
     def check_config(self, *, check_write):
@@ -183,7 +188,8 @@ class ObjStorage(metaclass=abc.ABCMeta):
             ObjNotFoundError: if the requested object is missing.
 
         """
-        pass
+        if not self.allow_delete:
+            raise PermissionError("Delete is not allowed.")
 
     # Management methods
 

@@ -65,6 +65,7 @@ class MockAzureCloudObjStorage(AzureCloudObjStorage):
         self.container_name = container_name
         self.block_blob_service = MockBlockBlobService(api_key, api_secret_key,
                                                        container_name)
+        self.allow_delete = False
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):

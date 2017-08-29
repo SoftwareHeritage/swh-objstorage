@@ -53,7 +53,8 @@ class MultiplexerObjStorage(ObjStorage):
 
     """
 
-    def __init__(self, storages):
+    def __init__(self, storages, **kwargs):
+        super().__init__(**kwargs)
         self.storages = storages
 
     def check_config(self, *, check_write):
@@ -156,6 +157,7 @@ class MultiplexerObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
     def delete(self, obj_id):
+        super().delete(obj_id)  # Check delete permission
         return all(storage.delete(obj_id) for storage in self.storages)
 
     def get_random(self, batch_size):
