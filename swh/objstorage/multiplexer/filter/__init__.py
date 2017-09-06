@@ -52,12 +52,13 @@ def add_filter(storage, filter_conf):
     """Add a filter to the given storage.
 
     Args:
-        storage (ObjStorage): storage which will be filtered.
+        storage (swh.objstorage.ObjStorage): storage which will be filtered.
         filter_conf (dict): configuration of an ObjStorageFilter, given as
             a dictionnary that contains the keys:
-                - type: which represent the type of filter, one of the keys
-                    of _FILTERS_CLASSES
-                - Every arguments that this type of filter requires.
+
+            - type: which represent the type of filter, one of the keys of
+              _FILTERS_CLASSES
+            - Every arguments that this type of filter requires.
 
     Returns:
         A filtered storage that perform only the valid operations.
@@ -75,11 +76,11 @@ def add_filters(storage, filter_confs):
     (See filter.add_filter)
 
     Args:
-        storage (ObjStorage): storage which will be filtered.
+        storage (swh.objstorage.ObjStorage): storage which will be filtered.
         filter_confs (list): any number of filter conf, as a dict with:
-            - type: which represent the type of filter, one of the keys of
-                FILTERS.
-            - Every arguments that this type of filter require.
+
+        - type: which represent the type of filter, one of the keys of FILTERS.
+        - Every arguments that this type of filter require.
 
     Returns:
         A filtered storage that fulfill the requirement of all the given
