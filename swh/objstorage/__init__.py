@@ -5,6 +5,7 @@
 
 from .objstorage import ObjStorage
 from .objstorage_pathslicing import PathSlicingObjStorage
+from .objstorage_in_memory import InMemoryObjStorage
 from .api.client import RemoteObjStorage
 from .multiplexer import MultiplexerObjStorage
 from .multiplexer.filter import add_filters
@@ -16,6 +17,7 @@ __all__ = ['get_objstorage', 'ObjStorage']
 _STORAGE_CLASSES = {
     'pathslicing': PathSlicingObjStorage,
     'remote': RemoteObjStorage,
+    'in-memory': InMemoryObjStorage,
 }
 
 try:
