@@ -23,6 +23,7 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture,
             'args': {
                 'root': tempfile.mkdtemp(),
                 'slicing': '0:1/0:5',
+                'allow_delete': True,
             },
             'client_max_size': 8 * 1024 * 1024,
         }

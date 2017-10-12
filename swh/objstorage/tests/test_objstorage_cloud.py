@@ -62,6 +62,16 @@ class MockLibcloudDriver():
             raise ObjectDoesNotExistError(object_name=obj_id,
                                           driver=self, value=None)
 
+    def delete_object(self, obj):
+        self._check_credentials()
+        try:
+            container = self.get_container(CONTAINER_NAME)
+            container.pop(obj.name)
+            return True
+        except KeyError:
+            raise ObjectDoesNotExistError(object_name=obj.name,
+                                          driver=self, value=None)
+
     def upload_object_via_stream(self, content, container, obj_id):
         self._check_credentials()
         obj = MockLibcloudObject(obj_id, content)

@@ -62,6 +62,18 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.assertEqual(len(self.storage), 2)
 
     @istest
+    def delete_missing(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().delete_missing()
+
+    @istest
+    def delete_present(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().delete_present()
+
+    @istest
     def get_random_contents(self):
         content, obj_id = self.hash_content(b'get_random_content')
         self.storage.add(content)
