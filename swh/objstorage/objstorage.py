@@ -33,6 +33,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     - restore()       same as add() but erase an already existed content
     - get()           retrieve the content of an object, by object id
     - check()         check the integrity of an object, by object id
+    - delete()        remove an object
 
     And some management methods:
 
@@ -48,6 +49,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
     """
+    def __init__(self, *, allow_delete=False, **kwargs):
+        # A more complete permission system could be used in place of that if
+        # it becomes needed
+        super().__init__(**kwargs)
+        self.allow_delete = allow_delete
 
     @abc.abstractmethod
     def check_config(self, *, check_write):
@@ -170,6 +176,20 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
         """
         pass
+
+    @abc.abstractmethod
+    def delete(self, obj_id, *args, **kwargs):
+        """Delete an object.
+
+        Args:
+            obj_id (bytes): object identifier.
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing.
+
+        """
+        if not self.allow_delete:
+            raise PermissionError("Delete is not allowed.")
 
     # Management methods
 

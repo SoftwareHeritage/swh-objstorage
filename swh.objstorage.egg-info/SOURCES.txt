@@ -16,6 +16,13 @@ debian/control
 debian/copyright
 debian/rules
 debian/source/format
+docs/.gitignore
+docs/Makefile
+docs/conf.py
+docs/index.rst
+docs/_static/.placeholder
+docs/_templates/.placeholder
+swh/__init__.py
 swh.objstorage.egg-info/PKG-INFO
 swh.objstorage.egg-info/SOURCES.txt
 swh.objstorage.egg-info/dependency_links.txt
@@ -24,6 +31,7 @@ swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
 swh/objstorage/exc.py
 swh/objstorage/objstorage.py
+swh/objstorage/objstorage_in_memory.py
 swh/objstorage/objstorage_pathslicing.py
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
@@ -43,6 +51,7 @@ swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
 swh/objstorage/tests/test_objstorage_cloud.py
+swh/objstorage/tests/test_objstorage_in_memory.py
 swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
 swh/objstorage/tests/test_objstorage_pathslicing.py

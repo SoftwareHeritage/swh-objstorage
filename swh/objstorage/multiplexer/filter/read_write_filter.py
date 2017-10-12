@@ -19,3 +19,6 @@ class ReadObjStorageFilter(ObjStorageFilter):
 
     def restore(self, *args, **kwargs):
         return
+
+    def delete(self, *args, **kwargs):
+        return True
