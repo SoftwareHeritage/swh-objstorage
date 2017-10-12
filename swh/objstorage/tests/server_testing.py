@@ -56,7 +56,7 @@ class ServerTestFixture():
 
         # Worker function for multiprocessing
         def worker(app, port):
-            return aiohttp.web.run_app(app, port=port)
+            return aiohttp.web.run_app(app, port=port, print=lambda *_: None)
 
         self.process = multiprocessing.Process(
             target=worker, args=(self.app, self.port)
@@ -65,12 +65,12 @@ class ServerTestFixture():
 
         # Wait max 5 seconds for server to spawn
         i = 0
-        while i < 20:
+        while i < 100:
             try:
                 urlopen(self.url())
             except Exception:
                 i += 1
-                time.sleep(0.25)
+                time.sleep(0.1)
             else:
                 return
 

@@ -66,6 +66,12 @@ def check(request):
     return encode_data(request.app['objstorage'].check(**req))
 
 
+@asyncio.coroutine
+def delete(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].delete(**req))
+
+
 # Management methods
 
 @asyncio.coroutine
@@ -120,6 +126,7 @@ def make_app(config, **kwargs):
     app.router.add_route('POST', '/content/get/batch', get_batch)
     app.router.add_route('POST', '/content/get/random', get_random_contents)
     app.router.add_route('POST', '/content/check', check)
+    app.router.add_route('POST', '/content/delete', delete)
     app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
     app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
     app.update(config)

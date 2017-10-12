@@ -17,7 +17,8 @@ class AzureCloudObjStorage(ObjStorage):
     """ObjStorage with azure abilities.
 
     """
-    def __init__(self, account_name, api_secret_key, container_name):
+    def __init__(self, account_name, api_secret_key, container_name, **kwargs):
+        super().__init__(**kwargs)
         self.block_blob_service = BlockBlobService(
             account_name=account_name,
             account_key=api_secret_key)
@@ -112,3 +113,16 @@ class AzureCloudObjStorage(ObjStorage):
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
+
+    def delete(self, obj_id):
+        """Delete an object."""
+        super().delete(obj_id)  # Check delete permission
+        hex_obj_id = self._internal_id(obj_id)
+        try:
+            self.block_blob_service.delete_blob(
+                container_name=self.container_name,
+                blob_name=hex_obj_id)
+        except AzureMissingResourceHttpError:
+            raise ObjNotFoundError('Content {} not found!'.format(hex_obj_id))
+
+        return True

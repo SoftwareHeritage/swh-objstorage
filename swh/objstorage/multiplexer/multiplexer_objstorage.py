@@ -22,18 +22,20 @@ class MultiplexerObjStorage(ObjStorage):
     can be used directly into the storages that the multiplexer
     manage.
 
+    Use case examples follow.
 
-    Use case examples could be:
-    Example 1:
+    Example 1::
+
         storage_v1 = filter.read_only(PathSlicingObjStorage('/dir1',
                                                             '0:2/2:4/4:6'))
         storage_v2 = PathSlicingObjStorage('/dir2', '0:1/0:5')
         storage = MultiplexerObjStorage([storage_v1, storage_v2])
 
-        When using 'storage', all the new contents will only be added
-        to the v2 storage, while it will be retrievable from both.
+    When using 'storage', all the new contents will only be added to the v2
+    storage, while it will be retrievable from both.
 
-    Example 2:
+    Example 2::
+
         storage_v1 = filter.id_regex(
             PathSlicingObjStorage('/dir1', '0:2/2:4/4:6'),
             r'[^012].*'
@@ -44,15 +46,15 @@ class MultiplexerObjStorage(ObjStorage):
         )
         storage = MultiplexerObjStorage([storage_v1, storage_v2])
 
-        When using this storage, the contents with a sha1 starting
-        with 0, 1 or 2 will be redirected (read AND write) to the
-        storage_v2, while the others will be redirected to the
-        storage_v1.  If a content starting with 0, 1 or 2 is present
-        in the storage_v1, it would be ignored anyway.
+    When using this storage, the contents with a sha1 starting with 0, 1 or 2
+    will be redirected (read AND write) to the storage_v2, while the others
+    will be redirected to the storage_v1.  If a content starting with 0, 1 or 2
+    is present in the storage_v1, it would be ignored anyway.
 
     """
 
-    def __init__(self, storages):
+    def __init__(self, storages, **kwargs):
+        super().__init__(**kwargs)
         self.storages = storages
 
     def check_config(self, *, check_write):
@@ -80,8 +82,9 @@ class MultiplexerObjStorage(ObjStorage):
         Due to the demultiplexer nature, same content can be in multiple
         storages and may be yielded multiple times.
 
-        Warning: The `__iter__` methods frequently have bad performance. You
-        almost certainly don't want to use this method in production.
+        Warning:
+            The ``__iter__`` methods frequently have bad performance. You
+            almost certainly don't want to use this method in production.
 
         """
         for storage in self.storages:
@@ -152,6 +155,10 @@ class MultiplexerObjStorage(ObjStorage):
         # all the storages.
         if nb_present == 0:
             raise ObjNotFoundError(obj_id)
+
+    def delete(self, obj_id):
+        super().delete(obj_id)  # Check delete permission
+        return all(storage.delete(obj_id) for storage in self.storages)
 
     def get_random(self, batch_size):
         storages_set = [storage for storage in self.storages

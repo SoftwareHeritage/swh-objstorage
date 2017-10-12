@@ -43,6 +43,14 @@ class MockBlockBlobService():
         return MockBlob(name=blob_name,
                         content=self.data[container_name][blob_name])
 
+    def delete_blob(self, container_name, blob_name):
+        try:
+            self.data[container_name].pop(blob_name)
+        except KeyError:
+            raise AzureMissingResourceHttpError(
+                'Blob %s not found' % blob_name, 404)
+        return True
+
     def exists(self, container_name, blob_name):
         return blob_name in self.data[container_name]
 
@@ -57,6 +65,7 @@ class MockAzureCloudObjStorage(AzureCloudObjStorage):
         self.container_name = container_name
         self.block_blob_service = MockBlockBlobService(api_key, api_secret_key,
                                                        container_name)
+        self.allow_delete = False
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):

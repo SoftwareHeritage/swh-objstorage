@@ -22,7 +22,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     https://libcloud.readthedocs.io/en/latest/storage/api.html).
 
     """
-    def __init__(self, api_key, api_secret_key, container_name):
+    def __init__(self, api_key, api_secret_key, container_name, **kwargs):
+        super().__init__(**kwargs)
         self.driver = self._get_driver(api_key, api_secret_key)
         self.container_name = container_name
         self.container = self.driver.get_container(
@@ -121,6 +122,11 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
+
+    def delete(self, obj_id):
+        super().delete(obj_id)  # Check delete permission
+        obj = self._get_object(obj_id)
+        return self.driver.delete_object(obj)
 
     def _get_object(self, obj_id):
         """Get a Libcloud wrapper for an object pointer.
