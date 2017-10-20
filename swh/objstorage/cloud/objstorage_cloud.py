@@ -139,7 +139,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         try:
             return self.driver.get_object(self.container_name, hex_obj_id)
         except ObjectDoesNotExistError as e:
-            raise ObjNotFoundError(e.object_name)
+            raise ObjNotFoundError(obj_id)
 
     def _put_object(self, content, obj_id):
         """Create an object in the cloud storage.
