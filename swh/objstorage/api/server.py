@@ -145,7 +145,8 @@ def make_app(config, **kwargs):
 
 
 def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
-    return make_app(config.read(config_path, DEFAULT_CONFIG), **kwargs)
+    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+    return make_app(cfg, **kwargs)
 
 
 @click.command()
