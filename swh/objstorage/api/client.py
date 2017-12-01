@@ -8,7 +8,7 @@ from swh.core.api import SWHRemoteAPI
 from swh.model import hashutil
 
 from ..objstorage import ObjStorage, DEFAULT_CHUNK_SIZE
-from ..exc import ObjStorageAPIError
+from ..exc import ObjNotFoundError, ObjStorageAPIError
 
 
 class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
@@ -37,7 +37,11 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
                                          'check_presence': check_presence})
 
     def get(self, obj_id):
-        return self.post('content/get', {'obj_id': obj_id})
+        ret = self.post('content/get', {'obj_id': obj_id})
+        if ret is None:
+            raise ObjNotFoundError(obj_id)
+        else:
+            return ret
 
     def get_batch(self, obj_ids):
         return self.post('content/get/batch', {'obj_ids': obj_ids})

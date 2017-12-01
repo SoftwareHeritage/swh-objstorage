@@ -90,8 +90,10 @@ class ObjStorageTestFixture():
     @istest
     def get_missing(self):
         content, obj_id = self.hash_content(b'get_missing')
-        with self.assertRaises(exc.Error):
+        with self.assertRaises(exc.ObjNotFoundError) as e:
             self.storage.get(obj_id)
+
+        self.assertIn(obj_id, e.exception.args)
 
     @istest
     def check_missing(self):
