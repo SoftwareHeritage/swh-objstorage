@@ -101,7 +101,7 @@ class AzureCloudObjStorage(ObjStorage):
                 container_name=self.container_name,
                 blob_name=hex_obj_id)
         except AzureMissingResourceHttpError:
-            raise ObjNotFoundError('Content %s not found!' % hex_obj_id)
+            raise ObjNotFoundError(obj_id)
 
         return gzip.decompress(blob.content)
 
