@@ -1,3 +1,5 @@
+.. _swh-objstorage:
+
 Software Heritage - Development Documentation
 =============================================
 

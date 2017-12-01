@@ -12,6 +12,7 @@ from swh.core.api_async import (SWHRemoteAPI, decode_request,
                                 encode_data_server as encode_data)
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
+from swh.objstorage.exc import ObjNotFoundError
 
 
 DEFAULT_CONFIG_PATH = 'objstorage/server'
@@ -51,7 +52,16 @@ def add_bytes(request):
 @asyncio.coroutine
 def get_bytes(request):
     req = yield from decode_request(request)
-    return encode_data(request.app['objstorage'].get(**req))
+    try:
+        ret = request.app['objstorage'].get(**req)
+    except ObjNotFoundError:
+        ret = {
+            'error': 'object_not_found',
+            'request': req,
+        }
+        return encode_data(ret, status=404)
+    else:
+        return encode_data(ret)
 
 
 @asyncio.coroutine
@@ -135,7 +145,8 @@ def make_app(config, **kwargs):
 
 
 def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
-    return make_app(config.read(config_path, DEFAULT_CONFIG), **kwargs)
+    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+    return make_app(cfg, **kwargs)
 
 
 @click.command()
