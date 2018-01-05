@@ -107,7 +107,7 @@ class ObjStorageTestFixture():
         self.storage.add(content)
         try:
             self.storage.check(obj_id)
-        except:
+        except exc.Error:
             self.fail('Integrity check failed')
 
     @istest
