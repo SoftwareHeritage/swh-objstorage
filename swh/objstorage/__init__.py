@@ -26,6 +26,12 @@ try:
 except ImportError:
     pass
 
+try:
+    from swh.objstorage.objstorage_rados import RADOSObjStorage
+    _STORAGE_CLASSES['rados'] = RADOSObjStorage
+except ImportError:
+    pass
+
 
 def get_objstorage(cls, args):
     """ Create an ObjStorage using the given implementation class.
