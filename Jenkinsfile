@@ -8,7 +8,7 @@ pipeline {
             agent {
                 dockerfile {
                     filename 'dockerfiles/Dockerfile.lint'
-                    additionalBuildArgs '--build-arg python_version=${env.PYTHON_VERSION}'
+                    additionalBuildArgs '--build-arg python_version=${PYTHON_VERSION}'
                 }
             }
             steps {
