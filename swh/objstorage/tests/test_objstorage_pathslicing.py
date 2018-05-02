@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import shutil
 import tempfile
 import unittest
 
@@ -25,6 +26,10 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             'pathslicing',
             {'root': self.tmpdir, 'slicing': self.slicing}
         )
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tmpdir)
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)

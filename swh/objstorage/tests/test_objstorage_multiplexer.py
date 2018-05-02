@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
+import shutil
 import tempfile
 import unittest
 
@@ -19,12 +21,21 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage_v1 = PathSlicingObjStorage(tempfile.mkdtemp(), '0:2/2:4')
-        self.storage_v2 = PathSlicingObjStorage(tempfile.mkdtemp(), '0:1/0:5')
+        self.tmpdir = tempfile.mkdtemp()
+        os.mkdir(os.path.join(self.tmpdir, 'root1'))
+        os.mkdir(os.path.join(self.tmpdir, 'root2'))
+        self.storage_v1 = PathSlicingObjStorage(
+            os.path.join(self.tmpdir, 'root1'), '0:2/2:4')
+        self.storage_v2 = PathSlicingObjStorage(
+            os.path.join(self.tmpdir, 'root2'), '0:1/0:5')
 
         self.r_storage = add_filter(self.storage_v1, read_only())
         self.w_storage = self.storage_v2
         self.storage = MultiplexerObjStorage([self.r_storage, self.w_storage])
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tmpdir)
 
     @istest
     def contains(self):

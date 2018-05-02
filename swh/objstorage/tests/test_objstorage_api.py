@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import shutil
 import tempfile
 import unittest
 
@@ -18,10 +19,11 @@ class TestRemoteObjStorage(ServerTestFixtureAsync, ObjStorageTestFixture,
     """
 
     def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
         self.config = {
             'cls': 'pathslicing',
             'args': {
-                'root': tempfile.mkdtemp(),
+                'root': self.tmpdir,
                 'slicing': '0:1/0:5',
                 'allow_delete': True,
             },
@@ -33,3 +35,7 @@ class TestRemoteObjStorage(ServerTestFixtureAsync, ObjStorageTestFixture,
         self.storage = get_objstorage('remote', {
             'url': self.url()
         })
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tmpdir)
