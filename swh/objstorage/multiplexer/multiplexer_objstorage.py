@@ -57,6 +57,12 @@ class MultiplexerObjStorage(ObjStorage):
         super().__init__(**kwargs)
         self.storages = storages
 
+    def get_read_storages(self, obj_id=None):
+        yield from self.storages
+
+    def get_write_storages(self, obj_id=None):
+        yield from self.storages
+
     def check_config(self, *, check_write):
         return all(
             storage.check_config(check_write=check_write)
@@ -71,7 +77,7 @@ class MultiplexerObjStorage(ObjStorage):
         Returns:
             True if the storage is properly configured
         """
-        for storage in self.storages:
+        for storage in self.get_read_storages(obj_id):
             if obj_id in storage:
                 return True
         return False
@@ -125,14 +131,14 @@ class MultiplexerObjStorage(ObjStorage):
             content.
         """
         return [storage.add(content, obj_id, check_presence)
-                for storage in self.storages].pop()
+                for storage in self.get_write_storages(obj_id)].pop()
 
     def restore(self, content, obj_id=None):
         return [storage.restore(content, obj_id)
-                for storage in self.storages].pop()
+                for storage in self.get_write_storages(obj_id)].pop()
 
     def get(self, obj_id):
-        for storage in self.storages:
+        for storage in self.get_read_storages(obj_id):
             try:
                 return storage.get(obj_id)
             except ObjNotFoundError:
@@ -142,7 +148,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     def check(self, obj_id):
         nb_present = 0
-        for storage in self.storages:
+        for storage in self.get_read_storages(obj_id):
             try:
                 storage.check(obj_id)
             except ObjNotFoundError:
@@ -158,7 +164,8 @@ class MultiplexerObjStorage(ObjStorage):
 
     def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission
-        return all(storage.delete(obj_id) for storage in self.storages)
+        return all(storage.delete(obj_id)
+                   for storage in self.get_write_storages(obj_id))
 
     def get_random(self, batch_size):
         storages_set = [storage for storage in self.storages
