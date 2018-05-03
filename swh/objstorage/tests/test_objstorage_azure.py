@@ -3,7 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import defaultdict
 import unittest
+from unittest.mock import patch
 
 from azure.common import AzureMissingResourceHttpError
 
@@ -25,11 +27,12 @@ class MockBlockBlobService():
     """
     data = {}
 
-    def __init__(self, account_name, api_secret_key, container_name):
+    def __init__(self, account_name, account_key, **kwargs):
         # do not care for the account_name and the api_secret_key here
-        self.data[container_name] = {}
+        self.data = defaultdict(dict)
 
     def get_container_properties(self, container_name):
+        self.data[container_name]
         return container_name in self.data
 
     def create_blob_from_bytes(self, container_name, blob_name, blob):
@@ -59,18 +62,16 @@ class MockBlockBlobService():
             yield MockBlob(name=blob_name, content=content)
 
 
-class MockAzureCloudObjStorage(AzureCloudObjStorage):
-    """ Cloud object storage that uses a mocked driver """
-    def __init__(self, api_key, api_secret_key, container_name):
-        self.container_name = container_name
-        self.block_blob_service = MockBlockBlobService(api_key, api_secret_key,
-                                                       container_name)
-        self.allow_delete = False
-
-
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = MockAzureCloudObjStorage(
+        patcher = patch(
+            'swh.objstorage.cloud.objstorage_azure.BlockBlobService',
+            MockBlockBlobService,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.storage = AzureCloudObjStorage(
             'account-name', 'api-secret-key', 'container-name')
