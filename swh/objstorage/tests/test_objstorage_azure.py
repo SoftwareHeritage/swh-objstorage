@@ -76,7 +76,7 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        self.storage = get_objstorage('azure-storage', {
+        self.storage = get_objstorage('azure', {
             'account_name': 'account-name',
             'api_secret_key': 'api-secret-key',
             'container_name': 'container-name',
@@ -102,7 +102,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
                 'container_name': 'container_%s' % prefix,
             }
 
-        self.storage = get_objstorage('azure-storage-prefixed', {
+        self.storage = get_objstorage('azure-prefixed', {
             'accounts': self.accounts
         })
 
@@ -112,7 +112,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
         del self.accounts['e']
 
         with self.assertRaisesRegex(ValueError, 'Missing prefixes'):
-            get_objstorage('azure-storage-prefixed', {
+            get_objstorage('azure-prefixed', {
                 'accounts': self.accounts
             })
 
@@ -121,7 +121,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
         self.accounts['00'] = self.accounts['0']
 
         with self.assertRaisesRegex(ValueError, 'Inconsistent prefixes'):
-            get_objstorage('azure-storage-prefixed', {
+            get_objstorage('azure-prefixed', {
                 'accounts': self.accounts
             })
 

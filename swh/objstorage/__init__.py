@@ -25,8 +25,8 @@ try:
         AzureCloudObjStorage,
         PrefixedAzureCloudObjStorage,
     )
-    _STORAGE_CLASSES['azure-storage'] = AzureCloudObjStorage
-    _STORAGE_CLASSES['azure-storage-prefixed'] = PrefixedAzureCloudObjStorage
+    _STORAGE_CLASSES['azure'] = AzureCloudObjStorage
+    _STORAGE_CLASSES['azure-prefixed'] = PrefixedAzureCloudObjStorage
 except ImportError:
     pass
 
