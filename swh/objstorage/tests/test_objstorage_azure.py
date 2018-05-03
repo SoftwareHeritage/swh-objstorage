@@ -1,4 +1,4 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from azure.common import AzureMissingResourceHttpError
 
-from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
+from swh.objstorage import get_objstorage
 
 from objstorage_testing import ObjStorageTestFixture
 
@@ -73,5 +73,8 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        self.storage = AzureCloudObjStorage(
-            'account-name', 'api-secret-key', 'container-name')
+        self.storage = get_objstorage('azure-storage', {
+            'account_name': 'account-name',
+            'api_secret_key': 'api-secret-key',
+            'container_name': 'container-name',
+        })
