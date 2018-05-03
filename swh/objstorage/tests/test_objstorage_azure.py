@@ -7,8 +7,11 @@ from collections import defaultdict
 import unittest
 from unittest.mock import patch
 
+from nose.tools import istest
+
 from azure.common import AzureMissingResourceHttpError
 
+from swh.model.hashutil import hash_to_hex
 from swh.objstorage import get_objstorage
 
 from objstorage_testing import ObjStorageTestFixture
@@ -78,3 +81,58 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             'api_secret_key': 'api-secret-key',
             'container_name': 'container-name',
         })
+
+
+class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
+                                       unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        patcher = patch(
+            'swh.objstorage.cloud.objstorage_azure.BlockBlobService',
+            MockBlockBlobService,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.accounts = {}
+        for prefix in '0123456789abcdef':
+            self.accounts[prefix] = {
+                'account_name': 'account_%s' % prefix,
+                'api_secret_key': 'secret_key_%s' % prefix,
+                'container_name': 'container_%s' % prefix,
+            }
+
+        self.storage = get_objstorage('azure-storage-prefixed', {
+            'accounts': self.accounts
+        })
+
+    @istest
+    def prefixedazure_instantiation_missing_prefixes(self):
+        del self.accounts['d']
+        del self.accounts['e']
+
+        with self.assertRaisesRegex(ValueError, 'Missing prefixes'):
+            get_objstorage('azure-storage-prefixed', {
+                'accounts': self.accounts
+            })
+
+    @istest
+    def prefixedazure_instantiation_inconsistent_prefixes(self):
+        self.accounts['00'] = self.accounts['0']
+
+        with self.assertRaisesRegex(ValueError, 'Inconsistent prefixes'):
+            get_objstorage('azure-storage-prefixed', {
+                'accounts': self.accounts
+            })
+
+    @istest
+    def prefixedazure_sharding_behavior(self):
+        for i in range(100):
+            content, obj_id = self.hash_content(b'test_content_%02d' % i)
+            self.storage.add(content, obj_id=obj_id)
+            hex_obj_id = hash_to_hex(obj_id)
+            prefix = hex_obj_id[0]
+            self.assertTrue(
+                self.storage.prefixes[prefix][0].exists(
+                    self.accounts[prefix]['container_name'], hex_obj_id
+                ))

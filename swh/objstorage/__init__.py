@@ -21,8 +21,12 @@ _STORAGE_CLASSES = {
 }
 
 try:
-    from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
+    from swh.objstorage.cloud.objstorage_azure import (
+        AzureCloudObjStorage,
+        PrefixedAzureCloudObjStorage,
+    )
     _STORAGE_CLASSES['azure-storage'] = AzureCloudObjStorage
+    _STORAGE_CLASSES['azure-storage-prefixed'] = PrefixedAzureCloudObjStorage
 except ImportError:
     pass
 
