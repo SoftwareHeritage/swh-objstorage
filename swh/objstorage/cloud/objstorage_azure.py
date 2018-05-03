@@ -5,12 +5,13 @@
 
 import gzip
 
+from azure.storage.blob import BlockBlobService
+from azure.common import AzureMissingResourceHttpError
+import requests
+
 from swh.objstorage.objstorage import ObjStorage, compute_hash
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.model import hashutil
-
-from azure.storage.blob import BlockBlobService
-from azure.common import AzureMissingResourceHttpError
 
 
 class AzureCloudObjStorage(ObjStorage):
@@ -21,7 +22,9 @@ class AzureCloudObjStorage(ObjStorage):
         super().__init__(**kwargs)
         self.block_blob_service = BlockBlobService(
             account_name=account_name,
-            account_key=api_secret_key)
+            account_key=api_secret_key,
+            request_session=requests.Session(),
+        )
         self.container_name = container_name
 
     def get_blob_service(self, hex_obj_id):
