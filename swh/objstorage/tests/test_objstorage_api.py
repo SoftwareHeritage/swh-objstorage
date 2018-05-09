@@ -10,7 +10,7 @@ import unittest
 from swh.core.tests.server_testing import ServerTestFixtureAsync
 from swh.objstorage import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
-from swh.objstorage.api.server import make_app
+from swh.objstorage.api.server import app
 
 
 class TestRemoteObjStorage(ServerTestFixtureAsync, ObjStorageTestFixture,
@@ -30,7 +30,8 @@ class TestRemoteObjStorage(ServerTestFixtureAsync, ObjStorageTestFixture,
             'client_max_size': 8 * 1024 * 1024,
         }
 
-        self.app = make_app(self.config)
+        self.app = app
+        self.app['config'] = self.config
         super().setUp()
         self.storage = get_objstorage('remote', {
             'url': self.url()
