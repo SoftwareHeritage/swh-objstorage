@@ -13,7 +13,7 @@ from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage import get_objstorage
 
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
 class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):

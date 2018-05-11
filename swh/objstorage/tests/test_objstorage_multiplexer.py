@@ -14,7 +14,7 @@ from swh.objstorage import PathSlicingObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.multiplexer.filter import add_filter, read_only
 
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
 class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):

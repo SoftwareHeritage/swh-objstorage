@@ -14,7 +14,7 @@ from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
 from swh.objstorage import get_objstorage
 
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
 class MockBlob():

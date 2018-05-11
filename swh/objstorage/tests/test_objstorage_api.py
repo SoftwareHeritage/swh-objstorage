@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from swh.core.tests.server_testing import ServerTestFixtureAsync
+
 from swh.objstorage import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 from swh.objstorage.api.server import app

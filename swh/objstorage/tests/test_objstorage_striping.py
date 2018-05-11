@@ -11,7 +11,7 @@ import unittest
 from nose.tools import istest
 
 from swh.objstorage import get_objstorage
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
 class TestStripingObjStorage(ObjStorageTestFixture, unittest.TestCase):

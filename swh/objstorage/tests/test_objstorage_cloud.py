@@ -10,7 +10,7 @@ from libcloud.storage.types import (ObjectDoesNotExistError,
                                     ContainerDoesNotExistError)
 from libcloud.common.types import InvalidCredsError
 
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
 API_KEY = 'API_KEY'
