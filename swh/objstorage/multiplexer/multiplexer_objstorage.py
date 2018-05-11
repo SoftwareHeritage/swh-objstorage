@@ -64,18 +64,29 @@ class MultiplexerObjStorage(ObjStorage):
         yield from self.storages
 
     def check_config(self, *, check_write):
+        """Check whether the object storage is properly configured.
+
+        Args:
+            check_write (bool): if True, check if writes to the object storage
+            can succeed.
+
+        Returns:
+            True if the configuration check worked, an exception if it didn't.
+        """
         return all(
             storage.check_config(check_write=check_write)
             for storage in self.storages
         )
 
     def __contains__(self, obj_id):
-        """Check the object storage for proper configuration.
+        """Indicate if the given object is present in the storage.
 
         Args:
-            check_write: check whether writes to the objstorage will succeed
+            obj_id (bytes): object identifier.
+
         Returns:
-            True if the storage is properly configured
+            True iff the object is present in the current object storage.
+
         """
         for storage in self.get_read_storages(obj_id):
             if obj_id in storage:
@@ -157,7 +168,7 @@ class MultiplexerObjStorage(ObjStorage):
                 nb_present += 1
         # If there is an Error because of a corrupted file, then let it pass.
 
-        # Raise the ObjNotFoundError only if the content coulnd't be found in
+        # Raise the ObjNotFoundError only if the content couldn't be found in
         # all the storages.
         if nb_present == 0:
             raise ObjNotFoundError(obj_id)
