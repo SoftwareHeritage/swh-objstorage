@@ -46,33 +46,6 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.assertNotIn(obj_id_m, self.storage)
 
     @istest
-    def iter(self):
-        content, obj_id = self.hash_content(b'iter')
-        self.assertEqual(list(iter(self.storage)), [])
-        self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(list(iter(self.storage)), [obj_id])
-
-    @istest
-    def len(self):
-        content, obj_id = self.hash_content(b'len')
-        self.assertEqual(len(self.storage), 0)
-        self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(len(self.storage), 1)
-
-    @istest
-    def len_multiple(self):
-        content, obj_id = self.hash_content(b'len_multiple')
-        # Add a content to the read-only storage
-        self.storage_v1.add(content)
-        self.assertEqual(len(self.storage), 1)
-        # By adding the same content to the global storage, it should be
-        # Replicated.
-        # len() behavior is to indicates the number of files, not unique
-        # contents.
-        self.storage.add(content)
-        self.assertEqual(len(self.storage), 2)
-
-    @istest
     def delete_missing(self):
         self.storage_v1.allow_delete = True
         self.storage_v2.allow_delete = True

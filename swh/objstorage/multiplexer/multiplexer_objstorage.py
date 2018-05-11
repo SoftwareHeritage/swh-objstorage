@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -92,34 +92,6 @@ class MultiplexerObjStorage(ObjStorage):
             if obj_id in storage:
                 return True
         return False
-
-    def __iter__(self):
-        """Iterates over the content of each storages
-
-        Due to the demultiplexer nature, same content can be in multiple
-        storages and may be yielded multiple times.
-
-        Warning:
-            The ``__iter__`` methods frequently have bad performance. You
-            almost certainly don't want to use this method in production.
-
-        """
-        for storage in self.storages:
-            yield from storage
-
-    def __len__(self):
-        """Compute the number of objects in the current object storage.
-
-        Identical objects present in multiple storages will be counted as
-        multiple objects.
-        Warning: this currently uses `__iter__`, its warning about bad
-        performance applies.
-
-        Returns:
-            number of objects contained in the storage.
-
-        """
-        return sum(map(len, self.storages))
 
     def add(self, content, obj_id=None, check_presence=True):
         """ Add a new object to the object storage.
