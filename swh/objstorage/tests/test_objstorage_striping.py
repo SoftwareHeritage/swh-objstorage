@@ -14,7 +14,7 @@ from swh.objstorage import get_objstorage
 from objstorage_testing import ObjStorageTestFixture
 
 
-class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestStripingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
