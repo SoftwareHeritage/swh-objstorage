@@ -21,6 +21,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 Package: python3-swh.objstorage
 Architecture: all
 Depends: python3-swh.core (>= 0.0.37~), ${misc:Depends}, ${python3:Depends}, python3-aiohttp (>= 2.1.0)
+Breaks: python3-swh.archiver (<< 0.0.3~)
 Description: Software Heritage Object Storage
 
 Package: python3-swh.objstorage.cloud
