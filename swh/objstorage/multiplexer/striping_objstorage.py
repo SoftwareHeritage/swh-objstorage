@@ -32,11 +32,14 @@ class StripingObjStorage(MultiplexerObjStorage):
         index = int.from_bytes(obj_id[:-self.MOD_BYTES], 'little')
         return index % self.num_storages
 
-    def get_write_storages(self, obj_id):
+    def get_write_threads(self, obj_id):
         idx = self.get_storage_index(obj_id)
-        yield self.storages[idx]
+        yield self.storage_threads[idx]
 
-    def get_read_storages(self, obj_id):
-        idx = self.get_storage_index(obj_id)
+    def get_read_threads(self, obj_id=None):
+        if obj_id:
+            idx = self.get_storage_index(obj_id)
+        else:
+            idx = 0
         for i in range(self.num_storages):
-            yield self.storages[(idx + i) % self.num_storages]
+            yield self.storage_threads[(idx + i) % self.num_storages]
