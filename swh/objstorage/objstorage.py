@@ -100,6 +100,20 @@ class ObjStorage(metaclass=abc.ABCMeta):
         """
         pass
 
+    def add_batch(self, contents, check_presence=True):
+        """Add a batch of new objects to the object storage.
+
+        Args:
+          contents (dict): mapping from obj_id to object conetnts
+        Returns:
+          the number of objects added to the storage
+        """
+        ctr = 0
+        for obj_id, content in contents.items():
+            self.add(content, obj_id, check_presence=check_presence)
+            ctr += 1
+        return ctr
+
     def restore(self, content, obj_id=None, *args, **kwargs):
         """Restore a content that have been corrupted.
 

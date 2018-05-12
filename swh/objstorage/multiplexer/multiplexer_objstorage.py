@@ -234,6 +234,16 @@ class MultiplexerObjStorage(ObjStorage):
             obj_id=obj_id, check_presence=check_presence,
         ).pop()
 
+    def add_batch(self, contents, check_presence=True):
+        """Add a batch of new objects to the object storage.
+
+        """
+        write_threads = list(self.get_write_threads())
+        return sum(self.wrap_call(
+            write_threads, 'add_batch', contents,
+            check_presence=check_presence,
+        )) // len(write_threads)
+
     def restore(self, content, obj_id=None):
         return self.wrap_call(
             self.get_write_threads(obj_id), 'restore', content, obj_id=obj_id,

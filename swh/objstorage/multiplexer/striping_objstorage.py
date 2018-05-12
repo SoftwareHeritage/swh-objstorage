@@ -3,7 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .multiplexer_objstorage import MultiplexerObjStorage
+from collections import defaultdict
+import queue
+
+from .multiplexer_objstorage import ObjStorageThread, MultiplexerObjStorage
 
 
 class StripingObjStorage(MultiplexerObjStorage):
@@ -43,3 +46,26 @@ class StripingObjStorage(MultiplexerObjStorage):
             idx = 0
         for i in range(self.num_storages):
             yield self.storage_threads[(idx + i) % self.num_storages]
+
+    def add_batch(self, contents, check_presence=True):
+        """Add a batch of new objects to the object storage.
+
+        """
+        content_by_storage_index = defaultdict(dict)
+        for obj_id, content in contents.items():
+            storage_index = self.get_storage_index(obj_id)
+            content_by_storage_index[storage_index][obj_id] = content
+
+        mailbox = queue.Queue()
+        for storage_index, contents in content_by_storage_index.items():
+            self.storage_threads[storage_index].queue_command(
+                'add_batch',
+                contents,
+                check_presence=check_presence,
+                mailbox=mailbox,
+            )
+        return sum(
+            ObjStorageThread.collect_results(
+                mailbox, len(content_by_storage_index)
+            )
+        )

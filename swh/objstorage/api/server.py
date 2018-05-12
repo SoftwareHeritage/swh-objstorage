@@ -50,6 +50,12 @@ def add_bytes(request):
 
 
 @asyncio.coroutine
+def add_batch(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].add_batch(**req))
+
+
+@asyncio.coroutine
 def get_bytes(request):
     req = yield from decode_request(request)
     try:
@@ -145,6 +151,7 @@ app.router.add_route('GET', '/', index)
 app.router.add_route('POST', '/check_config', check_config)
 app.router.add_route('POST', '/content/contains', contains)
 app.router.add_route('POST', '/content/add', add_bytes)
+app.router.add_route('POST', '/content/add/batch', add_batch)
 app.router.add_route('POST', '/content/get', get_bytes)
 app.router.add_route('POST', '/content/get/batch', get_batch)
 app.router.add_route('POST', '/content/get/random', get_random_contents)

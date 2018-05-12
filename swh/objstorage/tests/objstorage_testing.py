@@ -175,3 +175,16 @@ class ObjStorageTestFixture():
         except NotImplementedError:
             return
         self.assertEqual(r, content_l)
+
+    @istest
+    def add_batch(self):
+        contents = {}
+        for i in range(50):
+            content = b'Test content %02d' % i
+            content, obj_id = self.hash_content(content)
+            contents[obj_id] = content
+
+        ret = self.storage.add_batch(contents)
+        self.assertEqual(len(contents), ret)
+        for obj_id in contents:
+            self.assertIn(obj_id, self.storage)
