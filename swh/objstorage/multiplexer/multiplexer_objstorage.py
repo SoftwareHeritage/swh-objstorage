@@ -1,12 +1,115 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import queue
 import random
+import threading
 
 from ..objstorage import ObjStorage
 from ..exc import ObjNotFoundError
+
+
+class ObjStorageThread(threading.Thread):
+    def __init__(self, storage):
+        super().__init__(daemon=True)
+        self.storage = storage
+        self.commands = queue.Queue()
+
+    def run(self):
+        while True:
+            try:
+                mailbox, command, args, kwargs = self.commands.get(True, 0.05)
+            except queue.Empty:
+                continue
+
+            try:
+                ret = getattr(self.storage, command)(*args, **kwargs)
+            except Exception as exc:
+                self.queue_result(mailbox, 'exception', exc)
+            else:
+                self.queue_result(mailbox, 'result', ret)
+
+
+    def queue_command(self, command, *args, mailbox=None, **kwargs):
+        """Enqueue a new command to be processed by the thread.
+
+        Args:
+          command (str): one of the method names for the underlying storage.
+          mailbox (queue.Queue): explicit mailbox if the calling thread wants
+            to override it.
+          args, kwargs: arguments for the command.
+        Returns: queue.Queue
+          The mailbox you can read the response from
+        """
+        if not mailbox:
+            mailbox = queue.Queue()
+        self.commands.put((mailbox, command, args, kwargs))
+        return mailbox
+
+    def queue_result(self, mailbox, result_type, result):
+        """Enqueue a new result in the mailbox
+
+        This also provides a reference to the storage, which can be useful when
+        an exceptional condition arises.
+
+        Args:
+          mailbox (queue.Queue): the mailbox to which we need to enqueue the
+            result
+          result_type (str): one of 'result', 'exception'
+          result: the result to pass back to the calling thread
+        """
+        mailbox.put({
+            'type': result_type,
+            'result': result,
+        })
+
+    @staticmethod
+    def get_result_from_mailbox(mailbox, *args, **kwargs):
+        """Unpack the result from the mailbox.
+
+        Arguments:
+          mailbox (queue.Queue): A mailbox to unpack a result from
+          args, kwargs: arguments to :func:`mailbox.get`
+
+        Returns:
+          the next result unpacked from the queue
+        Raises:
+          either the exception we got back from the underlying storage,
+          or :exc:`queue.Empty` if :func:`mailbox.get` raises that.
+        """
+
+        result = mailbox.get(*args, **kwargs)
+        if result['type'] == 'exception':
+            raise result['result'] from None
+        else:
+            return result['result']
+
+    @staticmethod
+    def collect_results(mailbox, num_results):
+        """Collect num_results from the mailbox"""
+        collected = 0
+        ret = []
+        while collected < num_results:
+            try:
+                ret.append(ObjStorageThread.get_result_from_mailbox(
+                    mailbox, True, 0.05
+                ))
+            except queue.Empty:
+                continue
+            collected += 1
+        return ret
+
+    def __getattr__(self, attr):
+        def call(*args, **kwargs):
+            mailbox = self.queue_command(attr, *args, **kwargs)
+            return self.get_result_from_mailbox(mailbox)
+        return call
+
+    def __contains__(self, *args, **kwargs):
+        mailbox = self.queue_command('__contains__', *args, **kwargs)
+        return self.get_result_from_mailbox(mailbox)
 
 
 class MultiplexerObjStorage(ObjStorage):
@@ -56,53 +159,55 @@ class MultiplexerObjStorage(ObjStorage):
     def __init__(self, storages, **kwargs):
         super().__init__(**kwargs)
         self.storages = storages
+        self.storage_threads = [
+            ObjStorageThread(storage) for storage in storages
+        ]
+        for thread in self.storage_threads:
+            thread.start()
+
+    def wrap_call(self, threads, call, *args, **kwargs):
+        threads = list(threads)
+        mailbox = queue.Queue()
+        for thread in threads:
+            thread.queue_command(call, *args, mailbox=mailbox, **kwargs)
+
+        return ObjStorageThread.collect_results(mailbox, len(threads))
+
+    def get_read_threads(self, obj_id=None):
+        yield from self.storage_threads
+
+    def get_write_threads(self, obj_id=None):
+        yield from self.storage_threads
 
     def check_config(self, *, check_write):
+        """Check whether the object storage is properly configured.
+
+        Args:
+            check_write (bool): if True, check if writes to the object storage
+            can succeed.
+
+        Returns:
+            True if the configuration check worked, an exception if it didn't.
+        """
         return all(
-            storage.check_config(check_write=check_write)
-            for storage in self.storages
+            self.wrap_call(self.storage_threads, 'check_config',
+                           check_write=check_write)
         )
 
     def __contains__(self, obj_id):
-        """Check the object storage for proper configuration.
+        """Indicate if the given object is present in the storage.
 
         Args:
-            check_write: check whether writes to the objstorage will succeed
+            obj_id (bytes): object identifier.
+
         Returns:
-            True if the storage is properly configured
+            True iff the object is present in the current object storage.
+
         """
-        for storage in self.storages:
+        for storage in self.get_read_threads(obj_id):
             if obj_id in storage:
                 return True
         return False
-
-    def __iter__(self):
-        """Iterates over the content of each storages
-
-        Due to the demultiplexer nature, same content can be in multiple
-        storages and may be yielded multiple times.
-
-        Warning:
-            The ``__iter__`` methods frequently have bad performance. You
-            almost certainly don't want to use this method in production.
-
-        """
-        for storage in self.storages:
-            yield from storage
-
-    def __len__(self):
-        """Compute the number of objects in the current object storage.
-
-        Identical objects present in multiple storages will be counted as
-        multiple objects.
-        Warning: this currently uses `__iter__`, its warning about bad
-        performance applies.
-
-        Returns:
-            number of objects contained in the storage.
-
-        """
-        return sum(map(len, self.storages))
 
     def add(self, content, obj_id=None, check_presence=True):
         """ Add a new object to the object storage.
@@ -124,15 +229,28 @@ class MultiplexerObjStorage(ObjStorage):
             always readable as well, any id will be valid to retrieve a
             content.
         """
-        return [storage.add(content, obj_id, check_presence)
-                for storage in self.storages].pop()
+        return self.wrap_call(
+            self.get_write_threads(obj_id), 'add', content,
+            obj_id=obj_id, check_presence=check_presence,
+        ).pop()
+
+    def add_batch(self, contents, check_presence=True):
+        """Add a batch of new objects to the object storage.
+
+        """
+        write_threads = list(self.get_write_threads())
+        return sum(self.wrap_call(
+            write_threads, 'add_batch', contents,
+            check_presence=check_presence,
+        )) // len(write_threads)
 
     def restore(self, content, obj_id=None):
-        return [storage.restore(content, obj_id)
-                for storage in self.storages].pop()
+        return self.wrap_call(
+            self.get_write_threads(obj_id), 'restore', content, obj_id=obj_id,
+        ).pop()
 
     def get(self, obj_id):
-        for storage in self.storages:
+        for storage in self.get_read_threads(obj_id):
             try:
                 return storage.get(obj_id)
             except ObjNotFoundError:
@@ -142,7 +260,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     def check(self, obj_id):
         nb_present = 0
-        for storage in self.storages:
+        for storage in self.get_read_threads(obj_id):
             try:
                 storage.check(obj_id)
             except ObjNotFoundError:
@@ -151,14 +269,16 @@ class MultiplexerObjStorage(ObjStorage):
                 nb_present += 1
         # If there is an Error because of a corrupted file, then let it pass.
 
-        # Raise the ObjNotFoundError only if the content coulnd't be found in
+        # Raise the ObjNotFoundError only if the content couldn't be found in
         # all the storages.
         if nb_present == 0:
             raise ObjNotFoundError(obj_id)
 
     def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission
-        return all(storage.delete(obj_id) for storage in self.storages)
+        return all(
+            self.wrap_call(self.get_write_threads(obj_id), 'delete', obj_id)
+        )
 
     def get_random(self, batch_size):
         storages_set = [storage for storage in self.storages

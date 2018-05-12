@@ -54,7 +54,7 @@ def add_filter(storage, filter_conf):
     Args:
         storage (swh.objstorage.ObjStorage): storage which will be filtered.
         filter_conf (dict): configuration of an ObjStorageFilter, given as
-            a dictionnary that contains the keys:
+            a dictionary that contains the keys:
 
             - type: which represent the type of filter, one of the keys of
               _FILTERS_CLASSES

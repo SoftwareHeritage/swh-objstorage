@@ -50,6 +50,12 @@ def add_bytes(request):
 
 
 @asyncio.coroutine
+def add_batch(request):
+    req = yield from decode_request(request)
+    return encode_data(request.app['objstorage'].add_batch(**req))
+
+
+@asyncio.coroutine
 def get_bytes(request):
     req = yield from decode_request(request)
     try:
@@ -123,30 +129,38 @@ def get_stream(request):
     return response
 
 
-def make_app(config, **kwargs):
-    if 'client_max_size' in config:
-        kwargs['client_max_size'] = config['client_max_size']
+@asyncio.coroutine
+def set_app_config(app):
+    if app['config']:
+        cfg = app['config']
+    else:
+        cfg = config.load_named_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
+    if 'client_max_size' in cfg:
+        app._client_max_size = cfg.pop('client_max_size')
+    app.update(cfg)
 
-    app = SWHRemoteAPI(**kwargs)
-    app.router.add_route('GET', '/', index)
-    app.router.add_route('POST', '/check_config', check_config)
-    app.router.add_route('POST', '/content/contains', contains)
-    app.router.add_route('POST', '/content/add', add_bytes)
-    app.router.add_route('POST', '/content/get', get_bytes)
-    app.router.add_route('POST', '/content/get/batch', get_batch)
-    app.router.add_route('POST', '/content/get/random', get_random_contents)
-    app.router.add_route('POST', '/content/check', check)
-    app.router.add_route('POST', '/content/delete', delete)
-    app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
-    app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
-    app.update(config)
+
+@asyncio.coroutine
+def create_objstorage(app):
     app['objstorage'] = get_objstorage(app['cls'], app['args'])
-    return app
 
 
-def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
-    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
-    return make_app(cfg, **kwargs)
+app = SWHRemoteAPI()
+app['config'] = None
+app.router.add_route('GET', '/', index)
+app.router.add_route('POST', '/check_config', check_config)
+app.router.add_route('POST', '/content/contains', contains)
+app.router.add_route('POST', '/content/add', add_bytes)
+app.router.add_route('POST', '/content/add/batch', add_batch)
+app.router.add_route('POST', '/content/get', get_bytes)
+app.router.add_route('POST', '/content/get/batch', get_batch)
+app.router.add_route('POST', '/content/get/random', get_random_contents)
+app.router.add_route('POST', '/content/check', check)
+app.router.add_route('POST', '/content/delete', delete)
+app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
+app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
+app.on_startup.append(set_app_config)
+app.on_startup.append(create_objstorage)
 
 
 @click.command()
@@ -157,7 +171,9 @@ def make_app_from_configfile(config_path=DEFAULT_CONFIG_PATH, **kwargs):
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
 def launch(config_path, host, port, debug):
-    app = make_app_from_configfile(config_path, debug=bool(debug))
+    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+    app['config'] = cfg
+    app.update(debug=bool(debug))
     aiohttp.web.run_app(app, host=host, port=int(port))
 
 

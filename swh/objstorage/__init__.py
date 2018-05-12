@@ -7,7 +7,7 @@ from .objstorage import ObjStorage
 from .objstorage_pathslicing import PathSlicingObjStorage
 from .objstorage_in_memory import InMemoryObjStorage
 from .api.client import RemoteObjStorage
-from .multiplexer import MultiplexerObjStorage
+from .multiplexer import MultiplexerObjStorage, StripingObjStorage
 from .multiplexer.filter import add_filters
 
 
@@ -21,8 +21,18 @@ _STORAGE_CLASSES = {
 }
 
 try:
-    from swh.objstorage.cloud.objstorage_azure import AzureCloudObjStorage
-    _STORAGE_CLASSES['azure-storage'] = AzureCloudObjStorage
+    from swh.objstorage.cloud.objstorage_azure import (
+        AzureCloudObjStorage,
+        PrefixedAzureCloudObjStorage,
+    )
+    _STORAGE_CLASSES['azure'] = AzureCloudObjStorage
+    _STORAGE_CLASSES['azure-prefixed'] = PrefixedAzureCloudObjStorage
+except ImportError:
+    pass
+
+try:
+    from swh.objstorage.objstorage_rados import RADOSObjStorage
+    _STORAGE_CLASSES['rados'] = RADOSObjStorage
 except ImportError:
     pass
 
@@ -65,3 +75,12 @@ def _construct_multiplexer_objstorage(objstorages):
 
 
 _STORAGE_CLASSES['multiplexer'] = _construct_multiplexer_objstorage
+
+
+def _construct_striping_objstorage(objstorages):
+    storages = [get_objstorage(**conf)
+                for conf in objstorages]
+    return StripingObjStorage(storages)
+
+
+_STORAGE_CLASSES['striping'] = _construct_striping_objstorage

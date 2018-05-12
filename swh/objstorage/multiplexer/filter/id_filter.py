@@ -17,7 +17,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     """ Filter that only allow operations if the object id match a requirement.
 
     Even for read operations, check before if the id match the requirements.
-    This may prevent for unnecesary disk access.
+    This may prevent for unnecessary disk access.
     """
 
     @abc.abstractmethod
