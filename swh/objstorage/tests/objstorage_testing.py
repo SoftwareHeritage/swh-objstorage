@@ -80,10 +80,10 @@ class ObjStorageTestFixture():
         valid_content, valid_obj_id = self.hash_content(b'restore_content')
         invalid_content = b'unexpected content'
         id_adding = self.storage.add(invalid_content, valid_obj_id)
-        id_restore = self.storage.restore(valid_content)
-        # Adding a false content then restore it to the right one and
-        # then perform a verification should result in a successful check.
         self.assertEqual(id_adding, valid_obj_id)
+        with self.assertRaises(exc.Error):
+            self.storage.check(id_adding)
+        id_restore = self.storage.restore(valid_content, valid_obj_id)
         self.assertEqual(id_restore, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
@@ -103,11 +103,11 @@ class ObjStorageTestFixture():
 
     @istest
     def check_present(self):
-        content, obj_id = self.hash_content(b'check_missing')
-        self.storage.add(content)
+        content, obj_id = self.hash_content(b'check_present')
+        self.storage.add(content, obj_id)
         try:
             self.storage.check(obj_id)
-        except:
+        except exc.Error:
             self.fail('Integrity check failed')
 
     @istest
@@ -175,3 +175,16 @@ class ObjStorageTestFixture():
         except NotImplementedError:
             return
         self.assertEqual(r, content_l)
+
+    @istest
+    def add_batch(self):
+        contents = {}
+        for i in range(50):
+            content = b'Test content %02d' % i
+            content, obj_id = self.hash_content(content)
+            contents[obj_id] = content
+
+        ret = self.storage.add_batch(contents)
+        self.assertEqual(len(contents), ret)
+        for obj_id in contents:
+            self.assertIn(obj_id, self.storage)

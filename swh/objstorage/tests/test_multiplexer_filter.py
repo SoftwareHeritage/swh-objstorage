@@ -3,9 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import random
+import shutil
 import tempfile
 import unittest
-import random
 
 from string import ascii_lowercase
 
@@ -26,8 +27,9 @@ class MixinTestReadFilter(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self.tmpdir = tempfile.mkdtemp()
         pstorage = {'cls': 'pathslicing',
-                    'args': {'root': tempfile.mkdtemp(),
+                    'args': {'root': self.tmpdir,
                              'slicing': '0:5'}}
         base_storage = get_objstorage(**pstorage)
         base_storage.id = lambda cont: hashutil.hash_data(cont)['sha1']
@@ -45,6 +47,10 @@ class MixinTestReadFilter(unittest.TestCase):
         base_storage.add(self.invalid_content, obj_id=self.invalid_id)
         # Compute an id for a non-existing content.
         self.absent_id = base_storage.id(self.absent_content)
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tmpdir)
 
     @istest
     def can_contains(self):
@@ -106,9 +112,10 @@ class MixinTestIdFilter():
         # Use a hack here : as the mock uses the content as id, it is easy to
         # create contents that are filtered or not.
         self.prefix = '71'
+        self.tmpdir = tempfile.mkdtemp()
         # Make the storage filtered
         self.sconf = {'cls': 'pathslicing',
-                      'args': {'root': tempfile.mkdtemp(),
+                      'args': {'root': self.tmpdir,
                                'slicing': '0:5'}}
         storage = get_objstorage(**self.sconf)
         self.base_storage = storage
@@ -170,6 +177,10 @@ class MixinTestIdFilter():
                          obj_id=self.present_corrupted_valid_id)
         self.storage.add(self.present_corrupted_invalid_content,
                          obj_id=self.present_corrupted_invalid_id)
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.tmpdir)
 
     def filter_storage(self, sconf):
         raise NotImplementedError(

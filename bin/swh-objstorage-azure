@@ -9,7 +9,7 @@
 
 import click
 
-from swh.objstorage import get_objstorage
+from swh.objstorage import get_objstorage, exc
 from swh.core import config, hashutil
 
 
@@ -94,7 +94,7 @@ def tryout():
         not_found_hex_id = hex_sample_id.replace('0', 'f')
         not_found_id = hashutil.hash_to_hex(not_found_hex_id)
         obj_azure.download(not_found_id)
-    except:
+    except exc.ObjNotFoundError:
         print('Expected `blob does not exist`!')
 
     # print()

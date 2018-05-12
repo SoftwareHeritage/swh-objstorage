@@ -7,10 +7,10 @@ import unittest
 
 from swh.objstorage.objstorage_in_memory import InMemoryObjStorage
 
-from objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import ObjStorageTestFixture
 
 
-class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestInMemoryObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.storage = InMemoryObjStorage()

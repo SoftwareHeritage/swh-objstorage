@@ -33,6 +33,7 @@ swh/objstorage/exc.py
 swh/objstorage/objstorage.py
 swh/objstorage/objstorage_in_memory.py
 swh/objstorage/objstorage_pathslicing.py
+swh/objstorage/objstorage_rados.py
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
 swh/objstorage/api/server.py
@@ -41,12 +42,13 @@ swh/objstorage/cloud/objstorage_azure.py
 swh/objstorage/cloud/objstorage_cloud.py
 swh/objstorage/multiplexer/__init__.py
 swh/objstorage/multiplexer/multiplexer_objstorage.py
+swh/objstorage/multiplexer/striping_objstorage.py
 swh/objstorage/multiplexer/filter/__init__.py
 swh/objstorage/multiplexer/filter/filter.py
 swh/objstorage/multiplexer/filter/id_filter.py
 swh/objstorage/multiplexer/filter/read_write_filter.py
+swh/objstorage/tests/__init__.py
 swh/objstorage/tests/objstorage_testing.py
-swh/objstorage/tests/server_testing.py
 swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
@@ -55,3 +57,4 @@ swh/objstorage/tests/test_objstorage_in_memory.py
 swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
 swh/objstorage/tests/test_objstorage_pathslicing.py
+swh/objstorage/tests/test_objstorage_striping.py
