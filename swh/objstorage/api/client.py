@@ -36,6 +36,12 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
         return self.post('content/add', {'content': content, 'obj_id': obj_id,
                                          'check_presence': check_presence})
 
+    def add_batch(self, contents, check_presence=True):
+        return self.post('content/add/batch', {
+            'contents': contents,
+            'check_presence': check_presence,
+        })
+
     def get(self, obj_id):
         ret = self.post('content/get', {'obj_id': obj_id})
         if ret is None:

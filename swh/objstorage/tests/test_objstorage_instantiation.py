@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import shutil
 import tempfile
 import unittest
 
@@ -20,10 +21,16 @@ class TestObjStorageInitialization(unittest.TestCase):
 
     def setUp(self):
         self.path = tempfile.mkdtemp()
+        self.path2 = tempfile.mkdtemp()
         # Server is launched at self.url()
-        self.config = {'storage_base': tempfile.mkdtemp(),
+        self.config = {'storage_base': self.path2,
                        'storage_slicing': '0:1/0:5'}
         super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.path)
+        shutil.rmtree(self.path2)
 
     @istest
     def pathslicing_objstorage(self):

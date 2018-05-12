@@ -152,7 +152,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def __contains__(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        return os.path.exists(self._obj_path(hex_obj_id))
+        return os.path.isfile(self._obj_path(hex_obj_id))
 
     def __iter__(self):
         """Iterate over the object identifiers currently available in the
