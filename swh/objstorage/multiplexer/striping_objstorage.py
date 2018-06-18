@@ -32,7 +32,7 @@ class StripingObjStorage(MultiplexerObjStorage):
                 'StripingObjStorage always needs obj_id to be set'
             )
 
-        index = int.from_bytes(obj_id[:-self.MOD_BYTES], 'little')
+        index = int.from_bytes(obj_id[:-self.MOD_BYTES], 'big')
         return index % self.num_storages
 
     def get_write_threads(self, obj_id):
