@@ -32,3 +32,10 @@ Depends: python3-swh.objstorage (= ${binary:Version}), python3-libcloud, python3
 Breaks: python3-swh.objstorage (<= 0.0.7~)
 Description: Software Heritage Cloud Object Storage
 
+Package: python3-swh.objstorage.rados
+Architecture: all
+Depends: python3-swh.objstorage (= ${binary:Version}), python3-rados
+         ${misc:Depends}, ${python3:Depends}
+Breaks: python3-swh.objstorage (<= 0.0.25~)
+Description: Software Heritage Object Storage based on RADOS
+
