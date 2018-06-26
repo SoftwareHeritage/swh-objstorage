@@ -31,7 +31,6 @@ class ObjStorageThread(threading.Thread):
             else:
                 self.queue_result(mailbox, 'result', ret)
 
-
     def queue_command(self, command, *args, mailbox=None, **kwargs):
         """Enqueue a new command to be processed by the thread.
 
