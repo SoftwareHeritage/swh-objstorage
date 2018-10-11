@@ -1,3 +1,12 @@
+swh-objstorage (0.0.27-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.objstorage v0.0.27
+  * Update metaclass for RemoteObjStorage
+  * Better test requirements
+  * Improve error handling when some dependencies are missing
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 11 Oct 2018 16:40:09 +0200
+
 swh-objstorage (0.0.26-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.objstorage v0.0.26
