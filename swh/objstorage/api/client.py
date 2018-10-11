@@ -3,15 +3,23 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import abc
 
-from swh.core.api import SWHRemoteAPI
+from swh.core.api import SWHRemoteAPI, MetaSWHRemoteAPI
 from swh.model import hashutil
 
 from ..objstorage import ObjStorage, DEFAULT_CHUNK_SIZE
 from ..exc import ObjNotFoundError, ObjStorageAPIError
 
 
-class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
+class MetaRemoteObjStorage(MetaSWHRemoteAPI, abc.ABCMeta):
+    """Hackish class to make multiple inheritance with different metaclasses
+    work."""
+    pass
+
+
+class RemoteObjStorage(ObjStorage, SWHRemoteAPI,
+                       metaclass=MetaRemoteObjStorage):
     """Proxy to a remote object storage.
 
     This class allows to connect to an object storage server via
@@ -23,6 +31,7 @@ class RemoteObjStorage(ObjStorage, SWHRemoteAPI):
         session: The session to send requests.
 
     """
+
     def __init__(self, url, **kwargs):
         super().__init__(api_exception=ObjStorageAPIError, url=url, **kwargs)
 
