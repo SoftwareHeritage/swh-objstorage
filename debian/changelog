@@ -1,8 +1,11 @@
-swh-objstorage (0.0.26-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.27-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.objstorage v0.0.27
+  * Update metaclass for RemoteObjStorage
+  * Better test requirements
+  * Improve error handling when some dependencies are missing
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Mon, 18 Jun 2018 16:32:20 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 11 Oct 2018 16:40:09 +0200
 
 swh-objstorage (0.0.26-1~swh1) unstable-swh; urgency=medium
 

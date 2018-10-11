@@ -31,7 +31,6 @@ class ObjStorageThread(threading.Thread):
             else:
                 self.queue_result(mailbox, 'result', ret)
 
-
     def queue_command(self, command, *args, mailbox=None, **kwargs):
         """Enqueue a new command to be processed by the thread.
 
@@ -120,7 +119,7 @@ class MultiplexerObjStorage(ObjStorage):
     among multiple storages that will or will not accept it by
     themselves (see .filter package).
 
-    As the ids can be differents, no pre-computed ids should be
+    As the ids can be different, no pre-computed ids should be
     submitted.  Also, there are no guarantees that the returned ids
     can be used directly into the storages that the multiplexer
     manage.
@@ -201,7 +200,8 @@ class MultiplexerObjStorage(ObjStorage):
             obj_id (bytes): object identifier.
 
         Returns:
-            True iff the object is present in the current object storage.
+            True if and only if the object is present in the current object
+            storage.
 
         """
         for storage in self.get_read_threads(obj_id):

@@ -34,7 +34,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         Args:
             api_key: key to connect to the API.
-            api_secret_key: secret key for authentification.
+            api_secret_key: secret key for authentication.
 
         Returns:
             a Libcloud driver to a cloud storage.
@@ -49,7 +49,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def _get_provider(self):
         """Get a libcloud driver provider
 
-        This method must be overriden by subclasses to specify which
+        This method must be overridden by subclasses to specify which
         of the native libcloud driver the current storage should
         connect to.  Alternatively, provider for a custom driver may
         be returned, in which case the provider will have to support

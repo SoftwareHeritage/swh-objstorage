@@ -1,0 +1,4 @@
+nose
+apache-libcloud
+azure-storage
+python-cephlibs
