@@ -1,10 +1,24 @@
-Metadata-Version: 1.0
+Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 0.0.26
+Version: 0.0.27
 Summary: Software Heritage Object Storage
 Home-page: https://forge.softwareheritage.org/diffusion/DOBJS
 Author: Software Heritage developers
 Author-email: swh-devel@inria.fr
 License: UNKNOWN
-Description: UNKNOWN
+Project-URL: Bug Reports, https://forge.softwareheritage.org/maniphest
+Project-URL: Funding, https://www.softwareheritage.org/donate
+Project-URL: Source, https://forge.softwareheritage.org/source/swh-objstorage
+Description: swh-objstorage
+        ==============
+        
+        Content-addressable object storage for the Software Heritage project.
+        
 Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 5 - Production/Stable
+Description-Content-Type: text/markdown
+Provides-Extra: testing
