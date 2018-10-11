@@ -20,6 +20,9 @@ _STORAGE_CLASSES = {
     'in-memory': InMemoryObjStorage,
 }
 
+_STORAGE_CLASSES_MISSING = {
+}
+
 try:
     from swh.objstorage.cloud.objstorage_azure import (
         AzureCloudObjStorage,
@@ -27,14 +30,15 @@ try:
     )
     _STORAGE_CLASSES['azure'] = AzureCloudObjStorage
     _STORAGE_CLASSES['azure-prefixed'] = PrefixedAzureCloudObjStorage
-except ImportError:
-    pass
+except ImportError as e:
+    _STORAGE_CLASSES_MISSING['azure'] = e.args[0]
+    _STORAGE_CLASSES_MISSING['azure-prefixed'] = e.args[0]
 
 try:
     from swh.objstorage.objstorage_rados import RADOSObjStorage
     _STORAGE_CLASSES['rados'] = RADOSObjStorage
-except ImportError:
-    pass
+except ImportError as e:
+    _STORAGE_CLASSES_MISSING['rados'] = e.args[0]
 
 
 def get_objstorage(cls, args):
@@ -52,10 +56,12 @@ def get_objstorage(cls, args):
         ValueError: if the given storage class is not a valid objstorage
             key.
     """
-    try:
+    if cls in _STORAGE_CLASSES:
         return _STORAGE_CLASSES[cls](**args)
-    except KeyError:
-        raise ValueError('Storage class %s does not exist' % cls)
+    else:
+        raise ValueError('Storage class {} is not available: {}'.format(
+                         cls,
+                         _STORAGE_CLASSES_MISSING.get(cls, 'unknown name')))
 
 
 def _construct_filtered_objstorage(storage_conf, filters_conf):

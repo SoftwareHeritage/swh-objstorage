@@ -76,7 +76,8 @@ class ObjStorage(metaclass=abc.ABCMeta):
             obj_id (bytes): object identifier.
 
         Returns:
-            True iff the object is present in the current object storage.
+            True if and only if the object is present in the current object
+            storage.
 
         """
         pass
@@ -157,7 +158,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
         For object storages that needs to do the minimal number of
         requests possible (ex: remote object storages), that method
-        can be overriden to perform a more efficient operation.
+        can be overridden to perform a more efficient operation.
 
         Args:
             obj_ids ([bytes]: list of object ids.

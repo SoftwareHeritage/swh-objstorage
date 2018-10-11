@@ -20,7 +20,11 @@ class RADOSObjStorage(objstorage.ObjStorage):
                  allow_delete=False):
         super().__init__(allow_delete=allow_delete)
         self.pool_name = pool_name
-        self.cluster = rados.Rados(rados_id=rados_id, conf=ceph_config)
+        self.cluster = rados.Rados(
+            conf=ceph_config,
+            conffile='',
+            rados_id=rados_id,
+        )
         self.cluster.connect()
         self.__ioctx = None
 
