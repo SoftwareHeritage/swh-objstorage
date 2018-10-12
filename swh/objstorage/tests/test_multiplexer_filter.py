@@ -7,15 +7,12 @@ import random
 import shutil
 import tempfile
 import unittest
-
 from string import ascii_lowercase
 
-from nose.tools import istest
-
 from swh.model import hashutil
-from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.objstorage import get_objstorage
-from swh.objstorage.multiplexer.filter import read_only, id_prefix, id_regex
+from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.multiplexer.filter import id_prefix, id_regex, read_only
 
 
 def get_random_content():
@@ -52,50 +49,42 @@ class MixinTestReadFilter(unittest.TestCase):
         super().tearDown()
         shutil.rmtree(self.tmpdir)
 
-    @istest
-    def can_contains(self):
+    def test_can_contains(self):
         self.assertTrue(self.valid_id in self.storage)
         self.assertTrue(self.invalid_id in self.storage)
         self.assertFalse(self.absent_id in self.storage)
 
-    @istest
-    def can_iter(self):
+    def test_can_iter(self):
         self.assertIn(self.valid_id, iter(self.storage))
         self.assertIn(self.invalid_id, iter(self.storage))
 
-    @istest
-    def can_len(self):
+    def test_can_len(self):
         self.assertEqual(2, len(self.storage))
 
-    @istest
-    def can_get(self):
+    def test_can_get(self):
         self.assertEqual(self.valid_content, self.storage.get(self.valid_id))
         self.assertEqual(self.invalid_content,
                          self.storage.get(self.invalid_id))
 
-    @istest
-    def can_check(self):
+    def test_can_check(self):
         with self.assertRaises(ObjNotFoundError):
             self.storage.check(self.absent_id)
         with self.assertRaises(Error):
             self.storage.check(self.invalid_id)
         self.storage.check(self.valid_id)
 
-    @istest
-    def can_get_random(self):
+    def test_can_get_random(self):
         self.assertEqual(1, len(list(self.storage.get_random(1))))
         self.assertEqual(len(list(self.storage)),
                          len(set(self.storage.get_random(1000))))
 
-    @istest
-    def cannot_add(self):
+    def test_cannot_add(self):
         new_id = self.storage.add(b'New content')
         result = self.storage.add(self.valid_content, self.valid_id)
         self.assertIsNone(new_id, self.storage)
         self.assertIsNone(result)
 
-    @istest
-    def cannot_restore(self):
+    def test_cannot_restore(self):
         result = self.storage.restore(self.valid_content, self.valid_id)
         self.assertIsNone(result)
 
@@ -200,8 +189,7 @@ class MixinTestIdFilter():
             content = get_random_content()
         return content
 
-    @istest
-    def contains(self):
+    def test_contains(self):
         # Both contents are present, but the invalid one should be ignored.
         self.assertTrue(self.present_valid_id in self.storage)
         self.assertFalse(self.present_invalid_id in self.storage)
@@ -212,8 +200,7 @@ class MixinTestIdFilter():
         self.assertFalse(self.missing_corrupted_valid_id in self.storage)
         self.assertFalse(self.missing_corrupted_invalid_id in self.storage)
 
-    @istest
-    def iter(self):
+    def test_iter(self):
         self.assertIn(self.present_valid_id, iter(self.storage))
         self.assertNotIn(self.present_invalid_id, iter(self.storage))
         self.assertNotIn(self.missing_valid_id, iter(self.storage))
@@ -223,13 +210,11 @@ class MixinTestIdFilter():
         self.assertNotIn(self.missing_corrupted_valid_id, iter(self.storage))
         self.assertNotIn(self.missing_corrupted_invalid_id, iter(self.storage))
 
-    @istest
-    def len(self):
+    def test_len(self):
         # Four contents are present, but only two should be valid.
         self.assertEqual(2, len(self.storage))
 
-    @istest
-    def get(self):
+    def test_get(self):
         self.assertEqual(self.present_valid_content,
                          self.storage.get(self.present_valid_id))
         with self.assertRaises(ObjNotFoundError):
@@ -247,8 +232,7 @@ class MixinTestIdFilter():
         with self.assertRaises(ObjNotFoundError):
             self.storage.get(self.missing_corrupted_invalid_id)
 
-    @istest
-    def check(self):
+    def test_check(self):
         self.storage.check(self.present_valid_id)
         with self.assertRaises(ObjNotFoundError):
             self.storage.check(self.present_invalid_id)
@@ -265,8 +249,7 @@ class MixinTestIdFilter():
         with self.assertRaises(ObjNotFoundError):
             self.storage.check(self.missing_corrupted_invalid_id)
 
-    @istest
-    def get_random(self):
+    def test_get_random(self):
         self.assertEqual(0, len(list(self.storage.get_random(0))))
 
         random_content = list(self.storage.get_random(1000))
@@ -279,8 +262,7 @@ class MixinTestIdFilter():
         self.assertNotIn(self.missing_corrupted_valid_id, random_content)
         self.assertNotIn(self.missing_corrupted_invalid_id, random_content)
 
-    @istest
-    def add(self):
+    def test_add(self):
         # Add valid and invalid contents to the storage and check their
         # presence with the unfiltered storage.
         valid_content = self.ensure_valid(b'ulepsrjbgt')
@@ -292,8 +274,7 @@ class MixinTestIdFilter():
         self.assertTrue(valid_id in self.base_storage)
         self.assertFalse(invalid_id in self.base_storage)
 
-    @istest
-    def restore(self):
+    def test_restore(self):
         # Add corrupted content to the storage and the try to restore it
         valid_content = self.ensure_valid(b'ulepsrjbgt')
         valid_id = self.base_storage.id(valid_content)

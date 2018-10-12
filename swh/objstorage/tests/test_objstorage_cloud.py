@@ -5,13 +5,12 @@
 
 import unittest
 
-from swh.objstorage.cloud.objstorage_cloud import CloudObjStorage
-from libcloud.storage.types import (ObjectDoesNotExistError,
-                                    ContainerDoesNotExistError)
 from libcloud.common.types import InvalidCredsError
+from libcloud.storage.types import (ContainerDoesNotExistError,
+                                    ObjectDoesNotExistError)
+from swh.objstorage.cloud.objstorage_cloud import CloudObjStorage
 
 from .objstorage_testing import ObjStorageTestFixture
-
 
 API_KEY = 'API_KEY'
 API_SECRET_KEY = 'API SECRET KEY'

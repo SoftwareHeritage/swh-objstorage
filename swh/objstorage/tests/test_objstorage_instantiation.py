@@ -7,11 +7,9 @@ import shutil
 import tempfile
 import unittest
 
-from nose.tools import istest
-
 from swh.objstorage import get_objstorage
-from swh.objstorage.objstorage_pathslicing import PathSlicingObjStorage
 from swh.objstorage.api.client import RemoteObjStorage
+from swh.objstorage.objstorage_pathslicing import PathSlicingObjStorage
 
 
 class TestObjStorageInitialization(unittest.TestCase):
@@ -32,8 +30,7 @@ class TestObjStorageInitialization(unittest.TestCase):
         shutil.rmtree(self.path)
         shutil.rmtree(self.path2)
 
-    @istest
-    def pathslicing_objstorage(self):
+    def test_pathslicing_objstorage(self):
         conf = {
             'cls': 'pathslicing',
             'args': {'root': self.path, 'slicing': '0:2/0:5'}
@@ -41,8 +38,7 @@ class TestObjStorageInitialization(unittest.TestCase):
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, PathSlicingObjStorage))
 
-    @istest
-    def remote_objstorage(self):
+    def test_remote_objstorage(self):
         conf = {
             'cls': 'remote',
             'args': {
