@@ -1,12 +1,12 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import time
 
-from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.objstorage import compute_hash
 
 
 class ObjStorageTestFixture():
@@ -15,7 +15,7 @@ class ObjStorageTestFixture():
         super().setUp()
 
     def hash_content(self, content):
-        obj_id = hashutil.hash_data(content)['sha1']
+        obj_id = compute_hash(content)
         return content, obj_id
 
     def assertContentMatch(self, obj_id, expected_content):  # noqa
