@@ -1,8 +1,11 @@
-swh-objstorage (0.0.27-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.28-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.28
+  * swh.objstorage: Align config 'cls' key class for memory objstorage
+  * swh.objstorage: Migrate to latest swh.model.hashutil.MultiHash
+  * tests: migrate to pytest
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 11 Oct 2018 16:40:09 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 29 Nov 2018 17:30:08 +0100
 
 swh-objstorage (0.0.27-1~swh1) unstable-swh; urgency=medium
 

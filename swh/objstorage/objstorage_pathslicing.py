@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -259,8 +259,8 @@ class PathSlicingObjStorage(ObjStorage):
                             break
                     f.rewind()
 
-                checksums = hashutil.hash_file(f, length,
-                                               algorithms=[ID_HASH_ALGO])
+                checksums = hashutil.MultiHash.from_file(
+                    f, hash_names=[ID_HASH_ALGO], length=length).digest()
                 actual_obj_id = checksums[ID_HASH_ALGO]
                 if obj_id != actual_obj_id:
                     raise Error(
