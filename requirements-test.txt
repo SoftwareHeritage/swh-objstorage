@@ -1,4 +1,4 @@
-nose
+pytest
 apache-libcloud
 azure-storage
 python-cephlibs

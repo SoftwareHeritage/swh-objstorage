@@ -138,7 +138,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         try:
             return self.driver.get_object(self.container_name, hex_obj_id)
-        except ObjectDoesNotExistError as e:
+        except ObjectDoesNotExistError:
             raise ObjNotFoundError(obj_id)
 
     def _put_object(self, content, obj_id):

@@ -3,14 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections import defaultdict
 import unittest
+from collections import defaultdict
 from unittest.mock import patch
 
-from nose.tools import istest
-
 from azure.common import AzureMissingResourceHttpError
-
 from swh.model.hashutil import hash_to_hex
 from swh.objstorage import get_objstorage
 
@@ -106,8 +103,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
             'accounts': self.accounts
         })
 
-    @istest
-    def prefixedazure_instantiation_missing_prefixes(self):
+    def test_prefixedazure_instantiation_missing_prefixes(self):
         del self.accounts['d']
         del self.accounts['e']
 
@@ -116,8 +112,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
                 'accounts': self.accounts
             })
 
-    @istest
-    def prefixedazure_instantiation_inconsistent_prefixes(self):
+    def test_prefixedazure_instantiation_inconsistent_prefixes(self):
         self.accounts['00'] = self.accounts['0']
 
         with self.assertRaisesRegex(ValueError, 'Inconsistent prefixes'):
@@ -125,8 +120,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
                 'accounts': self.accounts
             })
 
-    @istest
-    def prefixedazure_sharding_behavior(self):
+    def test_prefixedazure_sharding_behavior(self):
         for i in range(100):
             content, obj_id = self.hash_content(b'test_content_%02d' % i)
             self.storage.add(content, obj_id=obj_id)

@@ -8,9 +8,8 @@ import shutil
 import tempfile
 import unittest
 
-from nose.tools import istest
-
 from swh.objstorage import get_objstorage
+
 from .objstorage_testing import ObjStorageTestFixture
 
 
@@ -49,12 +48,10 @@ class TestStripingObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.base_dir)
 
-    @istest
-    def add_get_wo_id(self):
+    def test_add_get_wo_id(self):
         self.skipTest("can't add without id in the multiplexer storage")
 
-    @istest
-    def add_striping_behavior(self):
+    def test_add_striping_behavior(self):
         exp_storage_counts = [0, 0]
         storage_counts = [0, 0]
         for i in range(100):
@@ -72,8 +69,7 @@ class TestStripingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             self.assertEqual(count, 1)
         self.assertEqual(storage_counts, exp_storage_counts)
 
-    @istest
-    def get_striping_behavior(self):
+    def test_get_striping_behavior(self):
         # Make sure we can read objects that are available in any backend
         # storage
         content, obj_id = self.hash_content(b'striping_behavior_test')

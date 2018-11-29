@@ -8,8 +8,6 @@ import shutil
 import tempfile
 import unittest
 
-from nose.tools import istest
-
 from swh.objstorage import PathSlicingObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.multiplexer.filter import add_filter, read_only
@@ -37,36 +35,31 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
         super().tearDown()
         shutil.rmtree(self.tmpdir)
 
-    @istest
-    def contains(self):
+    def test_contains(self):
         content_p, obj_id_p = self.hash_content(b'contains_present')
         content_m, obj_id_m = self.hash_content(b'contains_missing')
         self.storage.add(content_p, obj_id=obj_id_p)
         self.assertIn(obj_id_p, self.storage)
         self.assertNotIn(obj_id_m, self.storage)
 
-    @istest
-    def delete_missing(self):
+    def test_delete_missing(self):
         self.storage_v1.allow_delete = True
         self.storage_v2.allow_delete = True
-        super().delete_missing()
+        super().test_delete_missing()
 
-    @istest
-    def delete_present(self):
+    def test_delete_present(self):
         self.storage_v1.allow_delete = True
         self.storage_v2.allow_delete = True
-        super().delete_present()
+        super().test_delete_present()
 
-    @istest
-    def get_random_contents(self):
+    def test_get_random_contents(self):
         content, obj_id = self.hash_content(b'get_random_content')
         self.storage.add(content)
         random_contents = list(self.storage.get_random(1))
         self.assertEqual(1, len(random_contents))
         self.assertIn(obj_id, random_contents)
 
-    @istest
-    def access_readonly(self):
+    def test_access_readonly(self):
         # Add a content to the readonly storage
         content, obj_id = self.hash_content(b'content in read-only')
         self.storage_v1.add(content)

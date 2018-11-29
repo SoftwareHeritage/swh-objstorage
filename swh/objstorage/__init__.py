@@ -17,7 +17,7 @@ __all__ = ['get_objstorage', 'ObjStorage']
 _STORAGE_CLASSES = {
     'pathslicing': PathSlicingObjStorage,
     'remote': RemoteObjStorage,
-    'in-memory': InMemoryObjStorage,
+    'memory': InMemoryObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {

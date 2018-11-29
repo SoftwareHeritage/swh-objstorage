@@ -4,10 +4,12 @@ LICENSE
 MANIFEST.in
 Makefile
 README.md
+pytest.ini
 requirements-swh.txt
 requirements-test.txt
 requirements.txt
 setup.py
+tox.ini
 version.txt
 bin/swh-objstorage-add-dir
 bin/swh-objstorage-azure

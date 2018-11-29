@@ -1,11 +1,11 @@
 aiohttp>=2.1.0
 click
 swh.core>=0.0.41
-swh.model>=0.0.14
+swh.model>=0.0.27
 vcversioner
 
 [testing]
 apache-libcloud
 azure-storage
-nose
+pytest
 python-cephlibs

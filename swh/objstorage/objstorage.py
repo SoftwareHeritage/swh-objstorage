@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -16,10 +16,20 @@ DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
 
 
 def compute_hash(content):
-    return hashutil.hash_data(
+    """Compute the content's hash.
+
+    Args:
+        content (bytes): The raw content to hash
+        hash_name (str): Hash's name (default to ID_HASH_ALGO)
+
+    Returns:
+        The ID_HASH_ALGO for the content
+
+    """
+    return hashutil.MultiHash.from_data(
         content,
-        algorithms=[ID_HASH_ALGO]
-    ).get(ID_HASH_ALGO)
+        hash_names=[ID_HASH_ALGO],
+    ).digest().get(ID_HASH_ALGO)
 
 
 class ObjStorage(metaclass=abc.ABCMeta):
