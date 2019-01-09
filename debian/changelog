@@ -1,3 +1,12 @@
+swh-objstorage (0.0.29-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.29     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-01-09 18:39:07 +0100)
+  * Upstream changes:     - Release swh.objstorage v0.0.29     - Remove
+    Debian packaging metadata from the main tarballs
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 09 Jan 2019 17:44:02 +0000
+
 swh-objstorage (0.0.28-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.28
