@@ -1,8 +1,8 @@
-swh-objstorage (0.0.29-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.29-1~swh2) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * Update packaging to use pytest
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 09 Jan 2019 17:50:26 +0000
+ -- Nicolas Dandrimont <olasd@debian.org>  Wed, 09 Jan 2019 18:57:24 +0100
 
 swh-objstorage (0.0.29-1~swh1) unstable-swh; urgency=medium
 
