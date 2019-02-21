@@ -53,6 +53,10 @@ setup(
     extras_require={'testing': parse_requirements('test')},
     vcversioner={},
     include_package_data=True,
+    entry_points='''
+        [console_scripts]
+        swh-objstorage=swh.objstorage.cli:main
+    ''',
     classifiers=[
         "Programming Language :: Python :: 3",
         "Intended Audience :: Developers",
