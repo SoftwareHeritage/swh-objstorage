@@ -131,9 +131,9 @@ def make_app(config):
         _cfg = config
     app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
 
-    if 'client_max_size' in config:
-        app._client_max_size = config.pop('client_max_size')
-    app.update(config)
+    client_max_size = config.get('client_max_size')
+    if client_max_size:
+        app._client_max_size = client_max_size
 
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/check_config', check_config)
