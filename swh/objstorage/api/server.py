@@ -125,10 +125,7 @@ def make_app(config):
     app = SWHRemoteAPI()
     # retro compatibility configuration settings
     app['config'] = config
-    if 'objstorage' in config:
-        _cfg = config['objstorage']
-    else:
-        _cfg = config
+    _cfg = config['objstorage']
     app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
 
     client_max_size = config.get('client_max_size')
