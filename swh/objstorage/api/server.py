@@ -1,29 +1,18 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import asyncio
 import aiohttp.web
-import click
+import os
 
-from swh.core import config
+from swh.core.config import read as config_read
 from swh.core.api_async import (SWHRemoteAPI, decode_request,
                                 encode_data_server as encode_data)
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
-
-
-DEFAULT_CONFIG_PATH = 'objstorage/server'
-DEFAULT_CONFIG = {
-    'cls': ('str', 'pathslicing'),
-    'args': ('dict', {
-        'root': '/srv/softwareheritage/objects',
-        'slicing': '0:2/2:4/4:6',
-    }),
-    'client_max_size': ('int', 1024 * 1024 * 1024),
-}
 
 
 @asyncio.coroutine
@@ -129,53 +118,100 @@ def get_stream(request):
     return response
 
 
-@asyncio.coroutine
-def set_app_config(app):
-    if app['config']:
-        cfg = app['config']
-    else:
-        cfg = config.load_named_config(DEFAULT_CONFIG_PATH, DEFAULT_CONFIG)
-    if 'client_max_size' in cfg:
-        app._client_max_size = cfg.pop('client_max_size')
-    app.update(cfg)
+def make_app(config):
+    """Initialize the remote api application.
+
+    """
+    app = SWHRemoteAPI()
+    # retro compatibility configuration settings
+    app['config'] = config
+    _cfg = config['objstorage']
+    app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
+
+    client_max_size = config.get('client_max_size')
+    if client_max_size:
+        app._client_max_size = client_max_size
+
+    app.router.add_route('GET', '/', index)
+    app.router.add_route('POST', '/check_config', check_config)
+    app.router.add_route('POST', '/content/contains', contains)
+    app.router.add_route('POST', '/content/add', add_bytes)
+    app.router.add_route('POST', '/content/add/batch', add_batch)
+    app.router.add_route('POST', '/content/get', get_bytes)
+    app.router.add_route('POST', '/content/get/batch', get_batch)
+    app.router.add_route('POST', '/content/get/random', get_random_contents)
+    app.router.add_route('POST', '/content/check', check)
+    app.router.add_route('POST', '/content/delete', delete)
+    app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
+    app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
+    return app
 
 
-@asyncio.coroutine
-def create_objstorage(app):
-    app['objstorage'] = get_objstorage(app['cls'], app['args'])
+def load_and_check_config(config_file):
+    """Check the minimal configuration is set to run the api or raise an
+       error explanation.
+
+    Args:
+        config_file (str): Path to the configuration file to load
+        type (str): configuration type. For 'local' type, more
+                    checks are done.
+
+    Raises:
+        Error if the setup is not as expected
+
+    Returns:
+        configuration as a dict
+
+    """
+    if not config_file:
+        raise EnvironmentError('Configuration file must be defined')
+
+    if not os.path.exists(config_file):
+        raise FileNotFoundError('Configuration file %s does not exist' % (
+            config_file, ))
+
+    cfg = config_read(config_file)
+
+    if 'objstorage' not in cfg:
+        raise KeyError(
+            "Invalid configuration; missing objstorage config entry")
+
+    missing_keys = []
+    vcfg = cfg['objstorage']
+    for key in ('cls', 'args'):
+        v = vcfg.get(key)
+        if v is None:
+            missing_keys.append(key)
+
+    if missing_keys:
+        raise KeyError(
+            "Invalid configuration; missing %s config entry" % (
+                ', '.join(missing_keys), ))
+
+    cls = vcfg.get('cls')
+    if cls == 'pathslicing':
+        args = vcfg['args']
+        for key in ('root', 'slicing'):
+            v = args.get(key)
+            if v is None:
+                missing_keys.append(key)
+
+        if missing_keys:
+            raise KeyError(
+                "Invalid configuration; missing args.%s config entry" % (
+                    ', '.join(missing_keys), ))
+
+    return cfg
 
 
-app = SWHRemoteAPI()
-app['config'] = None
-app.router.add_route('GET', '/', index)
-app.router.add_route('POST', '/check_config', check_config)
-app.router.add_route('POST', '/content/contains', contains)
-app.router.add_route('POST', '/content/add', add_bytes)
-app.router.add_route('POST', '/content/add/batch', add_batch)
-app.router.add_route('POST', '/content/get', get_bytes)
-app.router.add_route('POST', '/content/get/batch', get_batch)
-app.router.add_route('POST', '/content/get/random', get_random_contents)
-app.router.add_route('POST', '/content/check', check)
-app.router.add_route('POST', '/content/delete', delete)
-app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
-app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
-app.on_startup.append(set_app_config)
-app.on_startup.append(create_objstorage)
+def make_app_from_configfile():
+    """Load configuration and then build application to run
 
-
-@click.command()
-@click.argument('config-path', required=1)
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5003, type=click.INT,
-              help="Binding port of the server")
-@click.option('--debug/--nodebug', default=True,
-              help="Indicates if the server should run in debug mode")
-def launch(config_path, host, port, debug):
-    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
-    app['config'] = cfg
-    app.update(debug=bool(debug))
-    aiohttp.web.run_app(app, host=host, port=int(port))
+    """
+    config_file = os.environ.get('SWH_CONFIG_FILENAME')
+    config = load_and_check_config(config_file)
+    return make_app(config=config)
 
 
 if __name__ == '__main__':
-    launch()
+    print('Deprecated. Use swh-objstorage')
