@@ -44,10 +44,6 @@ setup(
     author_email='swh-devel@inria.fr',
     url='https://forge.softwareheritage.org/diffusion/DOBJS',
     packages=find_packages(),
-    scripts=[
-        'bin/swh-objstorage-add-dir',
-        'bin/swh-objstorage-fsck'
-    ],   # scripts to package
     install_requires=parse_requirements() + parse_requirements('swh'),
     setup_requires=['vcversioner'],
     extras_require={'testing': parse_requirements('test')},
