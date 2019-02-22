@@ -1,14 +1,14 @@
 Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 0.0.29
+Version: 0.0.30
 Summary: Software Heritage Object Storage
 Home-page: https://forge.softwareheritage.org/diffusion/DOBJS
 Author: Software Heritage developers
 Author-email: swh-devel@inria.fr
 License: UNKNOWN
 Project-URL: Bug Reports, https://forge.softwareheritage.org/maniphest
-Project-URL: Source, https://forge.softwareheritage.org/source/swh-objstorage
 Project-URL: Funding, https://www.softwareheritage.org/donate
+Project-URL: Source, https://forge.softwareheritage.org/source/swh-objstorage
 Description: swh-objstorage
         ==============
         

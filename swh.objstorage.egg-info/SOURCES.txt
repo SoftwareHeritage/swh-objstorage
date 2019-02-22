@@ -11,9 +11,11 @@ swh/__init__.py
 swh.objstorage.egg-info/PKG-INFO
 swh.objstorage.egg-info/SOURCES.txt
 swh.objstorage.egg-info/dependency_links.txt
+swh.objstorage.egg-info/entry_points.txt
 swh.objstorage.egg-info/requires.txt
 swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
+swh/objstorage/cli.py
 swh/objstorage/exc.py
 swh/objstorage/objstorage.py
 swh/objstorage/objstorage_in_memory.py
@@ -22,6 +24,7 @@ swh/objstorage/objstorage_rados.py
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
 swh/objstorage/api/server.py
+swh/objstorage/api/wsgi.py
 swh/objstorage/cloud/__init__.py
 swh/objstorage/cloud/objstorage_azure.py
 swh/objstorage/cloud/objstorage_cloud.py
@@ -43,3 +46,4 @@ swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
 swh/objstorage/tests/test_objstorage_pathslicing.py
 swh/objstorage/tests/test_objstorage_striping.py
+swh/objstorage/tests/test_server.py
