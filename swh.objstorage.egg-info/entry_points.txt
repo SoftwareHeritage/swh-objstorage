@@ -1,0 +1,4 @@
+
+        [console_scripts]
+        swh-objstorage=swh.objstorage.cli:main
+    
