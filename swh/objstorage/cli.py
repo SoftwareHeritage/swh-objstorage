@@ -34,7 +34,7 @@ def cli(ctx, config_file, log_level):
 
 @cli.command('serve')
 @click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', '-p', default=5007, type=click.INT,
+@click.option('--port', '-p', default=5003, type=click.INT,
               help="Binding port of the server")
 @click.pass_context
 def serve(ctx, host, port):
