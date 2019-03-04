@@ -88,8 +88,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         You almost certainly don't want to use this method in production.
         """
-        yield from map(lambda obj: obj.name,
-                       self.driver.iterate_container_objects(self.container))
+        yield from (hashutil.bytehex_to_hash(obj.name.encode()) for obj in
+                    self.driver.iterate_container_objects(self.container))
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -157,6 +157,9 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         self.driver.upload_object_via_stream(iter(content), self.container,
                                              hex_obj_id)
+
+    def list_content(self):
+        return iter(self)
 
 
 class AwsCloudObjStorage(CloudObjStorage):

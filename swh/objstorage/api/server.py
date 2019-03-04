@@ -125,6 +125,21 @@ async def get_stream(request):
     return response
 
 
+async def list_content(request):
+    last_obj_id = request.query.get('last_obj_id')
+    if last_obj_id:
+        last_obj_id = bytes.fromhex(last_obj_id)
+    limit = int(request.query.get('limit', 1000))
+    response = aiohttp.web.StreamResponse()
+    response.enable_chunked_encoding()
+    await response.prepare(request)
+    for obj_id in request.app['objstorage'].list_content(
+            last_obj_id, limit=limit):
+        response.write(obj_id)
+        await response.drain()
+    return response
+
+
 def make_app(config):
     """Initialize the remote api application.
 
@@ -146,6 +161,7 @@ def make_app(config):
     app.router.add_route('POST', '/content/get/random', get_random_contents)
     app.router.add_route('POST', '/content/check', check)
     app.router.add_route('POST', '/content/delete', delete)
+    app.router.add_route('GET', '/content', list_content)
     app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
     app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
     return app

@@ -4,8 +4,8 @@
 # See top-level LICENSE file for more information
 
 import gzip
-import itertools
 import string
+from itertools import dropwhile, islice, product
 
 from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
@@ -149,6 +149,24 @@ class AzureCloudObjStorage(ObjStorage):
 
         return True
 
+    def list_content(self, last_obj_id=None, limit=1000):
+        all_blob_services = self.get_all_blob_services()
+        if last_obj_id:
+            last_obj_id = self._internal_id(last_obj_id)
+            last_service, _ = self.get_blob_service(last_obj_id)
+            all_blob_services = dropwhile(
+                lambda srv: srv[0] != last_service, all_blob_services)
+        else:
+            last_service = None
+
+        def iterate_blobs():
+            for service, container in all_blob_services:
+                marker = last_obj_id if service == last_service else None
+                for obj in service.list_blobs(
+                        container, marker=marker, maxresults=limit):
+                    yield hashutil.hash_to_bytes(obj.name)
+        return islice(iterate_blobs(), limit)
+
 
 class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
     """ObjStorage with azure capabilities, striped by prefix.
@@ -175,7 +193,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
         expected_prefixes = set(
             ''.join(letters)
-            for letters in itertools.product(
+            for letters in product(
                     set(string.hexdigits.lower()), repeat=self.prefix_len
             )
         )
@@ -204,4 +222,6 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
     def get_all_blob_services(self):
         """Get all active block_blob_services"""
-        yield from self.prefixes.values()
+        # iterate on items() to sort blob services;
+        # needed to be able to paginate in the list_content() method
+        yield from (v for _, v in sorted(self.prefixes.items()))

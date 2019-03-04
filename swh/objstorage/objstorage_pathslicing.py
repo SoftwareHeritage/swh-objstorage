@@ -8,6 +8,7 @@ import os
 import gzip
 import tempfile
 import random
+import collections
 
 from contextlib import contextmanager
 
@@ -172,7 +173,8 @@ class PathSlicingObjStorage(ObjStorage):
             # XXX hackish: it does not verify that the depth of found files
             # matches the slicing depth of the storage
             for root, _dirs, files in os.walk(self.root):
-                for f in files:
+                _dirs.sort()
+                for f in sorted(files):
                     yield bytes.fromhex(f)
 
         return obj_iterator()
@@ -218,12 +220,13 @@ class PathSlicingObjStorage(ObjStorage):
     def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
             obj_id = compute_hash(content)
-
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
+        if isinstance(content, collections.Iterator):
+            content = b''.join(content)
         with _write_obj_file(hex_obj_id, self) as f:
             f.write(content)
 

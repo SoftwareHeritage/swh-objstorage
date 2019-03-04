@@ -85,3 +85,9 @@ class RemoteObjStorage:
 
     def __iter__(self):
         yield from self._proxy.get_stream('content')
+
+    def list_content(self, last_obj_id=None, limit=1000):
+        params = {'limit': limit}
+        if last_obj_id:
+            params['last_obj_id'] = hashutil.hash_to_hex(last_obj_id)
+        yield from self._proxy.get_stream('content', params=params)

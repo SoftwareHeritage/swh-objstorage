@@ -170,3 +170,43 @@ class ObjStorageTestFixture:
         self.assertEqual(len(contents), ret)
         for obj_id in contents:
             self.assertIn(obj_id, self.storage)
+
+    def test_content_iterator(self):
+        sto_obj_ids = iter(self.storage)
+        sto_obj_ids = list(sto_obj_ids)
+        self.assertFalse(sto_obj_ids)
+
+        obj_ids = set()
+        for i in range(100):
+            content, obj_id = self.hash_content(b'content %d' % i)
+            self.storage.add(content, obj_id=obj_id)
+            obj_ids.add(obj_id)
+
+        sto_obj_ids = set(self.storage)
+        self.assertEqual(sto_obj_ids, obj_ids)
+
+    def test_list_content(self):
+        all_ids = []
+        for i in range(1200):
+            content = b'example %d' % i
+            obj_id = compute_hash(content)
+            self.storage.add(content, obj_id)
+            all_ids.append(obj_id)
+        all_ids.sort()
+
+        ids = list(self.storage.list_content())
+        self.assertEqual(len(ids), 1000)
+        self.assertEqual(ids[0], all_ids[0])
+        self.assertEqual(ids[100], all_ids[100])
+        self.assertEqual(ids[999], all_ids[999])
+
+        ids = list(self.storage.list_content(limit=10))
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(ids[0], all_ids[0])
+        self.assertEqual(ids[9], all_ids[9])
+
+        ids = list(self.storage.list_content(
+            last_obj_id=all_ids[999], limit=100))
+        self.assertEqual(len(ids), 100)
+        self.assertEqual(ids[0], all_ids[1000])
+        self.assertEqual(ids[9], all_ids[1009])

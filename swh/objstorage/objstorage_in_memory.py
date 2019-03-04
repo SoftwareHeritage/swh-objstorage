@@ -24,6 +24,9 @@ class InMemoryObjStorage(objstorage.ObjStorage):
     def __contains__(self, obj_id, *args, **kwargs):
         return obj_id in self.state
 
+    def __iter__(self):
+        return iter(sorted(self.state))
+
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
         if obj_id is None:
             obj_id = objstorage.compute_hash(content)

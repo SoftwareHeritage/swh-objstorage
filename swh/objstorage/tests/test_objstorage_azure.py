@@ -57,9 +57,10 @@ class MockBlockBlobService():
     def exists(self, container_name, blob_name):
         return blob_name in self.data[container_name]
 
-    def list_blobs(self, container_name):
-        for blob_name, content in self.data[container_name].items():
-            yield MockBlob(name=blob_name, content=content)
+    def list_blobs(self, container_name, marker=None, maxresults=None):
+        for blob_name, content in sorted(self.data[container_name].items()):
+            if marker is None or blob_name > marker:
+                yield MockBlob(name=blob_name, content=content)
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):

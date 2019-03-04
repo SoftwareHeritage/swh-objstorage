@@ -50,7 +50,7 @@ class MockLibcloudDriver():
 
     def iterate_container_objects(self, container):
         self._check_credentials()
-        yield from container.values()
+        yield from (v for k, v in sorted(container.items()))
 
     def get_object(self, container_name, obj_id):
         self._check_credentials()

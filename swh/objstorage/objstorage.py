@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import abc
+from itertools import dropwhile, islice
 
 from swh.model import hashutil
 
@@ -285,3 +286,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
         """
         raise NotImplementedError
+
+    def list_content(self, last_obj_id=None, limit=1000):
+        """Generates known object ids.
+
+        Args:
+            last_obj_id (bytes): object id from which to iterate from
+                 (excluded).
+            limit (int): max number of object ids to generate.
+
+        Generates:
+            obj_id (bytes): object ids.
+        """
+        it = iter(self)
+        if last_obj_id:
+            it = dropwhile(lambda x: x <= last_obj_id, it)
+        return islice(it, limit)
