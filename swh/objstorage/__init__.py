@@ -40,6 +40,17 @@ try:
 except ImportError as e:
     _STORAGE_CLASSES_MISSING['rados'] = e.args[0]
 
+try:
+    from swh.objstorage.cloud.objstorage_cloud import (
+        AwsCloudObjStorage,
+        OpenStackCloudObjStorage,
+    )
+    _STORAGE_CLASSES['s3'] = AwsCloudObjStorage
+    _STORAGE_CLASSES['swift'] = OpenStackCloudObjStorage
+except ImportError as e:
+    _STORAGE_CLASSES_MISSING['s3'] = e.args[0]
+    _STORAGE_CLASSES_MISSING['swift'] = e.args[0]
+
 
 def get_objstorage(cls, args):
     """ Create an ObjStorage using the given implementation class.
