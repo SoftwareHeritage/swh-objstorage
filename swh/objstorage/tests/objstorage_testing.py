@@ -9,10 +9,7 @@ from swh.objstorage import exc
 from swh.objstorage.objstorage import compute_hash
 
 
-class ObjStorageTestFixture():
-
-    def setUp(self):
-        super().setUp()
+class ObjStorageTestFixture:
 
     def hash_content(self, content):
         obj_id = compute_hash(content)
@@ -137,13 +134,13 @@ class ObjStorageTestFixture():
         def gen_content():
             yield b'chunk1'
             time.sleep(0.5)
-            yield b'chunk2'
+            yield b'chunk42'
         _, obj_id = self.hash_content(b'placeholder_id')
         try:
             self.storage.add_stream(gen_content(), obj_id=obj_id)
         except NotImplementedError:
             return
-        self.assertContentMatch(obj_id, b'chunk1chunk2')
+        self.assertContentMatch(obj_id, b'chunk1chunk42')
 
     def test_get_stream(self):
         content_l = [b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']
