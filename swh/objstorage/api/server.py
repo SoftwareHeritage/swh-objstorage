@@ -8,8 +8,12 @@ import os
 import aiohttp.web
 
 from swh.core.config import read as config_read
-from swh.core.api_async import (SWHRemoteAPI, decode_request,
-                                encode_data_server as encode_data)
+from swh.core.api.asynchronous import (SWHRemoteAPI, decode_request,
+                                       encode_data_server as encode_data)
+
+
+from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
+
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -86,11 +90,26 @@ async def add_stream(request):
     if check_pres and obj_id in objstorage:
         return encode_data(obj_id)
 
+    # XXX this really should go in a decode_stream_request coroutine in
+    # swh.core, but since py35 does not support async generators, it cannot
+    # easily be made for now
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/x-msgpack':
+        decode = msgpack_loads
+    elif content_type == 'application/json':
+        decode = lambda x: json.loads(x, cls=SWHJSONDecoder)  # noqa
+    else:
+        raise ValueError('Wrong content type `%s` for API request'
+                         % content_type)
+
+    buffer = b''
     with objstorage.chunk_writer(obj_id) as write:
-        # XXX (3.5): use 'async for chunk in request.content.iter_any()'
         while not request.content.at_eof():
-            chunk = await request.content.readany()
-            write(chunk)
+            data, eot = await request.content.readchunk()
+            buffer += data
+            if eot:
+                write(decode(buffer))
+                buffer = b''
 
     return encode_data(obj_id)
 
