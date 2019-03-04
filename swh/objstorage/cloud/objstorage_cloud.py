@@ -22,19 +22,24 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     https://libcloud.readthedocs.io/en/latest/storage/api.html).
 
     """
-    def __init__(self, api_key, api_secret_key, container_name, **kwargs):
+    def __init__(self, container_name, **kwargs):
         super().__init__(**kwargs)
-        self.driver = self._get_driver(api_key, api_secret_key)
+        self.driver = self._get_driver(**kwargs)
         self.container_name = container_name
         self.container = self.driver.get_container(
             container_name=container_name)
 
-    def _get_driver(self, api_key, api_secret_key):
+    def _get_driver(self, **kwargs):
         """Initialize a driver to communicate with the cloud
 
-        Args:
-            api_key: key to connect to the API.
-            api_secret_key: secret key for authentication.
+        Kwargs: arguments passed to the StorageDriver class, typically
+          key: key to connect to the API.
+          secret: secret key for authentication.
+          secure: (bool) support HTTPS
+          host: (str)
+          port: (int)
+          api_version: (str)
+          region: (str)
 
         Returns:
             a Libcloud driver to a cloud storage.
@@ -42,8 +47,9 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         # Get the driver class from its description.
         cls = providers.get_driver(self._get_provider())
+        cls.namespace = None
         # Initialize the driver.
-        return cls(api_key, api_secret_key)
+        return cls(**kwargs)
 
     @abc.abstractmethod
     def _get_provider(self):
