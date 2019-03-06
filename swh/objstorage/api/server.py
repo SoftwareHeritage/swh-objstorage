@@ -128,7 +128,7 @@ def make_app(config):
     _cfg = config['objstorage']
     app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
 
-    client_max_size = config.get('client_max_size')
+    client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
     if client_max_size:
         app._client_max_size = client_max_size
 
