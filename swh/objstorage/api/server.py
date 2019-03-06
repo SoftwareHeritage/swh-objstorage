@@ -122,15 +122,12 @@ def make_app(config):
     """Initialize the remote api application.
 
     """
-    app = SWHRemoteAPI()
+    client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
+    app = SWHRemoteAPI(client_max_size=client_max_size)
     # retro compatibility configuration settings
     app['config'] = config
     _cfg = config['objstorage']
     app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
-
-    client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
-    if client_max_size:
-        app._client_max_size = client_max_size
 
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/check_config', check_config)
