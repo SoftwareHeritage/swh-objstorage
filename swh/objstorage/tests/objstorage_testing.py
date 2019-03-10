@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import time
+import collections
 
 from swh.objstorage import exc
 from swh.objstorage.objstorage import compute_hash
@@ -113,7 +114,7 @@ class ObjStorageTestFixture:
         content, obj_id = self.hash_content(b'content_to_delete')
         self.storage.add(content, obj_id=obj_id)
         with self.assertRaises(PermissionError):
-            self.assertTrue(self.storage.delete(obj_id))
+            self.storage.delete(obj_id)
 
     def test_delete_not_allowed_by_default(self):
         content, obj_id = self.hash_content(b'content_to_delete')
@@ -143,15 +144,20 @@ class ObjStorageTestFixture:
         self.assertContentMatch(obj_id, b'chunk1chunk42')
 
     def test_get_stream(self):
-        content_l = [b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']
-        content = b''.join(content_l)
+        content = b'123456789'
         _, obj_id = self.hash_content(content)
         self.storage.add(content, obj_id=obj_id)
+        r = self.storage.get(obj_id)
+        self.assertEqual(r, content)
+
         try:
-            r = list(self.storage.get_stream(obj_id, chunk_size=1))
+            r = self.storage.get_stream(obj_id, chunk_size=1)
         except NotImplementedError:
             return
-        self.assertEqual(r, content_l)
+        self.assertTrue(isinstance(r, collections.Iterator))
+        r = list(r)
+        self.assertEqual(len(r), 9)
+        self.assertEqual(b''.join(r), content)
 
     def test_add_batch(self):
         contents = {}
