@@ -342,3 +342,32 @@ class PathSlicingObjStorage(ObjStorage):
         with _read_obj_file(hex_obj_id, self) as f:
             reader = functools.partial(f.read, chunk_size)
             yield from iter(reader, b'')
+
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+        if last_obj_id:
+            it = self.iter_from(last_obj_id)
+        else:
+            it = iter(self)
+        return islice(it, limit)
+
+    def iter_from(self, obj_id, n_leaf=False):
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        slices = [hex_obj_id[bound] for bound in self.bounds]
+        rlen = len(self.root.split('/'))
+
+        i = 0
+        for root, dirs, files in os.walk(self.root):
+            if not dirs:
+                i += 1
+            level = len(root.split('/')) - rlen
+            dirs.sort()
+            if dirs and root == os.path.join(self.root, *slices[:level]):
+                cslice = slices[level]
+                for d in dirs[:]:
+                    if d < cslice:
+                        dirs.remove(d)
+            for f in sorted(files):
+                if f > hex_obj_id:
+                    yield bytes.fromhex(f)
+        if n_leaf:
+            yield i
