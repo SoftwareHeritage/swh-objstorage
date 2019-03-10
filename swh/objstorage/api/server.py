@@ -149,8 +149,8 @@ async def get_stream(request):
     response = aiohttp.web.StreamResponse()
     await response.prepare(request)
     for chunk in request.app['objstorage'].get_stream(obj_id, 2 << 20):
-        response.write(chunk)
-        await response.drain()
+        await response.write(chunk)
+    await response.write_eof()
     return response
 
 
@@ -165,8 +165,8 @@ async def list_content(request):
     await response.prepare(request)
     for obj_id in request.app['objstorage'].list_content(
             last_obj_id, limit=limit):
-        response.write(obj_id)
-        await response.drain()
+        await response.write(obj_id)
+    await response.write_eof()
     return response
 
 

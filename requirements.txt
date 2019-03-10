@@ -4,7 +4,7 @@
 vcversioner
 
 # remote storage API server
-aiohttp >= 2.1.0
+aiohttp >= 3
 click
 
 # optional dependencies
