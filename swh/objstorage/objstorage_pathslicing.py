@@ -9,13 +9,14 @@ import gzip
 import tempfile
 import random
 import collections
+from itertools import islice
 
 from contextlib import contextmanager
 
 from swh.model import hashutil
 
 from .objstorage import (ObjStorage, compute_hash, ID_HASH_ALGO,
-                         ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE)
+                         ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT)
 from .exc import ObjNotFoundError, Error
 
 

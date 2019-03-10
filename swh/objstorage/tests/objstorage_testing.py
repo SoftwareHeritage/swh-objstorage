@@ -195,7 +195,7 @@ class ObjStorageTestFixture:
         all_ids.sort()
 
         ids = list(self.storage.list_content())
-        self.assertEqual(len(ids), 1000)
+        self.assertEqual(len(ids), 1200)
         self.assertEqual(ids[0], all_ids[0])
         self.assertEqual(ids[100], all_ids[100])
         self.assertEqual(ids[999], all_ids[999])

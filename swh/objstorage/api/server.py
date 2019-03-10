@@ -16,6 +16,7 @@ from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
 
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
+from swh.objstorage.objstorage import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError
 
 
@@ -129,7 +130,7 @@ async def list_content(request):
     last_obj_id = request.query.get('last_obj_id')
     if last_obj_id:
         last_obj_id = bytes.fromhex(last_obj_id)
-    limit = int(request.query.get('limit', 1000))
+    limit = int(request.query.get('limit', DEFAULT_LIMIT))
     response = aiohttp.web.StreamResponse()
     response.enable_chunked_encoding()
     await response.prepare(request)

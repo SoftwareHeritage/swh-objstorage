@@ -6,7 +6,7 @@
 from swh.core.api import SWHRemoteAPI
 from swh.model import hashutil
 
-from ..objstorage import DEFAULT_CHUNK_SIZE
+from ..objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
 from ..exc import ObjNotFoundError, ObjStorageAPIError
 
 
@@ -86,7 +86,7 @@ class RemoteObjStorage:
     def __iter__(self):
         yield from self._proxy.get_stream('content')
 
-    def list_content(self, last_obj_id=None, limit=1000):
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         params = {'limit': limit}
         if last_obj_id:
             params['last_obj_id'] = hashutil.hash_to_hex(last_obj_id)

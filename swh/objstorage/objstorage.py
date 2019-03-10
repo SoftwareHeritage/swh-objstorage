@@ -14,6 +14,7 @@ from .exc import ObjNotFoundError
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
+DEFAULT_LIMIT = 10000
 
 
 def compute_hash(content):
@@ -287,7 +288,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError
 
-    def list_content(self, last_obj_id=None, limit=1000):
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         """Generates known object ids.
 
         Args:

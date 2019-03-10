@@ -11,7 +11,7 @@ from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
 import requests
 
-from swh.objstorage.objstorage import ObjStorage, compute_hash
+from swh.objstorage.objstorage import ObjStorage, compute_hash, DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.model import hashutil
 
@@ -149,7 +149,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         return True
 
-    def list_content(self, last_obj_id=None, limit=1000):
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         all_blob_services = self.get_all_blob_services()
         if last_obj_id:
             last_obj_id = self._internal_id(last_obj_id)
