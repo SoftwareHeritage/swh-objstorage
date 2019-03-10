@@ -10,6 +10,7 @@ from .api.client import RemoteObjStorage
 from .multiplexer import MultiplexerObjStorage, StripingObjStorage
 from .multiplexer.filter import add_filters
 
+from swh.objstorage.objstorage_weed import WeedObjStorage
 
 __all__ = ['get_objstorage', 'ObjStorage']
 
@@ -18,6 +19,7 @@ _STORAGE_CLASSES = {
     'pathslicing': PathSlicingObjStorage,
     'remote': RemoteObjStorage,
     'memory': InMemoryObjStorage,
+    'weed': WeedObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {
