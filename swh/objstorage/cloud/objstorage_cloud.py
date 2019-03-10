@@ -4,9 +4,11 @@
 # See top-level LICENSE file for more information
 
 import abc
+import collections
 
 from swh.model import hashutil
 from swh.objstorage.objstorage import ObjStorage, compute_hash
+from swh.objstorage.objstorage import compressors, decompressors
 from swh.objstorage.exc import ObjNotFoundError, Error
 
 from libcloud.storage import providers
@@ -22,12 +24,13 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     https://libcloud.readthedocs.io/en/latest/storage/api.html).
 
     """
-    def __init__(self, container_name, **kwargs):
+    def __init__(self, container_name, compression=None, **kwargs):
         super().__init__(**kwargs)
         self.driver = self._get_driver(**kwargs)
         self.container_name = container_name
         self.container = self.driver.get_container(
             container_name=container_name)
+        self.compression = compression
 
     def _get_driver(self, **kwargs):
         """Initialize a driver to communicate with the cloud
@@ -118,7 +121,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):
-        return bytes(self._get_object(obj_id).as_stream())
+        obj = b''.join(self._get_object(obj_id).as_stream())
+        return decompressors[self.compression](obj)
 
     def check(self, obj_id):
         # Check that the file exists, as _get_object raises ObjNotFoundError
@@ -142,10 +146,21 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
+
         try:
             return self.driver.get_object(self.container_name, hex_obj_id)
         except ObjectDoesNotExistError:
             raise ObjNotFoundError(obj_id)
+
+    def _compressor(self, data):
+        comp = compressors[self.compression]()
+        for chunk in data:
+            cchunk = comp.compress(chunk)
+            if cchunk:
+                yield cchunk
+        trail = comp.flush()
+        if trail:
+            yield trail
 
     def _put_object(self, content, obj_id):
         """Create an object in the cloud storage.
@@ -155,11 +170,12 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         """
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        self.driver.upload_object_via_stream(iter(content), self.container,
-                                             hex_obj_id)
 
-    def list_content(self):
-        return iter(self)
+        if not isinstance(content, collections.Iterator):
+            content = (content,)
+        self.driver.upload_object_via_stream(
+            self._compressor(content),
+            self.container, hex_obj_id)
 
 
 class AwsCloudObjStorage(CloudObjStorage):

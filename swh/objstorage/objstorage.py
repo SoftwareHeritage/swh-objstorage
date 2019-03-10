@@ -5,6 +5,9 @@
 
 import abc
 from itertools import dropwhile, islice
+import bz2
+import lzma
+import zlib
 
 from swh.model import hashutil
 
@@ -32,6 +35,29 @@ def compute_hash(content):
         content,
         hash_names=[ID_HASH_ALGO],
     ).digest().get(ID_HASH_ALGO)
+
+
+class NullCompressor:
+    def compress(self, data):
+        return data
+
+    def flush(self):
+        return b''
+
+
+decompressors = {
+    'bz2': bz2.decompress,
+    'lzma': lzma.decompress,
+    'zlib': zlib.decompress,
+    None: lambda x: x,
+    }
+
+compressors = {
+    'bz2': bz2.BZ2Compressor,
+    'lzma': lzma.LZMACompressor,
+    'zlib': zlib.compressobj,
+    None: NullCompressor,
+    }
 
 
 class ObjStorage(metaclass=abc.ABCMeta):
