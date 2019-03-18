@@ -18,32 +18,51 @@ from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError
+from swh.core.statsd import statsd
 
 
+def timed(f):
+    async def w(*a, **kw):
+        with statsd.timed(
+                'swh_objstorage_request_duration_seconds',
+                tags={'endpoint': f.__name__}):
+            return await f(*a, **kw)
+    return w
+
+
+@timed
 async def index(request):
     return aiohttp.web.Response(body="SWH Objstorage API server")
 
 
+@timed
 async def check_config(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].check_config(**req))
 
 
+@timed
 async def contains(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].__contains__(**req))
 
 
+@timed
 async def add_bytes(request):
     req = await decode_request(request)
+    statsd.increment('swh_objstorage_in_bytes_total',
+                     len(req['content']),
+                     tags={'endpoint': 'add_bytes'})
     return encode_data(request.app['objstorage'].add(**req))
 
 
+@timed
 async def add_batch(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].add_batch(**req))
 
 
+@timed
 async def get_bytes(request):
     req = await decode_request(request)
     try:
@@ -55,19 +74,25 @@ async def get_bytes(request):
         }
         return encode_data(ret, status=404)
     else:
+        statsd.increment('swh_objstorage_out_bytes_total',
+                         len(ret),
+                         tags={'endpoint': 'get_bytes'})
         return encode_data(ret)
 
 
+@timed
 async def get_batch(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].get_batch(**req))
 
 
+@timed
 async def check(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].check(**req))
 
 
+@timed
 async def delete(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].delete(**req))
@@ -75,6 +100,7 @@ async def delete(request):
 
 # Management methods
 
+@timed
 async def get_random_contents(request):
     req = await decode_request(request)
     return encode_data(request.app['objstorage'].get_random(**req))
@@ -82,6 +108,7 @@ async def get_random_contents(request):
 
 # Streaming methods
 
+@timed
 async def add_stream(request):
     hex_id = request.match_info['hex_id']
     obj_id = hashutil.hash_to_bytes(hex_id)
@@ -115,6 +142,7 @@ async def add_stream(request):
     return encode_data(obj_id)
 
 
+@timed
 async def get_stream(request):
     hex_id = request.match_info['hex_id']
     obj_id = hashutil.hash_to_bytes(hex_id)
@@ -126,6 +154,7 @@ async def get_stream(request):
     return response
 
 
+@timed
 async def list_content(request):
     last_obj_id = request.query.get('last_obj_id')
     if last_obj_id:
