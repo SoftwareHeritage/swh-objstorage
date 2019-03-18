@@ -3,11 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import functools
+import io
+
 from swh.objstorage.exc import ObjNotFoundError, Error
-from swh.objstorage import objstorage
+from swh.objstorage.objstorage import ObjStorage, compute_hash, \
+    DEFAULT_CHUNK_SIZE
 
 
-class InMemoryObjStorage(objstorage.ObjStorage):
+class InMemoryObjStorage(ObjStorage):
     """In-Memory objstorage.
 
     Intended for test purposes.
@@ -29,7 +33,7 @@ class InMemoryObjStorage(objstorage.ObjStorage):
 
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
         if obj_id is None:
-            obj_id = objstorage.compute_hash(content)
+            obj_id = compute_hash(content)
 
         if check_presence and obj_id in self:
             return obj_id
@@ -47,7 +51,7 @@ class InMemoryObjStorage(objstorage.ObjStorage):
     def check(self, obj_id, *args, **kwargs):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
-        if objstorage.compute_hash(self.state[obj_id]) != obj_id:
+        if compute_hash(self.state[obj_id]) != obj_id:
             raise Error('Corrupt object %s' % obj_id)
         return True
 
@@ -58,3 +62,11 @@ class InMemoryObjStorage(objstorage.ObjStorage):
 
         self.state.pop(obj_id)
         return True
+
+    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
+        if obj_id not in self:
+            raise ObjNotFoundError(obj_id)
+
+        data = io.BytesIO(self.state[obj_id])
+        reader = functools.partial(data.read, chunk_size)
+        yield from iter(reader, b'')
