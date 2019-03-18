@@ -3,14 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .objstorage import ObjStorage
-from .objstorage_pathslicing import PathSlicingObjStorage
-from .objstorage_in_memory import InMemoryObjStorage
-from .api.client import RemoteObjStorage
-from .multiplexer import MultiplexerObjStorage, StripingObjStorage
-from .multiplexer.filter import add_filters
-
-from swh.objstorage.objstorage_weed import WeedObjStorage
+from swh.objstorage.objstorage import ObjStorage, ID_HASH_LENGTH  # noqa
+from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
+from swh.objstorage.backends.in_memory import InMemoryObjStorage
+from swh.objstorage.api.client import RemoteObjStorage
+from swh.objstorage.multiplexer import (
+    MultiplexerObjStorage, StripingObjStorage)
+from swh.objstorage.multiplexer.filter import add_filters
+from swh.objstorage.backends.seaweed import WeedObjStorage
 
 __all__ = ['get_objstorage', 'ObjStorage']
 
@@ -26,7 +26,7 @@ _STORAGE_CLASSES_MISSING = {
 }
 
 try:
-    from swh.objstorage.cloud.objstorage_azure import (
+    from swh.objstorage.backends.azure import (
         AzureCloudObjStorage,
         PrefixedAzureCloudObjStorage,
     )
@@ -37,13 +37,13 @@ except ImportError as e:
     _STORAGE_CLASSES_MISSING['azure-prefixed'] = e.args[0]
 
 try:
-    from swh.objstorage.objstorage_rados import RADOSObjStorage
+    from swh.objstorage.backends.rados import RADOSObjStorage
     _STORAGE_CLASSES['rados'] = RADOSObjStorage
 except ImportError as e:
     _STORAGE_CLASSES_MISSING['rados'] = e.args[0]
 
 try:
-    from swh.objstorage.cloud.objstorage_cloud import (
+    from swh.objstorage.backends.libcloud import (
         AwsCloudObjStorage,
         OpenStackCloudObjStorage,
     )

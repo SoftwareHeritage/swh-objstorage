@@ -68,7 +68,7 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         patcher = patch(
-            'swh.objstorage.cloud.objstorage_azure.BlockBlobService',
+            'swh.objstorage.backends.azure.BlockBlobService',
             MockBlockBlobService,
         )
         patcher.start()
@@ -86,7 +86,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
     def setUp(self):
         super().setUp()
         patcher = patch(
-            'swh.objstorage.cloud.objstorage_azure.BlockBlobService',
+            'swh.objstorage.backends.azure.BlockBlobService',
             MockBlockBlobService,
         )
         patcher.start()

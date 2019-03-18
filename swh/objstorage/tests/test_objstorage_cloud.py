@@ -12,7 +12,7 @@ from libcloud.common.types import InvalidCredsError
 from libcloud.storage.types import (ContainerDoesNotExistError,
                                     ObjectDoesNotExistError)
 from swh.model import hashutil
-from swh.objstorage.cloud.objstorage_cloud import CloudObjStorage
+from swh.objstorage.backends.libcloud import CloudObjStorage
 
 from .objstorage_testing import ObjStorageTestFixture
 

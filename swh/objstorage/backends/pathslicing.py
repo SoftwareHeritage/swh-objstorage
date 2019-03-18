@@ -15,9 +15,10 @@ from contextlib import contextmanager
 
 from swh.model import hashutil
 
-from .objstorage import (ObjStorage, compute_hash, ID_HASH_ALGO,
-                         ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT)
-from .exc import ObjNotFoundError, Error
+from swh.objstorage.objstorage import (
+    ObjStorage, compute_hash, ID_HASH_ALGO,
+    ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT)
+from swh.objstorage.exc import ObjNotFoundError, Error
 
 
 GZIP_BUFSIZ = 1048576
