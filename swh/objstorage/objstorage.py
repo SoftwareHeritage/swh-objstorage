@@ -62,7 +62,6 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def __init__(self, *, allow_delete=False, **kwargs):
         # A more complete permission system could be used in place of that if
         # it becomes needed
-        super().__init__(**kwargs)
         self.allow_delete = allow_delete
 
     @abc.abstractmethod

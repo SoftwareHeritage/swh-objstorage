@@ -79,8 +79,8 @@ class MockLibcloudDriver():
 
 class MockCloudObjStorage(CloudObjStorage):
     """ Cloud object storage that uses a mocked driver """
-    def _get_driver(self, api_key, api_secret_key):
-        return MockLibcloudDriver(api_key, api_secret_key)
+    def _get_driver(self, **kwargs):
+        return MockLibcloudDriver(**kwargs)
 
     def _get_provider(self):
         # Implement this for the abc requirement, but behavior is defined in
@@ -92,5 +92,7 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = MockCloudObjStorage(API_KEY, API_SECRET_KEY,
-                                           CONTAINER_NAME)
+        self.storage = MockCloudObjStorage(
+            CONTAINER_NAME,
+            api_key=API_KEY, api_secret_key=API_SECRET_KEY,
+        )
