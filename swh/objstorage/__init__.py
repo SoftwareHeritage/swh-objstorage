@@ -11,6 +11,8 @@ from swh.objstorage.multiplexer import (
     MultiplexerObjStorage, StripingObjStorage)
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.backends.seaweed import WeedObjStorage
+from swh.objstorage.backends.generator import RandomGeneratorObjStorage
+
 
 __all__ = ['get_objstorage', 'ObjStorage']
 
@@ -20,6 +22,7 @@ _STORAGE_CLASSES = {
     'remote': RemoteObjStorage,
     'memory': InMemoryObjStorage,
     'weed': WeedObjStorage,
+    'random': RandomGeneratorObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {
