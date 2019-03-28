@@ -1,3 +1,9 @@
+swh-objstorage (0.0.31-1~swh2) unstable-swh; urgency=medium
+
+  * Update to account for backend submodules moving
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 28 Mar 2019 16:01:37 +0100
+
 swh-objstorage (0.0.31-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.31     - (tagged by Nicolas Dandrimont
