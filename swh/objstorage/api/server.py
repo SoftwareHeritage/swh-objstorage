@@ -3,50 +3,68 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import asyncio
-import aiohttp.web
 import os
 
+import aiohttp.web
+
 from swh.core.config import read as config_read
-from swh.core.api_async import (SWHRemoteAPI, decode_request,
-                                encode_data_server as encode_data)
+from swh.core.api.asynchronous import (SWHRemoteAPI, decode_request,
+                                       encode_data_server as encode_data)
+
+
+from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
+
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
+from swh.objstorage.objstorage import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError
+from swh.core.statsd import statsd
 
 
-@asyncio.coroutine
-def index(request):
+def timed(f):
+    async def w(*a, **kw):
+        with statsd.timed(
+                'swh_objstorage_request_duration_seconds',
+                tags={'endpoint': f.__name__}):
+            return await f(*a, **kw)
+    return w
+
+
+@timed
+async def index(request):
     return aiohttp.web.Response(body="SWH Objstorage API server")
 
 
-@asyncio.coroutine
-def check_config(request):
-    req = yield from decode_request(request)
+@timed
+async def check_config(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].check_config(**req))
 
 
-@asyncio.coroutine
-def contains(request):
-    req = yield from decode_request(request)
+@timed
+async def contains(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].__contains__(**req))
 
 
-@asyncio.coroutine
-def add_bytes(request):
-    req = yield from decode_request(request)
+@timed
+async def add_bytes(request):
+    req = await decode_request(request)
+    statsd.increment('swh_objstorage_in_bytes_total',
+                     len(req['content']),
+                     tags={'endpoint': 'add_bytes'})
     return encode_data(request.app['objstorage'].add(**req))
 
 
-@asyncio.coroutine
-def add_batch(request):
-    req = yield from decode_request(request)
+@timed
+async def add_batch(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].add_batch(**req))
 
 
-@asyncio.coroutine
-def get_bytes(request):
-    req = yield from decode_request(request)
+@timed
+async def get_bytes(request):
+    req = await decode_request(request)
     try:
         ret = request.app['objstorage'].get(**req)
     except ObjNotFoundError:
@@ -56,39 +74,42 @@ def get_bytes(request):
         }
         return encode_data(ret, status=404)
     else:
+        statsd.increment('swh_objstorage_out_bytes_total',
+                         len(ret),
+                         tags={'endpoint': 'get_bytes'})
         return encode_data(ret)
 
 
-@asyncio.coroutine
-def get_batch(request):
-    req = yield from decode_request(request)
+@timed
+async def get_batch(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].get_batch(**req))
 
 
-@asyncio.coroutine
-def check(request):
-    req = yield from decode_request(request)
+@timed
+async def check(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].check(**req))
 
 
-@asyncio.coroutine
-def delete(request):
-    req = yield from decode_request(request)
+@timed
+async def delete(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].delete(**req))
 
 
 # Management methods
 
-@asyncio.coroutine
-def get_random_contents(request):
-    req = yield from decode_request(request)
+@timed
+async def get_random_contents(request):
+    req = await decode_request(request)
     return encode_data(request.app['objstorage'].get_random(**req))
 
 
 # Streaming methods
 
-@asyncio.coroutine
-def add_stream(request):
+@timed
+async def add_stream(request):
     hex_id = request.match_info['hex_id']
     obj_id = hashutil.hash_to_bytes(hex_id)
     check_pres = (request.query.get('check_presence', '').lower() == 'true')
@@ -97,24 +118,55 @@ def add_stream(request):
     if check_pres and obj_id in objstorage:
         return encode_data(obj_id)
 
+    # XXX this really should go in a decode_stream_request coroutine in
+    # swh.core, but since py35 does not support async generators, it cannot
+    # easily be made for now
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/x-msgpack':
+        decode = msgpack_loads
+    elif content_type == 'application/json':
+        decode = lambda x: json.loads(x, cls=SWHJSONDecoder)  # noqa
+    else:
+        raise ValueError('Wrong content type `%s` for API request'
+                         % content_type)
+
+    buffer = b''
     with objstorage.chunk_writer(obj_id) as write:
-        # XXX (3.5): use 'async for chunk in request.content.iter_any()'
         while not request.content.at_eof():
-            chunk = yield from request.content.readany()
-            write(chunk)
+            data, eot = await request.content.readchunk()
+            buffer += data
+            if eot:
+                write(decode(buffer))
+                buffer = b''
 
     return encode_data(obj_id)
 
 
-@asyncio.coroutine
-def get_stream(request):
+@timed
+async def get_stream(request):
     hex_id = request.match_info['hex_id']
     obj_id = hashutil.hash_to_bytes(hex_id)
     response = aiohttp.web.StreamResponse()
-    yield from response.prepare(request)
+    await response.prepare(request)
     for chunk in request.app['objstorage'].get_stream(obj_id, 2 << 20):
-        response.write(chunk)
-        yield from response.drain()
+        await response.write(chunk)
+    await response.write_eof()
+    return response
+
+
+@timed
+async def list_content(request):
+    last_obj_id = request.query.get('last_obj_id')
+    if last_obj_id:
+        last_obj_id = bytes.fromhex(last_obj_id)
+    limit = int(request.query.get('limit', DEFAULT_LIMIT))
+    response = aiohttp.web.StreamResponse()
+    response.enable_chunked_encoding()
+    await response.prepare(request)
+    for obj_id in request.app['objstorage'].list_content(
+            last_obj_id, limit=limit):
+        await response.write(obj_id)
+    await response.write_eof()
     return response
 
 
@@ -122,15 +174,12 @@ def make_app(config):
     """Initialize the remote api application.
 
     """
-    app = SWHRemoteAPI()
+    client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
+    app = SWHRemoteAPI(client_max_size=client_max_size)
     # retro compatibility configuration settings
     app['config'] = config
     _cfg = config['objstorage']
     app['objstorage'] = get_objstorage(_cfg['cls'], _cfg['args'])
-
-    client_max_size = config.get('client_max_size')
-    if client_max_size:
-        app._client_max_size = client_max_size
 
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/check_config', check_config)
@@ -142,6 +191,7 @@ def make_app(config):
     app.router.add_route('POST', '/content/get/random', get_random_contents)
     app.router.add_route('POST', '/content/check', check)
     app.router.add_route('POST', '/content/delete', delete)
+    app.router.add_route('GET', '/content', list_content)
     app.router.add_route('POST', '/content/add_stream/{hex_id}', add_stream)
     app.router.add_route('GET', '/content/get_stream/{hex_id}', get_stream)
     return app

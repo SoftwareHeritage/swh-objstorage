@@ -4,15 +4,13 @@
 # See top-level LICENSE file for more information
 
 import time
+import collections
 
 from swh.objstorage import exc
 from swh.objstorage.objstorage import compute_hash
 
 
-class ObjStorageTestFixture():
-
-    def setUp(self):
-        super().setUp()
+class ObjStorageTestFixture:
 
     def hash_content(self, content):
         obj_id = compute_hash(content)
@@ -116,7 +114,7 @@ class ObjStorageTestFixture():
         content, obj_id = self.hash_content(b'content_to_delete')
         self.storage.add(content, obj_id=obj_id)
         with self.assertRaises(PermissionError):
-            self.assertTrue(self.storage.delete(obj_id))
+            self.storage.delete(obj_id)
 
     def test_delete_not_allowed_by_default(self):
         content, obj_id = self.hash_content(b'content_to_delete')
@@ -137,24 +135,29 @@ class ObjStorageTestFixture():
         def gen_content():
             yield b'chunk1'
             time.sleep(0.5)
-            yield b'chunk2'
+            yield b'chunk42'
         _, obj_id = self.hash_content(b'placeholder_id')
         try:
             self.storage.add_stream(gen_content(), obj_id=obj_id)
         except NotImplementedError:
             return
-        self.assertContentMatch(obj_id, b'chunk1chunk2')
+        self.assertContentMatch(obj_id, b'chunk1chunk42')
 
     def test_get_stream(self):
-        content_l = [b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9']
-        content = b''.join(content_l)
+        content = b'123456789'
         _, obj_id = self.hash_content(content)
         self.storage.add(content, obj_id=obj_id)
+        r = self.storage.get(obj_id)
+        self.assertEqual(r, content)
+
         try:
-            r = list(self.storage.get_stream(obj_id, chunk_size=1))
+            r = self.storage.get_stream(obj_id, chunk_size=1)
         except NotImplementedError:
             return
-        self.assertEqual(r, content_l)
+        self.assertTrue(isinstance(r, collections.Iterator))
+        r = list(r)
+        self.assertEqual(len(r), 9)
+        self.assertEqual(b''.join(r), content)
 
     def test_add_batch(self):
         contents = {}
@@ -167,3 +170,43 @@ class ObjStorageTestFixture():
         self.assertEqual(len(contents), ret)
         for obj_id in contents:
             self.assertIn(obj_id, self.storage)
+
+    def test_content_iterator(self):
+        sto_obj_ids = iter(self.storage)
+        sto_obj_ids = list(sto_obj_ids)
+        self.assertFalse(sto_obj_ids)
+
+        obj_ids = set()
+        for i in range(100):
+            content, obj_id = self.hash_content(b'content %d' % i)
+            self.storage.add(content, obj_id=obj_id)
+            obj_ids.add(obj_id)
+
+        sto_obj_ids = set(self.storage)
+        self.assertEqual(sto_obj_ids, obj_ids)
+
+    def test_list_content(self):
+        all_ids = []
+        for i in range(1200):
+            content = b'example %d' % i
+            obj_id = compute_hash(content)
+            self.storage.add(content, obj_id)
+            all_ids.append(obj_id)
+        all_ids.sort()
+
+        ids = list(self.storage.list_content())
+        self.assertEqual(len(ids), 1200)
+        self.assertEqual(ids[0], all_ids[0])
+        self.assertEqual(ids[100], all_ids[100])
+        self.assertEqual(ids[999], all_ids[999])
+
+        ids = list(self.storage.list_content(limit=10))
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(ids[0], all_ids[0])
+        self.assertEqual(ids[9], all_ids[9])
+
+        ids = list(self.storage.list_content(
+            last_obj_id=all_ids[999], limit=100))
+        self.assertEqual(len(ids), 100)
+        self.assertEqual(ids[0], all_ids[1000])
+        self.assertEqual(ids[9], all_ids[1009])

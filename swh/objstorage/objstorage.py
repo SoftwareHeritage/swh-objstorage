@@ -4,6 +4,10 @@
 # See top-level LICENSE file for more information
 
 import abc
+from itertools import dropwhile, islice
+import bz2
+import lzma
+import zlib
 
 from swh.model import hashutil
 
@@ -13,6 +17,7 @@ from .exc import ObjNotFoundError
 ID_HASH_ALGO = 'sha1'
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
+DEFAULT_LIMIT = 10000
 
 
 def compute_hash(content):
@@ -30,6 +35,29 @@ def compute_hash(content):
         content,
         hash_names=[ID_HASH_ALGO],
     ).digest().get(ID_HASH_ALGO)
+
+
+class NullCompressor:
+    def compress(self, data):
+        return data
+
+    def flush(self):
+        return b''
+
+
+decompressors = {
+    'bz2': bz2.decompress,
+    'lzma': lzma.decompress,
+    'zlib': zlib.decompress,
+    None: lambda x: x,
+    }
+
+compressors = {
+    'bz2': bz2.BZ2Compressor,
+    'lzma': lzma.LZMACompressor,
+    'zlib': zlib.compressobj,
+    None: NullCompressor,
+    }
 
 
 class ObjStorage(metaclass=abc.ABCMeta):
@@ -62,7 +90,6 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def __init__(self, *, allow_delete=False, **kwargs):
         # A more complete permission system could be used in place of that if
         # it becomes needed
-        super().__init__(**kwargs)
         self.allow_delete = allow_delete
 
     @abc.abstractmethod
@@ -286,3 +313,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
         """
         raise NotImplementedError
+
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+        """Generates known object ids.
+
+        Args:
+            last_obj_id (bytes): object id from which to iterate from
+                 (excluded).
+            limit (int): max number of object ids to generate.
+
+        Generates:
+            obj_id (bytes): object ids.
+        """
+        it = iter(self)
+        if last_obj_id:
+            it = dropwhile(lambda x: x <= last_obj_id, it)
+        return islice(it, limit)

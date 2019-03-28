@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from swh.model import hashutil
-from swh.objstorage import exc, get_objstorage
+from swh.objstorage import exc, get_objstorage, ID_HASH_LENGTH
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -66,3 +66,32 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         random_contents = list(self.storage.get_random(1))
         self.assertEqual(1, len(random_contents))
         self.assertIn(obj_id, random_contents)
+
+    def test_iterate_from(self):
+        all_ids = []
+        for i in range(100):
+            content, obj_id = self.hash_content(b'content %d' % i)
+            self.storage.add(content, obj_id=obj_id)
+            all_ids.append(obj_id)
+        all_ids.sort()
+
+        ids = list(self.storage.iter_from(b'\x00' * (ID_HASH_LENGTH // 2)))
+        self.assertEqual(len(ids), len(all_ids))
+        self.assertEqual(ids, all_ids)
+
+        ids = list(self.storage.iter_from(all_ids[0]))
+        self.assertEqual(len(ids), len(all_ids)-1)
+        self.assertEqual(ids, all_ids[1:])
+
+        ids = list(self.storage.iter_from(all_ids[-1], n_leaf=True))
+        n_leaf = ids[-1]
+        ids = ids[:-1]
+        self.assertEqual(n_leaf, 1)
+        self.assertEqual(len(ids), 0)
+
+        ids = list(self.storage.iter_from(all_ids[-2], n_leaf=True))
+        n_leaf = ids[-1]
+        ids = ids[:-1]
+        self.assertEqual(n_leaf, 2)  # beware, this depends on the hash algo
+        self.assertEqual(len(ids), 1)
+        self.assertEqual(ids, all_ids[-1:])
