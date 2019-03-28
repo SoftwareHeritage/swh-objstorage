@@ -209,6 +209,12 @@ class MultiplexerObjStorage(ObjStorage):
                 return True
         return False
 
+    def __iter__(self):
+        def obj_iterator():
+            for storage in self.storages:
+                yield from storage
+        return obj_iterator()
+
     def add(self, content, obj_id=None, check_presence=True):
         """ Add a new object to the object storage.
 

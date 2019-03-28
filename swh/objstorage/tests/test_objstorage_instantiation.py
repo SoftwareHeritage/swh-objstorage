@@ -9,7 +9,7 @@ import unittest
 
 from swh.objstorage import get_objstorage
 from swh.objstorage.api.client import RemoteObjStorage
-from swh.objstorage.objstorage_pathslicing import PathSlicingObjStorage
+from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 
 
 class TestObjStorageInitialization(unittest.TestCase):

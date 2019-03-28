@@ -6,6 +6,7 @@
 import shutil
 import tempfile
 import unittest
+import pytest
 
 from swh.core.tests.server_testing import ServerTestFixtureAsync
 from swh.objstorage import get_objstorage
@@ -41,3 +42,11 @@ class TestRemoteObjStorage(ServerTestFixtureAsync, ObjStorageTestFixture,
     def tearDown(self):
         super().tearDown()
         shutil.rmtree(self.tmpdir)
+
+    @pytest.mark.skip('makes no sense to test this for the remote api')
+    def test_delete_not_allowed(self):
+        pass
+
+    @pytest.mark.skip('makes no sense to test this for the remote api')
+    def test_delete_not_allowed_by_default(self):
+        pass
