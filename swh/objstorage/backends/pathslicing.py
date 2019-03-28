@@ -8,14 +8,17 @@ import os
 import gzip
 import tempfile
 import random
+import collections
+from itertools import islice
 
 from contextlib import contextmanager
 
 from swh.model import hashutil
 
-from .objstorage import (ObjStorage, compute_hash, ID_HASH_ALGO,
-                         ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE)
-from .exc import ObjNotFoundError, Error
+from swh.objstorage.objstorage import (
+    ObjStorage, compute_hash, ID_HASH_ALGO,
+    ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT)
+from swh.objstorage.exc import ObjNotFoundError, Error
 
 
 GZIP_BUFSIZ = 1048576
@@ -172,7 +175,8 @@ class PathSlicingObjStorage(ObjStorage):
             # XXX hackish: it does not verify that the depth of found files
             # matches the slicing depth of the storage
             for root, _dirs, files in os.walk(self.root):
-                for f in files:
+                _dirs.sort()
+                for f in sorted(files):
                     yield bytes.fromhex(f)
 
         return obj_iterator()
@@ -218,12 +222,13 @@ class PathSlicingObjStorage(ObjStorage):
     def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
             obj_id = compute_hash(content)
-
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
+        if isinstance(content, collections.Iterator):
+            content = b''.join(content)
         with _write_obj_file(hex_obj_id, self) as f:
             f.write(content)
 
@@ -338,3 +343,32 @@ class PathSlicingObjStorage(ObjStorage):
         with _read_obj_file(hex_obj_id, self) as f:
             reader = functools.partial(f.read, chunk_size)
             yield from iter(reader, b'')
+
+    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+        if last_obj_id:
+            it = self.iter_from(last_obj_id)
+        else:
+            it = iter(self)
+        return islice(it, limit)
+
+    def iter_from(self, obj_id, n_leaf=False):
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        slices = [hex_obj_id[bound] for bound in self.bounds]
+        rlen = len(self.root.split('/'))
+
+        i = 0
+        for root, dirs, files in os.walk(self.root):
+            if not dirs:
+                i += 1
+            level = len(root.split('/')) - rlen
+            dirs.sort()
+            if dirs and root == os.path.join(self.root, *slices[:level]):
+                cslice = slices[level]
+                for d in dirs[:]:
+                    if d < cslice:
+                        dirs.remove(d)
+            for f in sorted(files):
+                if f > hex_obj_id:
+                    yield bytes.fromhex(f)
+        if n_leaf:
+            yield i

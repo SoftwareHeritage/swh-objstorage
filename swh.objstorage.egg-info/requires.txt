@@ -1,5 +1,5 @@
 vcversioner
-aiohttp>=2.1.0
+aiohttp>=3
 click
 swh.core>=0.0.41
 swh.model>=0.0.27
