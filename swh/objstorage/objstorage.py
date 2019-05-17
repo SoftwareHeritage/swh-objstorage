@@ -142,7 +142,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         """Add a batch of new objects to the object storage.
 
         Args:
-          contents (dict): mapping from obj_id to object conetnts
+          contents (dict): mapping from obj_id to object contents
         Returns:
           the number of objects added to the storage
         """
