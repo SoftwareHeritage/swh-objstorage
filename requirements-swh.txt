@@ -1,2 +1,2 @@
-swh.core >= 0.0.41
+swh.core[http] >= 0.0.60
 swh.model >= 0.0.27
