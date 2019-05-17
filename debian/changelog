@@ -1,3 +1,12 @@
+swh-objstorage (0.0.33-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.33     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-05-17 13:30:48 +0200)
+  * Upstream changes:     - Update import of
+    swh.core.api.tests.server_testing.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 May 2019 11:39:40 +0000
+
 swh-objstorage (0.0.31-1~swh2) unstable-swh; urgency=medium
 
   * Update to account for backend submodules moving
