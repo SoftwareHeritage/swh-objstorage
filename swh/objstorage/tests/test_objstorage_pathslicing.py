@@ -6,6 +6,7 @@
 import shutil
 import tempfile
 import unittest
+import gzip
 
 from swh.model import hashutil
 from swh.objstorage import exc, get_objstorage, ID_HASH_LENGTH
@@ -49,16 +50,23 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage.add(content, obj_id=obj_id)
         with open(self.content_path(obj_id), 'ab') as f:  # Add garbage.
             f.write(b'garbage')
-        with self.assertRaises(exc.Error):
+        with self.assertRaises(exc.Error) as error:
             self.storage.check(obj_id)
+        self.assertEquals((
+            'Corrupt object %s is not a gzip file' % obj_id.hex(),),
+            error.exception.args)
 
     def test_check_id_mismatch(self):
         content, obj_id = self.hash_content(b'check_id_mismatch')
         self.storage.add(content, obj_id=obj_id)
-        with open(self.content_path(obj_id), 'wb') as f:
+        with gzip.open(self.content_path(obj_id), 'wb') as f:
             f.write(b'unexpected content')
-        with self.assertRaises(exc.Error):
+        with self.assertRaises(exc.Error) as error:
             self.storage.check(obj_id)
+        self.assertEquals((
+            'Corrupt object %s should have id '
+            '12ebb2d6c81395bcc5cab965bdff640110cb67ff' % obj_id.hex(),),
+            error.exception.args)
 
     def test_get_random_contents(self):
         content, obj_id = self.hash_content(b'get_random_content')
