@@ -267,7 +267,7 @@ class PathSlicingObjStorage(ObjStorage):
                 checksums = hashutil.MultiHash.from_file(
                     f, hash_names=[ID_HASH_ALGO], length=length).digest()
                 actual_obj_id = checksums[ID_HASH_ALGO]
-                if obj_id != actual_obj_id:
+                if hex_obj_id != hashutil.hash_to_hex(actual_obj_id):
                     raise Error(
                         'Corrupt object %s should have id %s'
                         % (hashutil.hash_to_hex(obj_id),
