@@ -275,7 +275,7 @@ class PathSlicingObjStorage(ObjStorage):
                     )
         except (OSError, IOError):
             # IOError is for compatibility with older python versions
-            raise Error('Corrupt object %s is not a gzip file' % obj_id)
+            raise Error('Corrupt object %s is not a gzip file' % hex_obj_id)
 
     def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission
