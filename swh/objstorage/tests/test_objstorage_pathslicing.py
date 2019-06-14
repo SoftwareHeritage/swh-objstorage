@@ -45,6 +45,12 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage.add(content, obj_id=obj_id)
         self.assertEqual(len(self.storage), 1)
 
+    def test_check_ok(self):
+        content, obj_id = self.hash_content(b'check_ok')
+        self.storage.add(content, obj_id=obj_id)
+        self.storage.check(obj_id)
+        self.storage.check(obj_id.hex())
+
     def test_check_not_gzip(self):
         content, obj_id = self.hash_content(b'check_not_gzip')
         self.storage.add(content, obj_id=obj_id)
