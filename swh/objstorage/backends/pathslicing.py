@@ -57,6 +57,13 @@ def _write_obj_file(hex_obj_id, objstorage):
     with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
 
+    # Make sure the contents of the temporary file are written to disk
+    tmp_f.flush()
+    if objstorage.use_fdatasync:
+        os.fdatasync(tmp)
+    else:
+        os.fsync(tmp)
+
     # Then close the temporary file and move it to the right directory.
     tmp_f.close()
     os.chmod(tmp_path, FILE_MODE)
@@ -125,6 +132,8 @@ class PathSlicingObjStorage(ObjStorage):
             for sbounds in slicing.split('/')
             if sbounds
         ]
+
+        self.use_fdatasync = hasattr(os, 'fdatasync')
 
         self.check_config(check_write=False)
 

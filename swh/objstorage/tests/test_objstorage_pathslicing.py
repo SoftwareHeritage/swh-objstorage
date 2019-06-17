@@ -6,6 +6,7 @@
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch, DEFAULT
 import gzip
 
 from swh.model import hashutil
@@ -109,3 +110,30 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.assertEqual(n_leaf, 2)  # beware, this depends on the hash algo
         self.assertEqual(len(ids), 1)
         self.assertEqual(ids, all_ids[-1:])
+
+    def test_fdatasync_default(self):
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        if self.storage.use_fdatasync:
+            assert patched['fdatasync'].call_count == 1
+            assert patched['fsync'].call_count == 0
+        else:
+            assert patched['fdatasync'].call_count == 0
+            assert patched['fsync'].call_count == 1
+
+    def test_fdatasync_forced_on(self):
+        self.storage.use_fdatasync = True
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        assert patched['fdatasync'].call_count == 1
+        assert patched['fsync'].call_count == 0
+
+    def test_fdatasync_forced_off(self):
+        self.storage.use_fdatasync = False
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        assert patched['fdatasync'].call_count == 0
+        assert patched['fsync'].call_count == 1
