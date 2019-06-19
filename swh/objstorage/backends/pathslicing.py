@@ -57,6 +57,13 @@ def _write_obj_file(hex_obj_id, objstorage):
     with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
 
+    # Make sure the contents of the temporary file are written to disk
+    tmp_f.flush()
+    if objstorage.use_fdatasync:
+        os.fdatasync(tmp)
+    else:
+        os.fsync(tmp)
+
     # Then close the temporary file and move it to the right directory.
     tmp_f.close()
     os.chmod(tmp_path, FILE_MODE)
@@ -125,6 +132,8 @@ class PathSlicingObjStorage(ObjStorage):
             for sbounds in slicing.split('/')
             if sbounds
         ]
+
+        self.use_fdatasync = hasattr(os, 'fdatasync')
 
         self.check_config(check_write=False)
 
@@ -267,7 +276,7 @@ class PathSlicingObjStorage(ObjStorage):
                 checksums = hashutil.MultiHash.from_file(
                     f, hash_names=[ID_HASH_ALGO], length=length).digest()
                 actual_obj_id = checksums[ID_HASH_ALGO]
-                if obj_id != actual_obj_id:
+                if hex_obj_id != hashutil.hash_to_hex(actual_obj_id):
                     raise Error(
                         'Corrupt object %s should have id %s'
                         % (hashutil.hash_to_hex(obj_id),
@@ -275,7 +284,7 @@ class PathSlicingObjStorage(ObjStorage):
                     )
         except (OSError, IOError):
             # IOError is for compatibility with older python versions
-            raise Error('Corrupt object %s is not a gzip file' % obj_id)
+            raise Error('Corrupt object %s is not a gzip file' % hex_obj_id)
 
     def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission

@@ -10,34 +10,38 @@ import time
 import click
 import aiohttp.web
 
+from swh.core.cli import CONTEXT_SETTINGS
+
 from swh.objstorage import get_objstorage
 from swh.objstorage.api.server import load_and_check_config, make_app
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
-
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group(name='objstorage', context_settings=CONTEXT_SETTINGS)
 @click.option('--config-file', '-C', default=None,
               type=click.Path(exists=True, dir_okay=False,),
               help="Configuration file.")
-@click.option('--log-level', '-l', default='INFO',
-              type=click.Choice(logging._nameToLevel.keys()),
-              help="Log level (default to INFO)")
 @click.pass_context
-def cli(ctx, config_file, log_level):
+def cli(ctx, config_file):
+    '''Software Heritage Objstorage tools.
+    '''
     ctx.ensure_object(dict)
-    logging.basicConfig(level=log_level)
     cfg = load_and_check_config(config_file)
     ctx.obj['config'] = cfg
-    ctx.obj['log_level'] = log_level
 
 
-@cli.command('serve')
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
+@cli.command('rpc-serve')
+@click.option('--host', default='0.0.0.0',
+              metavar='IP', show_default=True,
+              help="Host ip address to bind the server on")
 @click.option('--port', '-p', default=5003, type=click.INT,
+              metavar='PORT', show_default=True,
               help="Binding port of the server")
 @click.pass_context
 def serve(ctx, host, port):
+    '''Run a standalone objstorage server.
+
+    This is not meant to be run on production systems.
+    '''
     app = make_app(ctx.obj['config'])
     if ctx.obj['log_level'] == 'DEBUG':
         app.update(debug=True)
@@ -48,6 +52,8 @@ def serve(ctx, host, port):
 @click.argument('directory', required=True, nargs=-1)
 @click.pass_context
 def import_directories(ctx, directory):
+    '''Import a local directory in an existing objstorage.
+    '''
     objstorage = get_objstorage(**ctx.obj['config']['objstorage'])
     nobj = 0
     volume = 0
@@ -67,6 +73,8 @@ def import_directories(ctx, directory):
 @cli.command('fsck')
 @click.pass_context
 def fsck(ctx):
+    '''Check the objstorage is not corrupted.
+    '''
     objstorage = get_objstorage(**ctx.obj['config']['objstorage'])
     for obj_id in objstorage:
         try:

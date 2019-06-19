@@ -6,6 +6,8 @@
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch, DEFAULT
+import gzip
 
 from swh.model import hashutil
 from swh.objstorage import exc, get_objstorage, ID_HASH_LENGTH
@@ -44,21 +46,34 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage.add(content, obj_id=obj_id)
         self.assertEqual(len(self.storage), 1)
 
+    def test_check_ok(self):
+        content, obj_id = self.hash_content(b'check_ok')
+        self.storage.add(content, obj_id=obj_id)
+        self.storage.check(obj_id)
+        self.storage.check(obj_id.hex())
+
     def test_check_not_gzip(self):
         content, obj_id = self.hash_content(b'check_not_gzip')
         self.storage.add(content, obj_id=obj_id)
         with open(self.content_path(obj_id), 'ab') as f:  # Add garbage.
             f.write(b'garbage')
-        with self.assertRaises(exc.Error):
+        with self.assertRaises(exc.Error) as error:
             self.storage.check(obj_id)
+        self.assertEquals((
+            'Corrupt object %s is not a gzip file' % obj_id.hex(),),
+            error.exception.args)
 
     def test_check_id_mismatch(self):
         content, obj_id = self.hash_content(b'check_id_mismatch')
         self.storage.add(content, obj_id=obj_id)
-        with open(self.content_path(obj_id), 'wb') as f:
+        with gzip.open(self.content_path(obj_id), 'wb') as f:
             f.write(b'unexpected content')
-        with self.assertRaises(exc.Error):
+        with self.assertRaises(exc.Error) as error:
             self.storage.check(obj_id)
+        self.assertEquals((
+            'Corrupt object %s should have id '
+            '12ebb2d6c81395bcc5cab965bdff640110cb67ff' % obj_id.hex(),),
+            error.exception.args)
 
     def test_get_random_contents(self):
         content, obj_id = self.hash_content(b'get_random_content')
@@ -95,3 +110,30 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.assertEqual(n_leaf, 2)  # beware, this depends on the hash algo
         self.assertEqual(len(ids), 1)
         self.assertEqual(ids, all_ids[-1:])
+
+    def test_fdatasync_default(self):
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        if self.storage.use_fdatasync:
+            assert patched['fdatasync'].call_count == 1
+            assert patched['fsync'].call_count == 0
+        else:
+            assert patched['fdatasync'].call_count == 0
+            assert patched['fsync'].call_count == 1
+
+    def test_fdatasync_forced_on(self):
+        self.storage.use_fdatasync = True
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        assert patched['fdatasync'].call_count == 1
+        assert patched['fsync'].call_count == 0
+
+    def test_fdatasync_forced_off(self):
+        self.storage.use_fdatasync = False
+        content, obj_id = self.hash_content(b'check_fdatasync')
+        with patch.multiple('os', fsync=DEFAULT, fdatasync=DEFAULT) as patched:
+            self.storage.add(content, obj_id=obj_id)
+        assert patched['fdatasync'].call_count == 0
+        assert patched['fsync'].call_count == 1
