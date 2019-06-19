@@ -1,3 +1,13 @@
+swh-objstorage (0.0.34-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.34     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-06-19 16:12:05 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.0.34     - Data
+    reliability fix for the pathslicing objstorage     - Several
+    improvements in the pathslicing check method
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Jun 2019 14:21:23 +0000
+
 swh-objstorage (0.0.33-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.33     - (tagged by Valentin Lorentz
