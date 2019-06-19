@@ -1,8 +1,21 @@
-swh-objstorage (0.0.31-1~swh2~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.34-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.34     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-06-19 16:12:05 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.0.34     - Data
+    reliability fix for the pathslicing objstorage     - Several
+    improvements in the pathslicing check method
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 Mar 2019 15:10:28 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Jun 2019 14:21:23 +0000
+
+swh-objstorage (0.0.33-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.33     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-05-17 13:30:48 +0200)
+  * Upstream changes:     - Update import of
+    swh.core.api.tests.server_testing.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 May 2019 11:39:40 +0000
 
 swh-objstorage (0.0.31-1~swh2) unstable-swh; urgency=medium
 
