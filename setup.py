@@ -52,6 +52,8 @@ setup(
     entry_points='''
         [console_scripts]
         swh-objstorage=swh.objstorage.cli:main
+        [swh.cli.subcommands]
+        objstorage=swh.objstorage.cli:cli
     ''',
     classifiers=[
         "Programming Language :: Python :: 3",
