@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.core.api import SWHRemoteAPI
+from swh.core.api import RPCClient
 from swh.model import hashutil
 
 from ..objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
@@ -24,7 +24,7 @@ class RemoteObjStorage:
     """
 
     def __init__(self, **kwargs):
-        self._proxy = SWHRemoteAPI(api_exception=ObjStorageAPIError, **kwargs)
+        self._proxy = RPCClient(api_exception=ObjStorageAPIError, **kwargs)
 
     def check_config(self, *, check_write):
         return self._proxy.post('check_config', {'check_write': check_write})
