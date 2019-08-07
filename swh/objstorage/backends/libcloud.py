@@ -71,7 +71,6 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         # Get the driver class from its description.
         cls = providers.get_driver(self._get_provider())
-        cls.namespace = None
         # Initialize the driver.
         return cls(**kwargs)
 
