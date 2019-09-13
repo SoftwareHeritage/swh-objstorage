@@ -8,7 +8,7 @@ import os
 import aiohttp.web
 
 from swh.core.config import read as config_read
-from swh.core.api.asynchronous import (SWHRemoteAPI, decode_request,
+from swh.core.api.asynchronous import (RPCServerApp, decode_request,
                                        encode_data_server as encode_data)
 
 
@@ -175,7 +175,7 @@ def make_app(config):
 
     """
     client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
-    app = SWHRemoteAPI(client_max_size=client_max_size)
+    app = RPCServerApp(client_max_size=client_max_size)
     # retro compatibility configuration settings
     app['config'] = config
     _cfg = config['objstorage']

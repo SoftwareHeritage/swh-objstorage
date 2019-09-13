@@ -5,6 +5,7 @@
 
 import abc
 import collections
+from urllib.parse import urlencode
 
 from swh.model import hashutil
 from swh.objstorage.objstorage import ObjStorage, compute_hash
@@ -12,7 +13,27 @@ from swh.objstorage.objstorage import compressors, decompressors
 from swh.objstorage.exc import ObjNotFoundError, Error
 
 from libcloud.storage import providers
+import libcloud.storage.drivers.s3
 from libcloud.storage.types import Provider, ObjectDoesNotExistError
+
+
+def patch_libcloud_s3_urlencode():
+    """Patches libcloud's S3 backend to properly sign queries.
+
+    Recent versions of libcloud are not affected (they use signature V4),
+    but 1.5.0 (the one in Debian 9) is."""
+
+    def s3_urlencode(params):
+        """Like urllib.parse.urlencode, but sorts the parameters first.
+        This is required to properly compute the request signature, see
+        https://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheCanonicalizedResourceElement
+        """  # noqa
+        return urlencode(collections.OrderedDict(sorted(params.items())))
+
+    libcloud.storage.drivers.s3.urlencode = s3_urlencode
+
+
+patch_libcloud_s3_urlencode()
 
 
 class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
@@ -50,7 +71,6 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         # Get the driver class from its description.
         cls = providers.get_driver(self._get_provider())
-        cls.namespace = None
         # Initialize the driver.
         return cls(**kwargs)
 
