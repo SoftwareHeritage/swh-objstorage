@@ -13,7 +13,7 @@ Build-Depends: debhelper (>= 9),
                python3-pytest,
                python3-rados,
                python3-setuptools,
-               python3-swh.core (>= 0.0.37~),
+               python3-swh.core (>= 0.0.65~),
                python3-swh.model (>= 0.0.27~),
                python3-vcversioner
 Standards-Version: 3.9.6
@@ -22,7 +22,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 Package: python3-swh.objstorage
 Architecture: all
 Depends: python3-aiohttp (>= 2.1.0),
-         python3-swh.core (>= 0.0.37~),
+         python3-swh.core (>= 0.0.65~),
          python3-swh.model (>= 0.0.27~),
          ${misc:Depends},
          ${python3:Depends}
