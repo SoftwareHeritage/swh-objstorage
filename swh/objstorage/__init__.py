@@ -18,13 +18,13 @@ from typing import Callable, Dict, Union
 __all__ = ['get_objstorage', 'ObjStorage']
 
 
-_STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
+_STORAGE_CLASSES = {
     'pathslicing': PathSlicingObjStorage,
     'remote': RemoteObjStorage,
     'memory': InMemoryObjStorage,
     'weed': WeedObjStorage,
     'random': RandomGeneratorObjStorage,
-}
+}  # type: Dict[str, Union[type, Callable[..., type]]]
 
 _STORAGE_CLASSES_MISSING = {
 }
