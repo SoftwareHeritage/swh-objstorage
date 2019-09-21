@@ -13,11 +13,12 @@ from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.backends.seaweed import WeedObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
 
+from typing import Callable, Dict, Union
 
 __all__ = ['get_objstorage', 'ObjStorage']
 
 
-_STORAGE_CLASSES = {
+_STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     'pathslicing': PathSlicingObjStorage,
     'remote': RemoteObjStorage,
     'memory': InMemoryObjStorage,

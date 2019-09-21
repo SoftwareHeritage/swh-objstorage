@@ -7,6 +7,8 @@ import unittest
 from collections import defaultdict
 from unittest.mock import patch
 
+from typing import Any, Dict
+
 from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
 from swh.objstorage import get_objstorage
@@ -25,7 +27,7 @@ class MockBlockBlobService():
     """Mock internal azure library which AzureCloudObjStorage depends upon.
 
     """
-    data = {}
+    data = {}  # type: Dict[str, Any]
 
     def __init__(self, account_name, account_key, **kwargs):
         # do not care for the account_name and the api_secret_key here
