@@ -27,40 +27,40 @@ class MockBlockBlobService():
     """Mock internal azure library which AzureCloudObjStorage depends upon.
 
     """
-    data = {}  # type: Dict[str, Any]
+    _data = {}  # type: Dict[str, Any]
 
     def __init__(self, account_name, account_key, **kwargs):
         # do not care for the account_name and the api_secret_key here
-        self.data = defaultdict(dict)
+        self._data = defaultdict(dict)
 
     def get_container_properties(self, container_name):
-        self.data[container_name]
-        return container_name in self.data
+        self._data[container_name]
+        return container_name in self._data
 
     def create_blob_from_bytes(self, container_name, blob_name, blob):
-        self.data[container_name][blob_name] = blob
+        self._data[container_name][blob_name] = blob
 
     def get_blob_to_bytes(self, container_name, blob_name):
-        if blob_name not in self.data[container_name]:
+        if blob_name not in self._data[container_name]:
             raise AzureMissingResourceHttpError(
                 'Blob %s not found' % blob_name,
                 404)
         return MockBlob(name=blob_name,
-                        content=self.data[container_name][blob_name])
+                        content=self._data[container_name][blob_name])
 
     def delete_blob(self, container_name, blob_name):
         try:
-            self.data[container_name].pop(blob_name)
+            self._data[container_name].pop(blob_name)
         except KeyError:
             raise AzureMissingResourceHttpError(
                 'Blob %s not found' % blob_name, 404)
         return True
 
     def exists(self, container_name, blob_name):
-        return blob_name in self.data[container_name]
+        return blob_name in self._data[container_name]
 
     def list_blobs(self, container_name, marker=None, maxresults=None):
-        for blob_name, content in sorted(self.data[container_name].items()):
+        for blob_name, content in sorted(self._data[container_name].items()):
             if marker is None or blob_name > marker:
                 yield MockBlob(name=blob_name, content=content)
 
