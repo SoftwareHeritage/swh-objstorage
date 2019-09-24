@@ -52,7 +52,7 @@ class WeedFiler(object):
     def list(self, dir, last_file_name=None, limit=DEFAULT_LIMIT):
         '''list sub folders and files of @dir. show a better look if you turn on
 
-        returns a dict of "sub-folders and files'
+        returns a dict of "sub-folders and files"
 
         '''
         d = dir if dir.endswith('/') else (dir + '/')
