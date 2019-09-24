@@ -1,8 +1,15 @@
-swh-objstorage (0.0.35-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-objstorage (0.0.36-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.36     - (tagged by Stefano Zacchiroli
+    <zack@upsilon.cc> on 2019-09-24 10:53:19 +0200)
+  * Upstream changes:     - v0.0.36     - * MockBlockBlobService: make
+    data a protected _data attribute     - * typing: convert a
+    swh.objstorage variable annotation to comment style     - * typing:
+    minimal changes to make a no-op mypy run pass     - * fix typos in
+    docstrings and sample paths     - * fix docstring typos (courtesy of
+    codespell)
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 13 Sep 2019 09:02:43 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 24 Sep 2019 08:59:27 +0000
 
 swh-objstorage (0.0.35-1~swh1) unstable-swh; urgency=medium
 

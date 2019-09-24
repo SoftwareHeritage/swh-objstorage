@@ -16,6 +16,7 @@ swh/objstorage/__init__.py
 swh/objstorage/cli.py
 swh/objstorage/exc.py
 swh/objstorage/objstorage.py
+swh/objstorage/py.typed
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
 swh/objstorage/api/server.py

@@ -6,6 +6,7 @@
 import os
 
 import aiohttp.web
+import json
 
 from swh.core.config import read as config_read
 from swh.core.api.asynchronous import (RPCServerApp, decode_request,

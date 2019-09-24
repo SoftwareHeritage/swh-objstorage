@@ -216,7 +216,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def check(self, obj_id, *args, **kwargs):
         """Perform an integrity check for a given object.
 
-        Verify that the file object is in place and that the gziped content
+        Verify that the file object is in place and that the gzipped content
         matches the object id.
 
         Args:
