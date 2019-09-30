@@ -8,6 +8,7 @@ import unittest
 from typing import Optional
 
 from swh.objstorage.objstorage import decompressors
+from swh.objstorage.exc import Error
 
 from swh.objstorage.backends.seaweed import WeedObjStorage, DEFAULT_LIMIT
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
@@ -59,6 +60,21 @@ class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
         d = decompressors[self.compression]()
         assert d.decompress(raw_content) == content
         assert d.unused_data == b''
+
+    def test_trailing_data_on_stored_blob(self):
+        content, obj_id = self.hash_content(b'test content without garbage')
+        self.storage.add(content, obj_id=obj_id)
+
+        path = self.storage._path(obj_id)
+        self.storage.wf.content[path] += b'trailing garbage'
+
+        if self.compression is not None:
+            with self.assertRaises(Error) as e:
+                self.storage.get(obj_id)
+            assert 'trailing data' in e.exception.args[0]
+        else:
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
 
 
 class TestWeedObjStorageBz2(TestWeedObjStorage):

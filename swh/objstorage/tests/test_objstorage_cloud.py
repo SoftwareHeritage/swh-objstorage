@@ -13,6 +13,7 @@ from typing import Optional
 from swh.model import hashutil
 
 from swh.objstorage.objstorage import decompressors
+from swh.objstorage.exc import Error
 from swh.objstorage.backends.libcloud import CloudObjStorage
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -114,6 +115,23 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         d = decompressors[self.compression]()
         assert d.decompress(raw_content) == content
         assert d.unused_data == b''
+
+    def test_trailing_data_on_stored_blob(self):
+        content, obj_id = self.hash_content(b'test content without garbage')
+        self.storage.add(content, obj_id=obj_id)
+
+        data = self.storage.driver.containers[CONTAINER_NAME]
+        obj_id = hashutil.hash_to_hex(obj_id)
+
+        data[obj_id].content.append(b'trailing garbage')
+
+        if self.compression is not None:
+            with self.assertRaises(Error) as e:
+                self.storage.get(obj_id)
+            assert 'trailing data' in e.exception.args[0]
+        else:
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
 
 
 class TestCloudObjStorageBz2(TestCloudObjStorage):

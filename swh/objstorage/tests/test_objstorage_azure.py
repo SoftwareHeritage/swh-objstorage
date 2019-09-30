@@ -14,6 +14,7 @@ from swh.model.hashutil import hash_to_hex
 
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage import decompressors
+from swh.objstorage.exc import Error
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -98,6 +99,23 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         d = decompressors[self.compression]()
         assert d.decompress(raw_blob.content) == content
         assert d.unused_data == b''
+
+    def test_trailing_data_on_stored_blob(self):
+        content, obj_id = self.hash_content(b'test content without garbage')
+        self.storage.add(content, obj_id=obj_id)
+
+        blob_service, container = self.storage.get_blob_service(obj_id)
+        internal_id = self.storage._internal_id(obj_id)
+
+        blob_service._data[container][internal_id] += b'trailing garbage'
+
+        if self.compression is not None:
+            with self.assertRaises(Error) as e:
+                self.storage.get(obj_id)
+            assert 'trailing data' in e.exception.args[0]
+        else:
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
 
 
 class TestAzureCloudObjStorageGzip(TestAzureCloudObjStorage):
