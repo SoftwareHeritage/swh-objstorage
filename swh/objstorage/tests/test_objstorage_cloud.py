@@ -111,7 +111,9 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         obj_id = hashutil.hash_to_hex(obj_id)
         raw_content = b''.join(data[obj_id].content)
 
-        assert decompressors[self.compression](raw_content) == content
+        d = decompressors[self.compression]()
+        assert d.decompress(raw_content) == content
+        assert d.unused_data == b''
 
 
 class TestCloudObjStorageBz2(TestCloudObjStorage):
