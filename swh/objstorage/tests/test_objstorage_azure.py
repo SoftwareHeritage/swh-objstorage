@@ -7,11 +7,13 @@ import unittest
 from collections import defaultdict
 from unittest.mock import patch
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
+
 from swh.objstorage import get_objstorage
+from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -66,6 +68,7 @@ class MockBlockBlobService():
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+    compression = None  # type: Optional[str]
 
     def setUp(self):
         super().setUp()
@@ -80,7 +83,37 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             'account_name': 'account-name',
             'api_secret_key': 'api-secret-key',
             'container_name': 'container-name',
+            'compression': self.compression,
         })
+
+    def test_compression(self):
+        content, obj_id = self.hash_content(b'test content is compressed')
+        self.storage.add(content, obj_id=obj_id)
+
+        blob_service, container = self.storage.get_blob_service(obj_id)
+        internal_id = self.storage._internal_id(obj_id)
+
+        raw_blob = blob_service.get_blob_to_bytes(container, internal_id)
+
+        d = decompressors[self.compression]()
+        assert d.decompress(raw_blob.content) == content
+        assert d.unused_data == b''
+
+
+class TestAzureCloudObjStorageGzip(TestAzureCloudObjStorage):
+    compression = 'gzip'
+
+
+class TestAzureCloudObjStorageZlib(TestAzureCloudObjStorage):
+    compression = 'zlib'
+
+
+class TestAzureCloudObjStorageLzma(TestAzureCloudObjStorage):
+    compression = 'lzma'
+
+
+class TestAzureCloudObjStorageBz2(TestAzureCloudObjStorage):
+    compression = 'bz2'
 
 
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,
