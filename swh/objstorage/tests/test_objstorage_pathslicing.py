@@ -8,8 +8,6 @@ import tempfile
 import unittest
 from unittest.mock import patch, DEFAULT
 
-from typing import Optional
-
 from swh.model import hashutil
 from swh.objstorage import exc, get_objstorage, ID_HASH_LENGTH
 
@@ -17,7 +15,7 @@ from .objstorage_testing import ObjStorageTestFixture
 
 
 class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    compression = None  # type: Optional[str]
+    compression = 'none'
 
     def setUp(self):
         super().setUp()
@@ -137,7 +135,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             f.write(b'garbage')
         with self.assertRaises(exc.Error) as error:
             self.storage.check(obj_id)
-        if self.compression is None:
+        if self.compression == 'none':
             self.assertIn('Corrupt object', error.exception.args[0])
         else:
             self.assertIn('trailing data found', error.exception.args[0])

@@ -7,7 +7,7 @@ import unittest
 from collections import defaultdict
 from unittest.mock import patch
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
@@ -69,7 +69,7 @@ class MockBlockBlobService():
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    compression = None  # type: Optional[str]
+    compression = 'none'
 
     def setUp(self):
         super().setUp()
@@ -109,13 +109,13 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
         blob_service._data[container][internal_id] += b'trailing garbage'
 
-        if self.compression is not None:
+        if self.compression == 'none':
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
+        else:
             with self.assertRaises(Error) as e:
                 self.storage.get(obj_id)
             assert 'trailing data' in e.exception.args[0]
-        else:
-            with self.assertRaises(Error) as e:
-                self.storage.check(obj_id)
 
 
 class TestAzureCloudObjStorageGzip(TestAzureCloudObjStorage):

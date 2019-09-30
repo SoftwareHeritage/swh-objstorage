@@ -5,8 +5,6 @@
 
 import unittest
 
-from typing import Optional
-
 from swh.objstorage.objstorage import decompressors
 from swh.objstorage.exc import Error
 
@@ -42,7 +40,7 @@ class MockWeedFiler:
 
 
 class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    compression = None  # type: Optional[str]
+    compression = 'none'
 
     def setUp(self):
         super().setUp()
@@ -68,13 +66,13 @@ class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
         path = self.storage._path(obj_id)
         self.storage.wf.content[path] += b'trailing garbage'
 
-        if self.compression is not None:
+        if self.compression == 'none':
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
+        else:
             with self.assertRaises(Error) as e:
                 self.storage.get(obj_id)
             assert 'trailing data' in e.exception.args[0]
-        else:
-            with self.assertRaises(Error) as e:
-                self.storage.check(obj_id)
 
 
 class TestWeedObjStorageBz2(TestWeedObjStorage):

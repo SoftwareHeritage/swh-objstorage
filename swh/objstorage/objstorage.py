@@ -59,7 +59,7 @@ decompressors = {
     'lzma': lzma.LZMADecompressor,
     'gzip': lambda: zlib.decompressobj(wbits=31),
     'zlib': zlib.decompressobj,
-    None: NullDecompressor,
+    'none': NullDecompressor,
 }
 
 compressors = {
@@ -67,8 +67,8 @@ compressors = {
     'lzma': lzma.LZMACompressor,
     'gzip': lambda: zlib.compressobj(wbits=31),
     'zlib': zlib.compressobj,
-    None: NullCompressor,
-    }
+    'none': NullCompressor,
+}
 
 
 class ObjStorage(metaclass=abc.ABCMeta):

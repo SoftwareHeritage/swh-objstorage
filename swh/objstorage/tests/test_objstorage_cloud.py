@@ -8,7 +8,6 @@ import unittest
 from libcloud.common.types import InvalidCredsError
 from libcloud.storage.types import (ContainerDoesNotExistError,
                                     ObjectDoesNotExistError)
-from typing import Optional
 
 from swh.model import hashutil
 
@@ -95,7 +94,7 @@ class MockCloudObjStorage(CloudObjStorage):
 
 
 class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    compression = None  # type: Optional[str]
+    compression = 'none'
 
     def setUp(self):
         super().setUp()
@@ -125,13 +124,13 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
         data[obj_id].content.append(b'trailing garbage')
 
-        if self.compression is not None:
+        if self.compression == 'none':
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
+        else:
             with self.assertRaises(Error) as e:
                 self.storage.get(obj_id)
             assert 'trailing data' in e.exception.args[0]
-        else:
-            with self.assertRaises(Error) as e:
-                self.storage.check(obj_id)
 
 
 class TestCloudObjStorageBz2(TestCloudObjStorage):
