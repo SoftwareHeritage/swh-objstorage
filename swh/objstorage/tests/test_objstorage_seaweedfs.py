@@ -7,6 +7,8 @@ import unittest
 
 from typing import Optional
 
+from swh.objstorage.objstorage import decompressors
+
 from swh.objstorage.backends.seaweed import WeedObjStorage, DEFAULT_LIMIT
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
@@ -47,6 +49,16 @@ class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage = WeedObjStorage(url=self.url,
                                       compression=self.compression)
         self.storage.wf = MockWeedFiler(self.url)
+
+    def test_compression(self):
+        content, obj_id = self.hash_content(b'test compression')
+        self.storage.add(content, obj_id=obj_id)
+
+        raw_content = self.storage.wf.get(self.storage._path(obj_id))
+
+        d = decompressors[self.compression]()
+        assert d.decompress(raw_content) == content
+        assert d.unused_data == b''
 
 
 class TestWeedObjStorageBz2(TestWeedObjStorage):
