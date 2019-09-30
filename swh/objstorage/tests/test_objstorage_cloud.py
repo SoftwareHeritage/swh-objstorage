@@ -4,14 +4,15 @@
 # See top-level LICENSE file for more information
 
 import unittest
-import bz2
-import lzma
-import zlib
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.storage.types import (ContainerDoesNotExistError,
                                     ObjectDoesNotExistError)
+from typing import Optional
+
 from swh.model import hashutil
+
+from swh.objstorage.objstorage import decompressors
 from swh.objstorage.backends.libcloud import CloudObjStorage
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -93,12 +94,14 @@ class MockCloudObjStorage(CloudObjStorage):
 
 
 class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+    compression = None  # type: Optional[str]
 
     def setUp(self):
         super().setUp()
         self.storage = MockCloudObjStorage(
             CONTAINER_NAME,
             api_key=API_KEY, api_secret_key=API_SECRET_KEY,
+            compression=self.compression,
         )
 
     def test_compression(self):
@@ -106,61 +109,18 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage.add(content, obj_id=obj_id)
         data = self.storage.driver.containers[CONTAINER_NAME]
         obj_id = hashutil.hash_to_hex(obj_id)
-        self.assertEqual(b''.join(data[obj_id].content), content)
+        raw_content = b''.join(data[obj_id].content)
+
+        assert decompressors[self.compression](raw_content) == content
 
 
-class TestCloudObjStorageBz2(ObjStorageTestFixture, unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.storage = MockCloudObjStorage(
-            CONTAINER_NAME,
-            compression='bz2',
-            api_key=API_KEY, api_secret_key=API_SECRET_KEY,
-        )
-
-    def test_compression(self):
-        content, obj_id = self.hash_content(b'add_get_w_id')
-        self.storage.add(content, obj_id=obj_id)
-        data = self.storage.driver.containers[CONTAINER_NAME]
-        obj_id = hashutil.hash_to_hex(obj_id)
-        self.assertEqual(bz2.decompress(b''.join(data[obj_id].content)),
-                         content)
+class TestCloudObjStorageBz2(TestCloudObjStorage):
+    compression = 'bz2'
 
 
-class TestCloudObjStorageLzma(ObjStorageTestFixture, unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.storage = MockCloudObjStorage(
-            CONTAINER_NAME,
-            compression='lzma',
-            api_key=API_KEY, api_secret_key=API_SECRET_KEY,
-        )
-
-    def test_compression(self):
-        content, obj_id = self.hash_content(b'add_get_w_id')
-        self.storage.add(content, obj_id=obj_id)
-        data = self.storage.driver.containers[CONTAINER_NAME]
-        obj_id = hashutil.hash_to_hex(obj_id)
-        self.assertEqual(lzma.decompress(b''.join(data[obj_id].content)),
-                         content)
+class TestCloudObjStorageLzma(TestCloudObjStorage):
+    compression = 'lzma'
 
 
-class TestCloudObjStorageZlib(ObjStorageTestFixture, unittest.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.storage = MockCloudObjStorage(
-            CONTAINER_NAME,
-            compression='zlib',
-            api_key=API_KEY, api_secret_key=API_SECRET_KEY,
-        )
-
-    def test_compression(self):
-        content, obj_id = self.hash_content(b'add_get_w_id')
-        self.storage.add(content, obj_id=obj_id)
-        data = self.storage.driver.containers[CONTAINER_NAME]
-        obj_id = hashutil.hash_to_hex(obj_id)
-        self.assertEqual(zlib.decompress(b''.join(data[obj_id].content)),
-                         content)
+class TestCloudObjStorageZlib(TestCloudObjStorage):
+    compression = 'zlib'
