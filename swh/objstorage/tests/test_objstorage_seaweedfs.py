@@ -5,6 +5,8 @@
 
 import unittest
 
+from typing import Optional
+
 from swh.objstorage.backends.seaweed import WeedObjStorage, DEFAULT_LIMIT
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
@@ -37,9 +39,23 @@ class MockWeedFiler:
 
 
 class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
+    compression = None  # type: Optional[str]
 
     def setUp(self):
         super().setUp()
         self.url = 'http://127.0.0.1/test'
-        self.storage = WeedObjStorage(url=self.url)
+        self.storage = WeedObjStorage(url=self.url,
+                                      compression=self.compression)
         self.storage.wf = MockWeedFiler(self.url)
+
+
+class TestWeedObjStorageBz2(TestWeedObjStorage):
+    compression = 'bz2'
+
+
+class TestWeedObjStorageLzma(TestWeedObjStorage):
+    compression = 'lzma'
+
+
+class TestWeedObjStorageZlib(TestWeedObjStorage):
+    compression = 'zlib'
