@@ -53,6 +53,10 @@ class TestWeedObjStorageBz2(TestWeedObjStorage):
     compression = 'bz2'
 
 
+class TestWeedObjStorageGzip(TestWeedObjStorage):
+    compression = 'gzip'
+
+
 class TestWeedObjStorageLzma(TestWeedObjStorage):
     compression = 'lzma'
 

@@ -118,6 +118,10 @@ class TestCloudObjStorageBz2(TestCloudObjStorage):
     compression = 'bz2'
 
 
+class TestCloudObjStorageGzip(TestCloudObjStorage):
+    compression = 'gzip'
+
+
 class TestCloudObjStorageLzma(TestCloudObjStorage):
     compression = 'lzma'
 

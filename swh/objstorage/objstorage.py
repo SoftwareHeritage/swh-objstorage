@@ -6,6 +6,7 @@
 import abc
 from itertools import dropwhile, islice
 import bz2
+import gzip
 import lzma
 import zlib
 
@@ -48,6 +49,7 @@ class NullCompressor:
 decompressors = {
     'bz2': bz2.decompress,
     'lzma': lzma.decompress,
+    'gzip': gzip.decompress,
     'zlib': zlib.decompress,
     None: lambda x: x,
     }
@@ -55,6 +57,7 @@ decompressors = {
 compressors = {
     'bz2': bz2.BZ2Compressor,
     'lzma': lzma.LZMACompressor,
+    'gzip': lambda: zlib.compressobj(wbits=31),
     'zlib': zlib.compressobj,
     None: NullCompressor,
     }
