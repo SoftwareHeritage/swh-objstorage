@@ -11,7 +11,10 @@ from typing import Any, Dict
 
 from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
+
 from swh.objstorage import get_objstorage
+from swh.objstorage.objstorage import decompressors
+from swh.objstorage.exc import Error
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -66,6 +69,7 @@ class MockBlockBlobService():
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+    compression = 'none'
 
     def setUp(self):
         super().setUp()
@@ -80,7 +84,54 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             'account_name': 'account-name',
             'api_secret_key': 'api-secret-key',
             'container_name': 'container-name',
+            'compression': self.compression,
         })
+
+    def test_compression(self):
+        content, obj_id = self.hash_content(b'test content is compressed')
+        self.storage.add(content, obj_id=obj_id)
+
+        blob_service, container = self.storage.get_blob_service(obj_id)
+        internal_id = self.storage._internal_id(obj_id)
+
+        raw_blob = blob_service.get_blob_to_bytes(container, internal_id)
+
+        d = decompressors[self.compression]()
+        assert d.decompress(raw_blob.content) == content
+        assert d.unused_data == b''
+
+    def test_trailing_data_on_stored_blob(self):
+        content, obj_id = self.hash_content(b'test content without garbage')
+        self.storage.add(content, obj_id=obj_id)
+
+        blob_service, container = self.storage.get_blob_service(obj_id)
+        internal_id = self.storage._internal_id(obj_id)
+
+        blob_service._data[container][internal_id] += b'trailing garbage'
+
+        if self.compression == 'none':
+            with self.assertRaises(Error) as e:
+                self.storage.check(obj_id)
+        else:
+            with self.assertRaises(Error) as e:
+                self.storage.get(obj_id)
+            assert 'trailing data' in e.exception.args[0]
+
+
+class TestAzureCloudObjStorageGzip(TestAzureCloudObjStorage):
+    compression = 'gzip'
+
+
+class TestAzureCloudObjStorageZlib(TestAzureCloudObjStorage):
+    compression = 'zlib'
+
+
+class TestAzureCloudObjStorageLzma(TestAzureCloudObjStorage):
+    compression = 'lzma'
+
+
+class TestAzureCloudObjStorageBz2(TestAzureCloudObjStorage):
+    compression = 'bz2'
 
 
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture,

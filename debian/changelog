@@ -1,8 +1,11 @@
-swh-objstorage (0.0.37-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (0.0.38-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.38     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-10-02 13:28:52 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.0.38     - Support
+    pluggable compression on all backends
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 27 Sep 2019 08:29:19 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 02 Oct 2019 11:33:21 +0000
 
 swh-objstorage (0.0.37-1~swh1) unstable-swh; urgency=medium
 

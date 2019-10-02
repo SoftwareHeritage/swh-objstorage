@@ -149,9 +149,15 @@ class WeedObjStorage(ObjStorage):
     def get(self, obj_id):
         try:
             obj = self.wf.get(self._path(obj_id))
-            return decompressors[self.compression](obj)
         except Exception:
             raise ObjNotFoundError(obj_id)
+
+        d = decompressors[self.compression]()
+        ret = d.decompress(obj)
+        if d.unused_data:
+            hex_obj_id = hashutil.hash_to_hex(obj_id)
+            raise Error('Corrupt object %s: trailing data found' % hex_obj_id)
+        return ret
 
     def check(self, obj_id):
         # Check the content integrity

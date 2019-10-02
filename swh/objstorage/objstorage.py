@@ -45,19 +45,30 @@ class NullCompressor:
         return b''
 
 
+class NullDecompressor:
+    def decompress(self, data):
+        return data
+
+    @property
+    def unused_data(self):
+        return b''
+
+
 decompressors = {
-    'bz2': bz2.decompress,
-    'lzma': lzma.decompress,
-    'zlib': zlib.decompress,
-    None: lambda x: x,
-    }
+    'bz2': bz2.BZ2Decompressor,
+    'lzma': lzma.LZMADecompressor,
+    'gzip': lambda: zlib.decompressobj(wbits=31),
+    'zlib': zlib.decompressobj,
+    'none': NullDecompressor,
+}
 
 compressors = {
     'bz2': bz2.BZ2Compressor,
     'lzma': lzma.LZMACompressor,
+    'gzip': lambda: zlib.compressobj(wbits=31),
     'zlib': zlib.compressobj,
-    None: NullCompressor,
-    }
+    'none': NullCompressor,
+}
 
 
 class ObjStorage(metaclass=abc.ABCMeta):
@@ -216,8 +227,8 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def check(self, obj_id, *args, **kwargs):
         """Perform an integrity check for a given object.
 
-        Verify that the file object is in place and that the gzipped content
-        matches the object id.
+        Verify that the file object is in place and that the content matches
+        the object id.
 
         Args:
             obj_id (bytes): object identifier.
