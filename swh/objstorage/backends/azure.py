@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import gzip
 import string
 from itertools import dropwhile, islice, product
 
@@ -11,7 +10,8 @@ from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
 import requests
 
-from swh.objstorage.objstorage import ObjStorage, compute_hash, DEFAULT_LIMIT
+from swh.objstorage.objstorage import (ObjStorage, compute_hash, DEFAULT_LIMIT,
+                                       compressors, decompressors)
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.model import hashutil
 
@@ -20,7 +20,8 @@ class AzureCloudObjStorage(ObjStorage):
     """ObjStorage with azure abilities.
 
     """
-    def __init__(self, account_name, api_secret_key, container_name, **kwargs):
+    def __init__(self, account_name, api_secret_key, container_name,
+                 compression='gzip', **kwargs):
         super().__init__(**kwargs)
         self.block_blob_service = BlockBlobService(
             account_name=account_name,
@@ -28,6 +29,7 @@ class AzureCloudObjStorage(ObjStorage):
             request_session=requests.Session(),
         )
         self.container_name = container_name
+        self.compression = compression
 
     def get_blob_service(self, hex_obj_id):
         """Get the block_blob_service and container that contains the object with
@@ -96,12 +98,16 @@ class AzureCloudObjStorage(ObjStorage):
 
         hex_obj_id = self._internal_id(obj_id)
 
-        # Send the gzipped content
+        # Send the compressed content
+        compressor = compressors[self.compression]()
+        blob = [compressor.compress(content), compressor.flush()]
+
         service, container = self.get_blob_service(hex_obj_id)
         service.create_blob_from_bytes(
             container_name=container,
             blob_name=hex_obj_id,
-            blob=gzip.compress(content))
+            blob=b''.join(blob),
+        )
 
         return obj_id
 
@@ -124,7 +130,11 @@ class AzureCloudObjStorage(ObjStorage):
         except AzureMissingResourceHttpError:
             raise ObjNotFoundError(obj_id)
 
-        return gzip.decompress(blob.content)
+        decompressor = decompressors[self.compression]()
+        ret = decompressor.decompress(blob.content)
+        if decompressor.unused_data:
+            raise Error('Corrupt object %s: trailing data found' % hex_obj_id)
+        return ret
 
     def check(self, obj_id):
         """Check the content integrity.
@@ -177,9 +187,11 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
           api_secret_key: <api_secret_key>
           container_name: <container_name>
     """
-    def __init__(self, accounts, **kwargs):
+    def __init__(self, accounts, compression='gzip', **kwargs):
         # shortcut AzureCloudObjStorage __init__
         ObjStorage.__init__(self, **kwargs)
+
+        self.compression = compression
 
         # Definition sanity check
         prefix_lengths = set(len(prefix) for prefix in accounts)
