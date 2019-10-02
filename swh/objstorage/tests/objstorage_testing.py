@@ -156,7 +156,6 @@ class ObjStorageTestFixture:
             return
         self.assertTrue(isinstance(r, collections.Iterator))
         r = list(r)
-        self.assertEqual(len(r), 9)
         self.assertEqual(b''.join(r), content)
 
     def test_add_batch(self):
