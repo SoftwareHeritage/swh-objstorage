@@ -171,6 +171,11 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         obj = self._get_object(obj_id)
         return self.driver.delete_object(obj)
 
+    def _object_path(self, obj_id):
+        """Get the full path to an object"""
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        return hex_obj_id
+
     def _get_object(self, obj_id):
         """Get a Libcloud wrapper for an object pointer.
 
@@ -178,10 +183,10 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         directly.
 
         """
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        object_path = self._object_path(obj_id)
 
         try:
-            return self.driver.get_object(self.container_name, hex_obj_id)
+            return self.driver.get_object(self.container_name, object_path)
         except ObjectDoesNotExistError:
             raise ObjNotFoundError(obj_id)
 
@@ -202,13 +207,13 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         the given id.
 
         """
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        object_path = self._object_path(obj_id)
 
         if not isinstance(content, collections.Iterator):
             content = (content,)
         self.driver.upload_object_via_stream(
             self._compressor(content),
-            self.container, hex_obj_id)
+            self.container, object_path)
 
 
 class AwsCloudObjStorage(CloudObjStorage):
