@@ -44,6 +44,7 @@ setup(
     author_email='swh-devel@inria.fr',
     url='https://forge.softwareheritage.org/diffusion/DOBJS',
     packages=find_packages(),
+    python_requires='>=3.6',
     install_requires=parse_requirements() + parse_requirements('swh'),
     setup_requires=['vcversioner'],
     extras_require={'testing': parse_requirements('test')},

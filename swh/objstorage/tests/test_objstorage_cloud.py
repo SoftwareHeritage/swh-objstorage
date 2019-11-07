@@ -3,13 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Optional
 import unittest
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.storage.types import (ContainerDoesNotExistError,
                                     ObjectDoesNotExistError)
-
-from swh.model import hashutil
 
 from swh.objstorage.objstorage import decompressors
 from swh.objstorage.exc import Error
@@ -95,6 +94,7 @@ class MockCloudObjStorage(CloudObjStorage):
 
 class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     compression = 'none'
+    path_prefix: Optional[str] = None
 
     def setUp(self):
         super().setUp()
@@ -102,14 +102,15 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             CONTAINER_NAME,
             api_key=API_KEY, api_secret_key=API_SECRET_KEY,
             compression=self.compression,
+            path_prefix=self.path_prefix,
         )
 
     def test_compression(self):
         content, obj_id = self.hash_content(b'add_get_w_id')
         self.storage.add(content, obj_id=obj_id)
-        data = self.storage.driver.containers[CONTAINER_NAME]
-        obj_id = hashutil.hash_to_hex(obj_id)
-        raw_content = b''.join(data[obj_id].content)
+
+        libcloud_object = self.storage._get_object(obj_id)
+        raw_content = b''.join(libcloud_object.content)
 
         d = decompressors[self.compression]()
         assert d.decompress(raw_content) == content
@@ -119,10 +120,8 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         content, obj_id = self.hash_content(b'test content without garbage')
         self.storage.add(content, obj_id=obj_id)
 
-        data = self.storage.driver.containers[CONTAINER_NAME]
-        obj_id = hashutil.hash_to_hex(obj_id)
-
-        data[obj_id].content.append(b'trailing garbage')
+        libcloud_object = self.storage._get_object(obj_id)
+        libcloud_object.content.append(b'trailing garbage')
 
         if self.compression == 'none':
             with self.assertRaises(Error) as e:
@@ -147,3 +146,17 @@ class TestCloudObjStorageLzma(TestCloudObjStorage):
 
 class TestCloudObjStorageZlib(TestCloudObjStorage):
     compression = 'zlib'
+
+
+class TestCloudObjStoragePrefix(TestCloudObjStorage):
+    path_prefix = 'contents'
+
+    def test_path_prefix(self):
+        content, obj_id = self.hash_content(b'test content')
+        self.storage.add(content, obj_id=obj_id)
+
+        container = self.storage.driver.containers[CONTAINER_NAME]
+        object_path = self.storage._object_path(obj_id)
+
+        assert object_path.startswith(self.path_prefix + '/')
+        assert object_path in container

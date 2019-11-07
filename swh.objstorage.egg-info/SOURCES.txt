@@ -20,7 +20,6 @@ swh/objstorage/py.typed
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
 swh/objstorage/api/server.py
-swh/objstorage/api/wsgi.py
 swh/objstorage/backends/__init__.py
 swh/objstorage/backends/azure.py
 swh/objstorage/backends/generator.py
