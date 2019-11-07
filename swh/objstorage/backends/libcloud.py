@@ -47,12 +47,15 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
     Args:
       container_name: Name of the base container
+      path_prefix: prefix to prepend to object paths in the container,
+                   separated with a slash
       compression: compression algorithm to use for objects
       kwargs: extra arguments are passed through to the LibCloud driver
     """
     def __init__(self,
                  container_name: str,
                  compression: Optional[str] = None,
+                 path_prefix: Optional[str] = None,
                  **kwargs):
         super().__init__(**kwargs)
         self.driver = self._get_driver(**kwargs)
@@ -60,6 +63,9 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         self.container = self.driver.get_container(
             container_name=container_name)
         self.compression = compression
+        self.path_prefix = None
+        if path_prefix:
+            self.path_prefix = path_prefix.rstrip('/') + '/'
 
     def _get_driver(self, **kwargs):
         """Initialize a driver to communicate with the cloud
@@ -119,8 +125,16 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         You almost certainly don't want to use this method in production.
         """
-        yield from (hashutil.bytehex_to_hash(obj.name.encode()) for obj in
-                    self.driver.iterate_container_objects(self.container))
+        for obj in self.driver.iterate_container_objects(self.container):
+            name = obj.name
+
+            if self.path_prefix and not name.startswith(self.path_prefix):
+                continue
+
+            if self.path_prefix:
+                name = name[len(self.path_prefix):]
+
+            yield hashutil.hash_to_bytes(name)
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -174,7 +188,10 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def _object_path(self, obj_id):
         """Get the full path to an object"""
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        return hex_obj_id
+        if self.path_prefix:
+            return self.path_prefix + hex_obj_id
+        else:
+            return hex_obj_id
 
     def _get_object(self, obj_id):
         """Get a Libcloud wrapper for an object pointer.

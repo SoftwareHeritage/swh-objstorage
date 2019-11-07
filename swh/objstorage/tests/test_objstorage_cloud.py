@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Optional
 import unittest
 
 from libcloud.common.types import InvalidCredsError
@@ -93,6 +94,7 @@ class MockCloudObjStorage(CloudObjStorage):
 
 class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     compression = 'none'
+    path_prefix: Optional[str] = None
 
     def setUp(self):
         super().setUp()
@@ -100,6 +102,7 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             CONTAINER_NAME,
             api_key=API_KEY, api_secret_key=API_SECRET_KEY,
             compression=self.compression,
+            path_prefix=self.path_prefix,
         )
 
     def test_compression(self):
@@ -143,3 +146,17 @@ class TestCloudObjStorageLzma(TestCloudObjStorage):
 
 class TestCloudObjStorageZlib(TestCloudObjStorage):
     compression = 'zlib'
+
+
+class TestCloudObjStoragePrefix(TestCloudObjStorage):
+    path_prefix = 'contents'
+
+    def test_path_prefix(self):
+        content, obj_id = self.hash_content(b'test content')
+        self.storage.add(content, obj_id=obj_id)
+
+        container = self.storage.driver.containers[CONTAINER_NAME]
+        object_path = self.storage._object_path(obj_id)
+
+        assert object_path.startswith(self.path_prefix + '/')
+        assert object_path in container
