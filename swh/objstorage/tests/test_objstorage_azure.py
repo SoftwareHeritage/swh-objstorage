@@ -30,7 +30,7 @@ class MockBlockBlobService():
     """Mock internal azure library which AzureCloudObjStorage depends upon.
 
     """
-    _data = {}  # type: Dict[str, Any]
+    _data: Dict[str, Any] = {}
 
     def __init__(self, account_name, account_key, **kwargs):
         # do not care for the account_name and the api_secret_key here
