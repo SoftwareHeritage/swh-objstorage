@@ -5,6 +5,7 @@
 
 import abc
 import collections
+from typing import Optional
 from urllib.parse import urlencode
 
 from swh.model import hashutil
@@ -44,8 +45,15 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     supports `get_driver` method) which return a LibCloud driver (see
     https://libcloud.readthedocs.io/en/latest/storage/api.html).
 
+    Args:
+      container_name: Name of the base container
+      compression: compression algorithm to use for objects
+      kwargs: extra arguments are passed through to the LibCloud driver
     """
-    def __init__(self, container_name, compression=None, **kwargs):
+    def __init__(self,
+                 container_name: str,
+                 compression: Optional[str] = None,
+                 **kwargs):
         super().__init__(**kwargs)
         self.driver = self._get_driver(**kwargs)
         self.container_name = container_name
