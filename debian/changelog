@@ -1,3 +1,15 @@
+swh-objstorage (0.0.40-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.40     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-02-07 15:28:15
+    +0100)
+  * Upstream changes:     - v0.0.40     - objstorage: Return summary of
+    batched object added to the store     - Add a pre-commit config file
+    - Migrate tox.ini to extras = xxx instead of deps = .[testing]     -
+    Include all requirements in MANIFEST.in
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 07 Feb 2020 14:33:17 +0000
+
 swh-objstorage (0.0.39-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.39     - (tagged by Nicolas Dandrimont
