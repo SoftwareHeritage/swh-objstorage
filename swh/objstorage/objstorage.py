@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,6 +10,8 @@ import lzma
 import zlib
 
 from swh.model import hashutil
+
+from typing import Dict
 
 from .exc import ObjNotFoundError
 
@@ -149,19 +151,25 @@ class ObjStorage(metaclass=abc.ABCMeta):
         """
         pass
 
-    def add_batch(self, contents, check_presence=True):
+    def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage.
 
         Args:
-          contents (dict): mapping from obj_id to object contents
+            contents: mapping from obj_id to object contents
+
         Returns:
-          the number of objects added to the storage
+            the summary of objects added to the storage (count of object,
+            count of bytes object)
+
         """
-        ctr = 0
+        summary = {'object:add': 0, 'object:add:bytes': 0}
         for obj_id, content in contents.items():
-            self.add(content, obj_id, check_presence=check_presence)
-            ctr += 1
-        return ctr
+            if check_presence and obj_id in self:
+                continue
+            self.add(content, obj_id, check_presence=False)
+            summary['object:add'] += 1
+            summary['object:add:bytes'] += len(content)
+        return summary
 
     def restore(self, content, obj_id=None, *args, **kwargs):
         """Restore a content that have been corrupted.
