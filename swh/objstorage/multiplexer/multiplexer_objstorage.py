@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -245,10 +245,20 @@ class MultiplexerObjStorage(ObjStorage):
 
         """
         write_threads = list(self.get_write_threads())
-        return sum(self.wrap_call(
+        results = self.wrap_call(
             write_threads, 'add_batch', contents,
             check_presence=check_presence,
-        )) // len(write_threads)
+        )
+
+        summed = {'object:add': 0, 'object:add:bytes': 0}
+        for result in results:
+            summed['object:add'] += result['object:add']
+            summed['object:add:bytes'] += result['object:add:bytes']
+
+        return {
+            'object:add': summed['object:add'] // len(results),
+            'object:add:bytes': summed['object:add:bytes'] // len(results),
+        }
 
     def restore(self, content, obj_id=None):
         return self.wrap_call(
