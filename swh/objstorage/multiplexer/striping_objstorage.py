@@ -1,4 +1,4 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -64,8 +64,12 @@ class StripingObjStorage(MultiplexerObjStorage):
                 check_presence=check_presence,
                 mailbox=mailbox,
             )
-        return sum(
-            ObjStorageThread.collect_results(
-                mailbox, len(content_by_storage_index)
-            )
+
+        results = ObjStorageThread.collect_results(
+            mailbox, len(content_by_storage_index)
         )
+        summed = {'object:add': 0, 'object:add:bytes': 0}
+        for result in results:
+            summed['object:add'] += result['object:add']
+            summed['object:add:bytes'] += result['object:add:bytes']
+        return summed
