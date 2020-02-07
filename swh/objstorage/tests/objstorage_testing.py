@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -160,13 +160,21 @@ class ObjStorageTestFixture:
 
     def test_add_batch(self):
         contents = {}
+        expected_content_add = 0
+        expected_content_add_bytes = 0
         for i in range(50):
             content = b'Test content %02d' % i
             content, obj_id = self.hash_content(content)
             contents[obj_id] = content
+            expected_content_add_bytes += len(content)
+            expected_content_add += 1
 
         ret = self.storage.add_batch(contents)
-        self.assertEqual(len(contents), ret)
+
+        self.assertEqual(ret, {
+            'object:add': expected_content_add,
+            'object:add:bytes': expected_content_add_bytes,
+        })
         for obj_id in contents:
             self.assertIn(obj_id, self.storage)
 
