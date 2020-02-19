@@ -1,8 +1,11 @@
-swh-objstorage (0.0.40-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (0.0.41-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.41     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-02-19 15:16:55 +0100)
+  * Upstream changes:     - v0.0.41     - * Handle ObjNotFoundError and
+    Error as client errors instead of server errors.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 07 Feb 2020 14:36:01 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Feb 2020 14:20:09 +0000
 
 swh-objstorage (0.0.40-1~swh1) unstable-swh; urgency=medium
 
