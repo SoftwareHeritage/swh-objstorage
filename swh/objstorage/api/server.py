@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -18,7 +18,7 @@ from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
 from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage import DEFAULT_LIMIT
-from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.core.statsd import statsd
 
 
@@ -66,19 +66,13 @@ async def add_batch(request):
 @timed
 async def get_bytes(request):
     req = await decode_request(request)
-    try:
-        ret = request.app['objstorage'].get(**req)
-    except ObjNotFoundError:
-        ret = {
-            'error': 'object_not_found',
-            'request': req,
-        }
-        return encode_data(ret, status=404)
-    else:
-        statsd.increment('swh_objstorage_out_bytes_total',
-                         len(ret),
-                         tags={'endpoint': 'get_bytes'})
-        return encode_data(ret)
+
+    ret = request.app['objstorage'].get(**req)
+
+    statsd.increment('swh_objstorage_out_bytes_total',
+                     len(ret),
+                     tags={'endpoint': 'get_bytes'})
+    return encode_data(ret)
 
 
 @timed
@@ -177,6 +171,8 @@ def make_app(config):
     """
     client_max_size = config.get('client_max_size', 1024 * 1024 * 1024)
     app = RPCServerApp(client_max_size=client_max_size)
+    app.client_exception_classes = (ObjNotFoundError, Error)
+
     # retro compatibility configuration settings
     app['config'] = config
     _cfg = config['objstorage']
