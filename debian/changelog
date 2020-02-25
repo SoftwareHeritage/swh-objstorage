@@ -1,8 +1,12 @@
-swh-objstorage (0.0.41-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (0.0.42-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.42     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-02-25 13:26:26
+    +0100)
+  * Upstream changes:     - v0.0.42     - backends.azure: Drop
+    unnecessary logs
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Feb 2020 14:22:57 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 25 Feb 2020 12:31:15 +0000
 
 swh-objstorage (0.0.41-1~swh1) unstable-swh; urgency=medium
 
