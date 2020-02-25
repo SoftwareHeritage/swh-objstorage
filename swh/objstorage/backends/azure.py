@@ -1,8 +1,9 @@
-# Copyright (C) 2016-2018  The Software Heritage developers
+# Copyright (C) 2016-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 import string
 from itertools import dropwhile, islice, product
 
@@ -14,6 +15,8 @@ from swh.objstorage.objstorage import (ObjStorage, compute_hash, DEFAULT_LIMIT,
                                        compressors, decompressors)
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.model import hashutil
+
+logging.getLogger("azure.storage").setLevel(logging.CRITICAL)
 
 
 class AzureCloudObjStorage(ObjStorage):
