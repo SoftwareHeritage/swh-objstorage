@@ -21,8 +21,7 @@ class TestObjStorageInitialization(unittest.TestCase):
         self.path = tempfile.mkdtemp()
         self.path2 = tempfile.mkdtemp()
         # Server is launched at self.url()
-        self.config = {'storage_base': self.path2,
-                       'storage_slicing': '0:1/0:5'}
+        self.config = {"storage_base": self.path2, "storage_slicing": "0:1/0:5"}
         super().setUp()
 
     def tearDown(self):
@@ -31,19 +30,11 @@ class TestObjStorageInitialization(unittest.TestCase):
         shutil.rmtree(self.path2)
 
     def test_pathslicing_objstorage(self):
-        conf = {
-            'cls': 'pathslicing',
-            'args': {'root': self.path, 'slicing': '0:2/0:5'}
-        }
+        conf = {"cls": "pathslicing", "args": {"root": self.path, "slicing": "0:2/0:5"}}
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, PathSlicingObjStorage))
 
     def test_remote_objstorage(self):
-        conf = {
-            'cls': 'remote',
-            'args': {
-                'url': 'http://127.0.0.1:4242/'
-            }
-        }
+        conf = {"cls": "remote", "args": {"url": "http://127.0.0.1:4242/"}}
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, RemoteObjStorage))

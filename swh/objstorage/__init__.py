@@ -7,58 +7,56 @@ from swh.objstorage.objstorage import ObjStorage, ID_HASH_LENGTH  # noqa
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.api.client import RemoteObjStorage
-from swh.objstorage.multiplexer import (
-    MultiplexerObjStorage, StripingObjStorage)
+from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.backends.seaweed import WeedObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
 
 from typing import Callable, Dict, Union
 
-__all__ = ['get_objstorage', 'ObjStorage']
+__all__ = ["get_objstorage", "ObjStorage"]
 
 
-_STORAGE_CLASSES: Dict[
-    str,
-    Union[type, Callable[..., type]]
-] = {
-    'pathslicing': PathSlicingObjStorage,
-    'remote': RemoteObjStorage,
-    'memory': InMemoryObjStorage,
-    'weed': WeedObjStorage,
-    'random': RandomGeneratorObjStorage,
+_STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
+    "pathslicing": PathSlicingObjStorage,
+    "remote": RemoteObjStorage,
+    "memory": InMemoryObjStorage,
+    "weed": WeedObjStorage,
+    "random": RandomGeneratorObjStorage,
 }
 
-_STORAGE_CLASSES_MISSING = {
-}
+_STORAGE_CLASSES_MISSING = {}
 
 try:
     from swh.objstorage.backends.azure import (
         AzureCloudObjStorage,
         PrefixedAzureCloudObjStorage,
     )
-    _STORAGE_CLASSES['azure'] = AzureCloudObjStorage
-    _STORAGE_CLASSES['azure-prefixed'] = PrefixedAzureCloudObjStorage
+
+    _STORAGE_CLASSES["azure"] = AzureCloudObjStorage
+    _STORAGE_CLASSES["azure-prefixed"] = PrefixedAzureCloudObjStorage
 except ImportError as e:
-    _STORAGE_CLASSES_MISSING['azure'] = e.args[0]
-    _STORAGE_CLASSES_MISSING['azure-prefixed'] = e.args[0]
+    _STORAGE_CLASSES_MISSING["azure"] = e.args[0]
+    _STORAGE_CLASSES_MISSING["azure-prefixed"] = e.args[0]
 
 try:
     from swh.objstorage.backends.rados import RADOSObjStorage
-    _STORAGE_CLASSES['rados'] = RADOSObjStorage
+
+    _STORAGE_CLASSES["rados"] = RADOSObjStorage
 except ImportError as e:
-    _STORAGE_CLASSES_MISSING['rados'] = e.args[0]
+    _STORAGE_CLASSES_MISSING["rados"] = e.args[0]
 
 try:
     from swh.objstorage.backends.libcloud import (
         AwsCloudObjStorage,
         OpenStackCloudObjStorage,
     )
-    _STORAGE_CLASSES['s3'] = AwsCloudObjStorage
-    _STORAGE_CLASSES['swift'] = OpenStackCloudObjStorage
+
+    _STORAGE_CLASSES["s3"] = AwsCloudObjStorage
+    _STORAGE_CLASSES["swift"] = OpenStackCloudObjStorage
 except ImportError as e:
-    _STORAGE_CLASSES_MISSING['s3'] = e.args[0]
-    _STORAGE_CLASSES_MISSING['swift'] = e.args[0]
+    _STORAGE_CLASSES_MISSING["s3"] = e.args[0]
+    _STORAGE_CLASSES_MISSING["swift"] = e.args[0]
 
 
 def get_objstorage(cls, args):
@@ -79,34 +77,31 @@ def get_objstorage(cls, args):
     if cls in _STORAGE_CLASSES:
         return _STORAGE_CLASSES[cls](**args)
     else:
-        raise ValueError('Storage class {} is not available: {}'.format(
-                         cls,
-                         _STORAGE_CLASSES_MISSING.get(cls, 'unknown name')))
+        raise ValueError(
+            "Storage class {} is not available: {}".format(
+                cls, _STORAGE_CLASSES_MISSING.get(cls, "unknown name")
+            )
+        )
 
 
 def _construct_filtered_objstorage(storage_conf, filters_conf):
-    return add_filters(
-        get_objstorage(**storage_conf),
-        filters_conf
-    )
+    return add_filters(get_objstorage(**storage_conf), filters_conf)
 
 
-_STORAGE_CLASSES['filtered'] = _construct_filtered_objstorage
+_STORAGE_CLASSES["filtered"] = _construct_filtered_objstorage
 
 
 def _construct_multiplexer_objstorage(objstorages):
-    storages = [get_objstorage(**conf)
-                for conf in objstorages]
+    storages = [get_objstorage(**conf) for conf in objstorages]
     return MultiplexerObjStorage(storages)
 
 
-_STORAGE_CLASSES['multiplexer'] = _construct_multiplexer_objstorage
+_STORAGE_CLASSES["multiplexer"] = _construct_multiplexer_objstorage
 
 
 def _construct_striping_objstorage(objstorages):
-    storages = [get_objstorage(**conf)
-                for conf in objstorages]
+    storages = [get_objstorage(**conf) for conf in objstorages]
     return StripingObjStorage(storages)
 
 
-_STORAGE_CLASSES['striping'] = _construct_striping_objstorage
+_STORAGE_CLASSES["striping"] = _construct_striping_objstorage

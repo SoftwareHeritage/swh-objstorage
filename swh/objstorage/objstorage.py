@@ -16,7 +16,7 @@ from typing import Dict
 from .exc import ObjNotFoundError
 
 
-ID_HASH_ALGO = 'sha1'
+ID_HASH_ALGO = "sha1"
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
 DEFAULT_LIMIT = 10000
@@ -33,10 +33,11 @@ def compute_hash(content):
         The ID_HASH_ALGO for the content
 
     """
-    return hashutil.MultiHash.from_data(
-        content,
-        hash_names=[ID_HASH_ALGO],
-    ).digest().get(ID_HASH_ALGO)
+    return (
+        hashutil.MultiHash.from_data(content, hash_names=[ID_HASH_ALGO],)
+        .digest()
+        .get(ID_HASH_ALGO)
+    )
 
 
 class NullCompressor:
@@ -44,7 +45,7 @@ class NullCompressor:
         return data
 
     def flush(self):
-        return b''
+        return b""
 
 
 class NullDecompressor:
@@ -53,23 +54,23 @@ class NullDecompressor:
 
     @property
     def unused_data(self):
-        return b''
+        return b""
 
 
 decompressors = {
-    'bz2': bz2.BZ2Decompressor,
-    'lzma': lzma.LZMADecompressor,
-    'gzip': lambda: zlib.decompressobj(wbits=31),
-    'zlib': zlib.decompressobj,
-    'none': NullDecompressor,
+    "bz2": bz2.BZ2Decompressor,
+    "lzma": lzma.LZMADecompressor,
+    "gzip": lambda: zlib.decompressobj(wbits=31),
+    "zlib": zlib.decompressobj,
+    "none": NullDecompressor,
 }
 
 compressors = {
-    'bz2': bz2.BZ2Compressor,
-    'lzma': lzma.LZMACompressor,
-    'gzip': lambda: zlib.compressobj(wbits=31),
-    'zlib': zlib.compressobj,
-    'none': NullCompressor,
+    "bz2": bz2.BZ2Compressor,
+    "lzma": lzma.LZMACompressor,
+    "gzip": lambda: zlib.compressobj(wbits=31),
+    "zlib": zlib.compressobj,
+    "none": NullCompressor,
 }
 
 
@@ -100,6 +101,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
     """
+
     def __init__(self, *, allow_delete=False, **kwargs):
         # A more complete permission system could be used in place of that if
         # it becomes needed
@@ -162,13 +164,13 @@ class ObjStorage(metaclass=abc.ABCMeta):
             count of bytes object)
 
         """
-        summary = {'object:add': 0, 'object:add:bytes': 0}
+        summary = {"object:add": 0, "object:add:bytes": 0}
         for obj_id, content in contents.items():
             if check_presence and obj_id in self:
                 continue
             self.add(content, obj_id, check_presence=False)
-            summary['object:add'] += 1
-            summary['object:add:bytes'] += len(content)
+            summary["object:add"] += 1
+            summary["object:add:bytes"] += len(content)
         return summary
 
     def restore(self, content, obj_id=None, *args, **kwargs):

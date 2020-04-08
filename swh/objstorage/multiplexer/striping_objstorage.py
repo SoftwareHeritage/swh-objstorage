@@ -20,6 +20,7 @@ class StripingObjStorage(MultiplexerObjStorage):
     Objects are read from all storages in turn until it succeeds.
 
     """
+
     MOD_BYTES = 8
 
     def __init__(self, storages, **kwargs):
@@ -28,11 +29,9 @@ class StripingObjStorage(MultiplexerObjStorage):
 
     def get_storage_index(self, obj_id):
         if obj_id is None:
-            raise ValueError(
-                'StripingObjStorage always needs obj_id to be set'
-            )
+            raise ValueError("StripingObjStorage always needs obj_id to be set")
 
-        index = int.from_bytes(obj_id[:-self.MOD_BYTES], 'big')
+        index = int.from_bytes(obj_id[: -self.MOD_BYTES], "big")
         return index % self.num_storages
 
     def get_write_threads(self, obj_id):
@@ -59,17 +58,14 @@ class StripingObjStorage(MultiplexerObjStorage):
         mailbox = queue.Queue()
         for storage_index, contents in content_by_storage_index.items():
             self.storage_threads[storage_index].queue_command(
-                'add_batch',
-                contents,
-                check_presence=check_presence,
-                mailbox=mailbox,
+                "add_batch", contents, check_presence=check_presence, mailbox=mailbox,
             )
 
         results = ObjStorageThread.collect_results(
             mailbox, len(content_by_storage_index)
         )
-        summed = {'object:add': 0, 'object:add:bytes': 0}
+        summed = {"object:add": 0, "object:add:bytes": 0}
         for result in results:
-            summed['object:add'] += result['object:add']
-            summed['object:add:bytes'] += result['object:add:bytes']
+            summed["object:add"] += result["object:add"]
+            summed["object:add:bytes"] += result["object:add:bytes"]
         return summed

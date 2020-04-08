@@ -7,8 +7,7 @@ from typing import Optional
 import unittest
 
 from libcloud.common.types import InvalidCredsError
-from libcloud.storage.types import (ContainerDoesNotExistError,
-                                    ObjectDoesNotExistError)
+from libcloud.storage.types import ContainerDoesNotExistError, ObjectDoesNotExistError
 
 from swh.objstorage.objstorage import decompressors
 from swh.objstorage.exc import Error
@@ -16,13 +15,14 @@ from swh.objstorage.backends.libcloud import CloudObjStorage
 
 from .objstorage_testing import ObjStorageTestFixture
 
-API_KEY = 'API_KEY'
-API_SECRET_KEY = 'API SECRET KEY'
-CONTAINER_NAME = 'test_container'
+API_KEY = "API_KEY"
+API_SECRET_KEY = "API SECRET KEY"
+CONTAINER_NAME = "test_container"
 
 
-class MockLibcloudObject():
+class MockLibcloudObject:
     """ Libcloud object mock that replicates its API """
+
     def __init__(self, name, content):
         self.name = name
         self.content = list(content)
@@ -31,8 +31,9 @@ class MockLibcloudObject():
         yield from iter(self.content)
 
 
-class MockLibcloudDriver():
+class MockLibcloudDriver:
     """ Mock driver that replicates the used LibCloud API """
+
     def __init__(self, api_key, api_secret_key):
         self.containers = {CONTAINER_NAME: {}}  # Storage is initialized
         self.api_key = api_key
@@ -49,8 +50,9 @@ class MockLibcloudDriver():
         try:
             return self.containers[container_name]
         except KeyError:
-            raise ContainerDoesNotExistError(container_name=container_name,
-                                             driver=self, value=None)
+            raise ContainerDoesNotExistError(
+                container_name=container_name, driver=self, value=None
+            )
 
     def iterate_container_objects(self, container):
         self._check_credentials()
@@ -62,8 +64,7 @@ class MockLibcloudDriver():
             container = self.get_container(container_name)
             return container[obj_id]
         except KeyError:
-            raise ObjectDoesNotExistError(object_name=obj_id,
-                                          driver=self, value=None)
+            raise ObjectDoesNotExistError(object_name=obj_id, driver=self, value=None)
 
     def delete_object(self, obj):
         self._check_credentials()
@@ -72,8 +73,7 @@ class MockLibcloudDriver():
             container.pop(obj.name)
             return True
         except KeyError:
-            raise ObjectDoesNotExistError(object_name=obj.name,
-                                          driver=self, value=None)
+            raise ObjectDoesNotExistError(object_name=obj.name, driver=self, value=None)
 
     def upload_object_via_stream(self, content, container, obj_id):
         self._check_credentials()
@@ -83,6 +83,7 @@ class MockLibcloudDriver():
 
 class MockCloudObjStorage(CloudObjStorage):
     """ Cloud object storage that uses a mocked driver """
+
     def _get_driver(self, **kwargs):
         return MockLibcloudDriver(**kwargs)
 
@@ -93,70 +94,71 @@ class MockCloudObjStorage(CloudObjStorage):
 
 
 class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    compression = 'none'
+    compression = "none"
     path_prefix: Optional[str] = None
 
     def setUp(self):
         super().setUp()
         self.storage = MockCloudObjStorage(
             CONTAINER_NAME,
-            api_key=API_KEY, api_secret_key=API_SECRET_KEY,
+            api_key=API_KEY,
+            api_secret_key=API_SECRET_KEY,
             compression=self.compression,
             path_prefix=self.path_prefix,
         )
 
     def test_compression(self):
-        content, obj_id = self.hash_content(b'add_get_w_id')
+        content, obj_id = self.hash_content(b"add_get_w_id")
         self.storage.add(content, obj_id=obj_id)
 
         libcloud_object = self.storage._get_object(obj_id)
-        raw_content = b''.join(libcloud_object.content)
+        raw_content = b"".join(libcloud_object.content)
 
         d = decompressors[self.compression]()
         assert d.decompress(raw_content) == content
-        assert d.unused_data == b''
+        assert d.unused_data == b""
 
     def test_trailing_data_on_stored_blob(self):
-        content, obj_id = self.hash_content(b'test content without garbage')
+        content, obj_id = self.hash_content(b"test content without garbage")
         self.storage.add(content, obj_id=obj_id)
 
         libcloud_object = self.storage._get_object(obj_id)
-        libcloud_object.content.append(b'trailing garbage')
+        libcloud_object.content.append(b"trailing garbage")
 
-        if self.compression == 'none':
+        if self.compression == "none":
             with self.assertRaises(Error) as e:
                 self.storage.check(obj_id)
         else:
             with self.assertRaises(Error) as e:
                 self.storage.get(obj_id)
-            assert 'trailing data' in e.exception.args[0]
+            assert "trailing data" in e.exception.args[0]
 
 
 class TestCloudObjStorageBz2(TestCloudObjStorage):
-    compression = 'bz2'
+    compression = "bz2"
 
 
 class TestCloudObjStorageGzip(TestCloudObjStorage):
-    compression = 'gzip'
+    compression = "gzip"
 
 
 class TestCloudObjStorageLzma(TestCloudObjStorage):
-    compression = 'lzma'
+    compression = "lzma"
 
 
 class TestCloudObjStorageZlib(TestCloudObjStorage):
-    compression = 'zlib'
+    compression = "zlib"
 
 
 class TestCloudObjStoragePrefix(TestCloudObjStorage):
-    path_prefix = 'contents'
+    path_prefix = "contents"
 
     def test_path_prefix(self):
-        content, obj_id = self.hash_content(b'test content')
+        content, obj_id = self.hash_content(b"test content")
         self.storage.add(content, obj_id=obj_id)
 
         container = self.storage.driver.containers[CONTAINER_NAME]
         object_path = self.storage._object_path(obj_id)
 
-        assert object_path.startswith(self.path_prefix + '/')
+        assert object_path.startswith(self.path_prefix + "/")
         assert object_path in container

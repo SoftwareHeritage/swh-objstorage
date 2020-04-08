@@ -31,44 +31,43 @@ class WeedFiler(object):
 
     def get(self, remote_path):
         url = urljoin(self.url, remote_path)
-        LOGGER.debug('Get file %s', url)
+        LOGGER.debug("Get file %s", url)
         return requests.get(url).content
 
     def exists(self, remote_path):
         url = urljoin(self.url, remote_path)
-        LOGGER.debug('Check file %s', url)
+        LOGGER.debug("Check file %s", url)
         return requests.head(url).status_code == 200
 
     def put(self, fp, remote_path):
         url = urljoin(self.url, remote_path)
-        LOGGER.debug('Put file %s', url)
-        return requests.post(url, files={'file': fp})
+        LOGGER.debug("Put file %s", url)
+        return requests.post(url, files={"file": fp})
 
     def delete(self, remote_path):
         url = urljoin(self.url, remote_path)
-        LOGGER.debug('Delete file %s', url)
+        LOGGER.debug("Delete file %s", url)
         return requests.delete(url)
 
     def list(self, dir, last_file_name=None, limit=DEFAULT_LIMIT):
-        '''list sub folders and files of @dir. show a better look if you turn on
+        """list sub folders and files of @dir. show a better look if you turn on
 
         returns a dict of "sub-folders and files"
 
-        '''
-        d = dir if dir.endswith('/') else (dir + '/')
+        """
+        d = dir if dir.endswith("/") else (dir + "/")
         url = urljoin(self.url, d)
-        headers = {'Accept': 'application/json'}
-        params = {'limit': limit}
+        headers = {"Accept": "application/json"}
+        params = {"limit": limit}
         if last_file_name:
-            params['lastFileName'] = last_file_name
+            params["lastFileName"] = last_file_name
 
-        LOGGER.debug('List directory %s', url)
+        LOGGER.debug("List directory %s", url)
         rsp = requests.get(url, params=params, headers=headers)
         if rsp.ok:
             return rsp.json()
         else:
-            LOGGER.error('Error listing "%s". [HTTP %d]' % (
-                url, rsp.status_code))
+            LOGGER.error('Error listing "%s". [HTTP %d]' % (url, rsp.status_code))
 
 
 class WeedObjStorage(ObjStorage):
@@ -76,8 +75,8 @@ class WeedObjStorage(ObjStorage):
 
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
-    def __init__(self, url='http://127.0.0.1:8888/swh',
-                 compression=None, **kwargs):
+
+    def __init__(self, url="http://127.0.0.1:8888/swh", compression=None, **kwargs):
         super().__init__(**kwargs)
         self.wf = WeedFiler(url)
         self.root_path = urlparse(url).path
@@ -139,8 +138,7 @@ class WeedObjStorage(ObjStorage):
             content = [content]
 
         # XXX should handle streaming correctly...
-        self.wf.put(io.BytesIO(b''.join(compressor(content))),
-                    self._path(obj_id))
+        self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
         return obj_id
 
     def restore(self, content, obj_id=None):
@@ -156,7 +154,7 @@ class WeedObjStorage(ObjStorage):
         ret = d.decompress(obj)
         if d.unused_data:
             hex_obj_id = hashutil.hash_to_hex(obj_id)
-            raise Error('Corrupt object %s: trailing data found' % hex_obj_id)
+            raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
     def check(self, obj_id):
@@ -178,11 +176,11 @@ class WeedObjStorage(ObjStorage):
             last_obj_id = hashutil.hash_to_hex(last_obj_id)
         resp = self.wf.list(self.root_path, last_obj_id, limit)
         if resp is not None:
-            entries = resp['Entries']
+            entries = resp["Entries"]
             if entries:
                 for obj in entries:
                     if obj is not None:
-                        bytehex = obj['FullPath'].rsplit('/', 1)[-1]
+                        bytehex = obj["FullPath"].rsplit("/", 1)[-1]
                         yield hashutil.bytehex_to_hash(bytehex.encode())
 
     # internal methods
@@ -193,6 +191,7 @@ class WeedObjStorage(ObjStorage):
         the given id.
 
         """
+
         def compressor(data):
             comp = compressors[self.compression]()
             for chunk in data:
@@ -201,8 +200,7 @@ class WeedObjStorage(ObjStorage):
 
         if isinstance(content, bytes):
             content = [content]
-        self.wf.put(io.BytesIO(b''.join(compressor(content))),
-                    self._path(obj_id))
+        self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
 
     def _path(self, obj_id):
         return hashutil.hash_to_hex(obj_id)

@@ -13,4 +13,4 @@ from .objstorage_testing import ObjStorageTestFixture
 class TestInMemoryObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.storage = get_objstorage(cls='memory', args={})
+        self.storage = get_objstorage(cls="memory", args={})
