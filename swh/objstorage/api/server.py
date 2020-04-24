@@ -19,7 +19,7 @@ from swh.core.api.asynchronous import (
 from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
 
 from swh.model import hashutil
-from swh.objstorage import get_objstorage
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import DEFAULT_LIMIT
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.core.statsd import statsd

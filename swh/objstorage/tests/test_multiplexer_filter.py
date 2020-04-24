@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,7 @@ import unittest
 from string import ascii_lowercase
 
 from swh.model import hashutil
-from swh.objstorage import get_objstorage
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.multiplexer.filter import id_prefix, id_regex, read_only
 from swh.objstorage.objstorage import compute_hash
