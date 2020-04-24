@@ -10,10 +10,11 @@ import time
 import click
 import aiohttp.web
 
+from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 
-from swh.objstorage.api.server import load_and_check_config, make_app
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.api.server import validate_config, make_app
 
 
 @click.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
@@ -28,9 +29,19 @@ from swh.objstorage.factory import get_objstorage
 def cli(ctx, config_file):
     """Software Heritage Objstorage tools.
     """
+    if not config_file:
+        config_file = os.environ.get("SWH_CONFIG_FILENAME")
+
+    if config_file:
+        if not os.path.exists(config_file):
+            raise ValueError("%s does not exist" % config_file)
+        conf = config.read(config_file)
+    else:
+        conf = {}
+
     ctx.ensure_object(dict)
-    cfg = load_and_check_config(config_file)
-    ctx.obj["config"] = cfg
+
+    ctx.obj["config"] = conf
 
 
 @cli.command("rpc-serve")
@@ -56,7 +67,7 @@ def serve(ctx, host, port):
 
     This is not meant to be run on production systems.
     """
-    app = make_app(ctx.obj["config"])
+    app = make_app(validate_config(ctx.obj["config"]))
     if ctx.obj["log_level"] == "DEBUG":
         app.update(debug=True)
     aiohttp.web.run_app(app, host=host, port=int(port))

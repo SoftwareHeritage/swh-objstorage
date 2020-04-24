@@ -206,8 +206,6 @@ def load_and_check_config(config_file):
 
     Args:
         config_file (str): Path to the configuration file to load
-        type (str): configuration type. For 'local' type, more
-                    checks are done.
 
     Raises:
         Error if the setup is not as expected
@@ -223,7 +221,23 @@ def load_and_check_config(config_file):
         raise FileNotFoundError("Configuration file %s does not exist" % (config_file,))
 
     cfg = config_read(config_file)
+    return validate_config(cfg)
 
+
+def validate_config(cfg):
+    """Check the minimal configuration is set to run the api or raise an
+       explanatory error.
+
+    Args:
+        cfg (dict): Loaded configuration.
+
+    Raises:
+        Error if the setup is not as expected
+
+    Returns:
+        configuration as a dict
+
+    """
     if "objstorage" not in cfg:
         raise KeyError("Invalid configuration; missing objstorage config entry")
 
