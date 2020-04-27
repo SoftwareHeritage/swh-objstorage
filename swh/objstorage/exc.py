@@ -5,15 +5,13 @@
 
 
 class Error(Exception):
-
     def __str__(self):
-        return 'storage error on object: %s' % self.args
+        return "storage error on object: %s" % self.args
 
 
 class ObjNotFoundError(Error):
-
     def __str__(self):
-        return 'object not found: %s' % self.args
+        return "object not found: %s" % self.args
 
 
 class ObjStorageAPIError(Exception):
@@ -22,4 +20,4 @@ class ObjStorageAPIError(Exception):
 
     def __str__(self):
         args = self.args
-        return 'An unexpected error occurred in the api backend: %s' % args
+        return "An unexpected error occurred in the api backend: %s" % args

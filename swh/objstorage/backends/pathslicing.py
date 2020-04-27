@@ -14,9 +14,15 @@ from contextlib import contextmanager
 from swh.model import hashutil
 
 from swh.objstorage.objstorage import (
-    compressors, decompressors,
-    ObjStorage, compute_hash, ID_HASH_ALGO,
-    ID_HASH_LENGTH, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT)
+    compressors,
+    decompressors,
+    ObjStorage,
+    compute_hash,
+    ID_HASH_ALGO,
+    ID_HASH_LENGTH,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_LIMIT,
+)
 from swh.objstorage.exc import ObjNotFoundError, Error
 
 
@@ -47,11 +53,10 @@ def _write_obj_file(hex_obj_id, objstorage):
     path = os.path.join(dir, hex_obj_id)
 
     # Create a temporary file.
-    (tmp, tmp_path) = tempfile.mkstemp(suffix='.tmp', prefix='hex_obj_id.',
-                                       dir=dir)
+    (tmp, tmp_path) = tempfile.mkstemp(suffix=".tmp", prefix="hex_obj_id.", dir=dir)
 
     # Open the file and yield it for writing.
-    tmp_f = os.fdopen(tmp, 'wb')
+    tmp_f = os.fdopen(tmp, "wb")
     yield tmp_f
 
     # Make sure the contents of the temporary file are written to disk
@@ -79,7 +84,7 @@ def _read_obj_file(hex_obj_id, objstorage):
     """
     path = objstorage._obj_path(hex_obj_id)
 
-    return open(path, 'rb')
+    return open(path, "rb")
 
 
 class PathSlicingObjStorage(ObjStorage):
@@ -109,7 +114,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    def __init__(self, root, slicing, compression='gzip', **kwargs):
+    def __init__(self, root, slicing, compression="gzip", **kwargs):
         """ Create an object to access a hash-slicing based object storage.
 
         Args:
@@ -124,12 +129,12 @@ class PathSlicingObjStorage(ObjStorage):
         # Make a list of tuples where each tuple contains the beginning
         # and the end of each slicing.
         self.bounds = [
-            slice(*map(int, sbounds.split(':')))
-            for sbounds in slicing.split('/')
+            slice(*map(int, sbounds.split(":")))
+            for sbounds in slicing.split("/")
             if sbounds
         ]
 
-        self.use_fdatasync = hasattr(os, 'fdatasync')
+        self.use_fdatasync = hasattr(os, "fdatasync")
         self.compression = compression
 
         self.check_config(check_write=False)
@@ -147,7 +152,7 @@ class PathSlicingObjStorage(ObjStorage):
         max_endchar = max(map(lambda bound: bound.stop, self.bounds))
         if ID_HASH_LENGTH < max_endchar:
             raise ValueError(
-                'Algorithm %s has too short hash for slicing to char %d'
+                "Algorithm %s has too short hash for slicing to char %d"
                 % (ID_HASH_ALGO, max_endchar)
             )
 
@@ -158,8 +163,10 @@ class PathSlicingObjStorage(ObjStorage):
                 )
 
         if self.compression not in compressors:
-            raise ValueError('Unknown compression algorithm "%s" for '
-                             'PathSlicingObjStorage' % self.compression)
+            raise ValueError(
+                'Unknown compression algorithm "%s" for '
+                "PathSlicingObjStorage" % self.compression
+            )
 
         return True
 
@@ -181,6 +188,7 @@ class PathSlicingObjStorage(ObjStorage):
             Iterator over object IDs
 
         """
+
         def obj_iterator():
             # XXX hackish: it does not verify that the depth of found files
             # matches the slicing depth of the storage
@@ -257,7 +265,7 @@ class PathSlicingObjStorage(ObjStorage):
         with _read_obj_file(hex_obj_id, self) as f:
             out = d.decompress(f.read())
         if d.unused_data:
-            raise Error('Corrupt object %s: trailing data found' % hex_obj_id,)
+            raise Error("Corrupt object %s: trailing data found" % hex_obj_id,)
 
         return out
 
@@ -266,21 +274,19 @@ class PathSlicingObjStorage(ObjStorage):
             data = self.get(obj_id)
         except OSError:
             hex_obj_id = hashutil.hash_to_hex(obj_id)
-            raise Error(
-                'Corrupt object %s: not a proper compressed file' % hex_obj_id,
-            )
+            raise Error("Corrupt object %s: not a proper compressed file" % hex_obj_id,)
 
         checksums = hashutil.MultiHash.from_data(
-            data, hash_names=[ID_HASH_ALGO]).digest()
+            data, hash_names=[ID_HASH_ALGO]
+        ).digest()
 
         actual_obj_id = checksums[ID_HASH_ALGO]
         hex_obj_id = hashutil.hash_to_hex(obj_id)
 
         if hex_obj_id != hashutil.hash_to_hex(actual_obj_id):
             raise Error(
-                'Corrupt object %s should have id %s'
-                % (hashutil.hash_to_hex(obj_id),
-                   hashutil.hash_to_hex(actual_obj_id))
+                "Corrupt object %s should have id %s"
+                % (hashutil.hash_to_hex(obj_id), hashutil.hash_to_hex(actual_obj_id))
             )
 
     def delete(self, obj_id):
@@ -308,15 +314,17 @@ class PathSlicingObjStorage(ObjStorage):
             for level in range(len(self.bounds)):
                 path = os.path.join(self.root, *dirs)
                 dir_list = next(os.walk(path))[1]
-                if 'tmp' in dir_list:
-                    dir_list.remove('tmp')
+                if "tmp" in dir_list:
+                    dir_list.remove("tmp")
                 dirs.append(random.choice(dir_list))
 
             path = os.path.join(self.root, *dirs)
             content_list = next(os.walk(path))[2]
             length = min(batch_size, len(content_list))
-            return length, map(hashutil.hash_to_bytes,
-                               random.sample(content_list, length))
+            return (
+                length,
+                map(hashutil.hash_to_bytes, random.sample(content_list, length)),
+            )
 
         while batch_size:
             length, it = get_random_content(self, batch_size)
@@ -369,13 +377,13 @@ class PathSlicingObjStorage(ObjStorage):
     def iter_from(self, obj_id, n_leaf=False):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         slices = [hex_obj_id[bound] for bound in self.bounds]
-        rlen = len(self.root.split('/'))
+        rlen = len(self.root.split("/"))
 
         i = 0
         for root, dirs, files in os.walk(self.root):
             if not dirs:
                 i += 1
-            level = len(root.split('/')) - rlen
+            level = len(root.split("/")) - rlen
             dirs.sort()
             if dirs and root == os.path.join(self.root, *slices[:level]):
                 cslice = slices[level]

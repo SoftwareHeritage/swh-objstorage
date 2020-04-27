@@ -11,8 +11,13 @@ from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
 import requests
 
-from swh.objstorage.objstorage import (ObjStorage, compute_hash, DEFAULT_LIMIT,
-                                       compressors, decompressors)
+from swh.objstorage.objstorage import (
+    ObjStorage,
+    compute_hash,
+    DEFAULT_LIMIT,
+    compressors,
+    decompressors,
+)
 from swh.objstorage.exc import ObjNotFoundError, Error
 from swh.model import hashutil
 
@@ -23,8 +28,10 @@ class AzureCloudObjStorage(ObjStorage):
     """ObjStorage with azure abilities.
 
     """
-    def __init__(self, account_name, api_secret_key, container_name,
-                 compression='gzip', **kwargs):
+
+    def __init__(
+        self, account_name, api_secret_key, container_name, compression="gzip", **kwargs
+    ):
         super().__init__(**kwargs)
         self.block_blob_service = BlockBlobService(
             account_name=account_name,
@@ -67,9 +74,7 @@ class AzureCloudObjStorage(ObjStorage):
         """
         hex_obj_id = self._internal_id(obj_id)
         service, container = self.get_blob_service(hex_obj_id)
-        return service.exists(
-            container_name=container,
-            blob_name=hex_obj_id)
+        return service.exists(container_name=container, blob_name=hex_obj_id)
 
     def __iter__(self):
         """Iterate over the objects present in the storage.
@@ -107,9 +112,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         service, container = self.get_blob_service(hex_obj_id)
         service.create_blob_from_bytes(
-            container_name=container,
-            blob_name=hex_obj_id,
-            blob=b''.join(blob),
+            container_name=container, blob_name=hex_obj_id, blob=b"".join(blob),
         )
 
         return obj_id
@@ -128,15 +131,15 @@ class AzureCloudObjStorage(ObjStorage):
         service, container = self.get_blob_service(hex_obj_id)
         try:
             blob = service.get_blob_to_bytes(
-                container_name=container,
-                blob_name=hex_obj_id)
+                container_name=container, blob_name=hex_obj_id
+            )
         except AzureMissingResourceHttpError:
             raise ObjNotFoundError(obj_id)
 
         decompressor = decompressors[self.compression]()
         ret = decompressor.decompress(blob.content)
         if decompressor.unused_data:
-            raise Error('Corrupt object %s: trailing data found' % hex_obj_id)
+            raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
     def check(self, obj_id):
@@ -154,11 +157,9 @@ class AzureCloudObjStorage(ObjStorage):
         hex_obj_id = self._internal_id(obj_id)
         service, container = self.get_blob_service(hex_obj_id)
         try:
-            service.delete_blob(
-                container_name=container,
-                blob_name=hex_obj_id)
+            service.delete_blob(container_name=container, blob_name=hex_obj_id)
         except AzureMissingResourceHttpError:
-            raise ObjNotFoundError('Content {} not found!'.format(hex_obj_id))
+            raise ObjNotFoundError("Content {} not found!".format(hex_obj_id))
 
         return True
 
@@ -168,7 +169,8 @@ class AzureCloudObjStorage(ObjStorage):
             last_obj_id = self._internal_id(last_obj_id)
             last_service, _ = self.get_blob_service(last_obj_id)
             all_blob_services = dropwhile(
-                lambda srv: srv[0] != last_service, all_blob_services)
+                lambda srv: srv[0] != last_service, all_blob_services
+            )
         else:
             last_service = None
 
@@ -176,8 +178,10 @@ class AzureCloudObjStorage(ObjStorage):
             for service, container in all_blob_services:
                 marker = last_obj_id if service == last_service else None
                 for obj in service.list_blobs(
-                        container, marker=marker, maxresults=limit):
+                    container, marker=marker, maxresults=limit
+                ):
                     yield hashutil.hash_to_bytes(obj.name)
+
         return islice(iterate_blobs(), limit)
 
 
@@ -190,7 +194,8 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
           api_secret_key: <api_secret_key>
           container_name: <container_name>
     """
-    def __init__(self, accounts, compression='gzip', **kwargs):
+
+    def __init__(self, accounts, compression="gzip", **kwargs):
         # shortcut AzureCloudObjStorage __init__
         ObjStorage.__init__(self, **kwargs)
 
@@ -199,41 +204,42 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         # Definition sanity check
         prefix_lengths = set(len(prefix) for prefix in accounts)
         if not len(prefix_lengths) == 1:
-            raise ValueError("Inconsistent prefixes, found lengths %s"
-                             % ', '.join(
-                                 str(l) for l in sorted(prefix_lengths)
-                             ))
+            raise ValueError(
+                "Inconsistent prefixes, found lengths %s"
+                % ", ".join(str(l) for l in sorted(prefix_lengths))
+            )
 
         self.prefix_len = prefix_lengths.pop()
 
         expected_prefixes = set(
-            ''.join(letters)
+            "".join(letters)
             for letters in product(
-                    set(string.hexdigits.lower()), repeat=self.prefix_len
+                set(string.hexdigits.lower()), repeat=self.prefix_len
             )
         )
         missing_prefixes = expected_prefixes - set(accounts)
         if missing_prefixes:
-            raise ValueError("Missing prefixes %s"
-                             % ', '.join(sorted(missing_prefixes)))
+            raise ValueError(
+                "Missing prefixes %s" % ", ".join(sorted(missing_prefixes))
+            )
 
         self.prefixes = {}
         request_session = requests.Session()
         for prefix, account in accounts.items():
             self.prefixes[prefix] = (
                 BlockBlobService(
-                    account_name=account['account_name'],
-                    account_key=account['api_secret_key'],
+                    account_name=account["account_name"],
+                    account_key=account["api_secret_key"],
                     request_session=request_session,
                 ),
-                account['container_name'],
+                account["container_name"],
             )
 
     def get_blob_service(self, hex_obj_id):
         """Get the block_blob_service and container that contains the object with
         internal id hex_obj_id
         """
-        return self.prefixes[hex_obj_id[:self.prefix_len]]
+        return self.prefixes[hex_obj_id[: self.prefix_len]]
 
     def get_all_blob_services(self):
         """Get all active block_blob_services"""

@@ -10,7 +10,7 @@ import yaml
 from swh.objstorage.api.server import load_and_check_config
 
 
-def prepare_config_file(tmpdir, content, name='config.yml'):
+def prepare_config_file(tmpdir, content, name="config.yml"):
     """Prepare configuration file in `$tmpdir/name` with content `content`.
 
     Args:
@@ -26,7 +26,7 @@ def prepare_config_file(tmpdir, content, name='config.yml'):
     config_path = tmpdir / name
     if isinstance(content, dict):  # convert if needed
         content = yaml.dump(content)
-    config_path.write_text(content, encoding='utf-8')
+    config_path.write_text(content, encoding="utf-8")
     # pytest on python3.5 does not support LocalPath manipulation, so
     # convert path to string
     return str(config_path)
@@ -37,82 +37,68 @@ def test_load_and_check_config_no_configuration():
     with pytest.raises(EnvironmentError) as e:
         load_and_check_config(None)
 
-    assert e.value.args[0] == 'Configuration file must be defined'
+    assert e.value.args[0] == "Configuration file must be defined"
 
-    config_path = '/indexer/inexistent/config.yml'
+    config_path = "/indexer/inexistent/config.yml"
     with pytest.raises(FileNotFoundError) as e:
         load_and_check_config(config_path)
 
-    assert e.value.args[0] == 'Configuration file %s does not exist' % (
-        config_path, )
+    assert e.value.args[0] == "Configuration file %s does not exist" % (config_path,)
 
 
 def test_load_and_check_config_invalid_configuration_toplevel(tmpdir):
     """Invalid configuration raises"""
-    config = {
-        'something': 'useless'
-    }
+    config = {"something": "useless"}
     config_path = prepare_config_file(tmpdir, content=config)
     with pytest.raises(KeyError) as e:
         load_and_check_config(config_path)
 
-    assert (
-        e.value.args[0] ==
-        'Invalid configuration; missing objstorage config entry'
-    )
+    assert e.value.args[0] == "Invalid configuration; missing objstorage config entry"
 
 
 def test_load_and_check_config_invalid_configuration(tmpdir):
     """Invalid configuration raises"""
     for data, missing_keys in [
-            ({'objstorage': {'something': 'useless'}}, ['cls', 'args']),
-            ({'objstorage': {'cls': 'something'}}, ['args']),
+        ({"objstorage": {"something": "useless"}}, ["cls", "args"]),
+        ({"objstorage": {"cls": "something"}}, ["args"]),
     ]:
         config_path = prepare_config_file(tmpdir, content=data)
         with pytest.raises(KeyError) as e:
             load_and_check_config(config_path)
 
-        assert (
-            e.value.args[0] ==
-            'Invalid configuration; missing %s config entry' % (
-                ', '.join(missing_keys), )
+        assert e.value.args[0] == "Invalid configuration; missing %s config entry" % (
+            ", ".join(missing_keys),
         )
 
 
 def test_load_and_check_config_invalid_configuration_level2(tmpdir):
     """Invalid configuration at 2nd level raises"""
     config = {
-        'objstorage': {
-            'cls': 'pathslicing',
-            'args': {
-                'root': 'root',
-                'slicing': 'slicing',
-            },
-            'client_max_size': '10',
+        "objstorage": {
+            "cls": "pathslicing",
+            "args": {"root": "root", "slicing": "slicing",},
+            "client_max_size": "10",
         }
     }
-    for key in ('root', 'slicing'):
+    for key in ("root", "slicing"):
         c = copy.deepcopy(config)
-        c['objstorage']['args'].pop(key)
+        c["objstorage"]["args"].pop(key)
         config_path = prepare_config_file(tmpdir, c)
         with pytest.raises(KeyError) as e:
             load_and_check_config(config_path)
 
         assert (
-            e.value.args[0] ==
-            "Invalid configuration; missing args.%s config entry" % key
+            e.value.args[0]
+            == "Invalid configuration; missing args.%s config entry" % key
         )
 
 
 def test_load_and_check_config_fine(tmpdir):
     """pathslicing configuration fine loads ok"""
     config = {
-        'objstorage': {
-            'cls': 'pathslicing',
-            'args': {
-                'root': 'root',
-                'slicing': 'slicing',
-            }
+        "objstorage": {
+            "cls": "pathslicing",
+            "args": {"root": "root", "slicing": "slicing",},
         }
     }
 
@@ -122,13 +108,7 @@ def test_load_and_check_config_fine(tmpdir):
 
 
 def test_load_and_check_config_fine2(tmpdir):
-    config = {
-        'client_max_size': '10',
-        'objstorage': {
-            'cls': 'remote',
-            'args': {}
-        }
-    }
+    config = {"client_max_size": "10", "objstorage": {"cls": "remote", "args": {}}}
     config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path)
     assert cfg == config

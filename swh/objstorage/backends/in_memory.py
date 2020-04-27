@@ -7,8 +7,7 @@ import functools
 import io
 
 from swh.objstorage.exc import ObjNotFoundError, Error
-from swh.objstorage.objstorage import ObjStorage, compute_hash, \
-    DEFAULT_CHUNK_SIZE
+from swh.objstorage.objstorage import ObjStorage, compute_hash, DEFAULT_CHUNK_SIZE
 
 
 class InMemoryObjStorage(ObjStorage):
@@ -52,7 +51,7 @@ class InMemoryObjStorage(ObjStorage):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
         if compute_hash(self.state[obj_id]) != obj_id:
-            raise Error('Corrupt object %s' % obj_id)
+            raise Error("Corrupt object %s" % obj_id)
         return True
 
     def delete(self, obj_id, *args, **kwargs):
@@ -69,4 +68,4 @@ class InMemoryObjStorage(ObjStorage):
 
         data = io.BytesIO(self.state[obj_id])
         reader = functools.partial(data.read, chunk_size)
-        yield from iter(reader, b'')
+        yield from iter(reader, b"")

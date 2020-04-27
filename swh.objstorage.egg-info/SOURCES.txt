@@ -1,9 +1,11 @@
 MANIFEST.in
 Makefile
 README.md
+pyproject.toml
 requirements-swh.txt
 requirements-test.txt
 requirements.txt
+setup.cfg
 setup.py
 version.txt
 swh/__init__.py
@@ -16,6 +18,7 @@ swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
 swh/objstorage/cli.py
 swh/objstorage/exc.py
+swh/objstorage/factory.py
 swh/objstorage/objstorage.py
 swh/objstorage/py.typed
 swh/objstorage/api/__init__.py
