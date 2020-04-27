@@ -27,9 +27,9 @@ class ObjStorageThread(threading.Thread):
             try:
                 ret = getattr(self.storage, command)(*args, **kwargs)
             except Exception as exc:
-                self.queue_result(mailbox, 'exception', exc)
+                self.queue_result(mailbox, "exception", exc)
             else:
-                self.queue_result(mailbox, 'result', ret)
+                self.queue_result(mailbox, "result", ret)
 
     def queue_command(self, command, *args, mailbox=None, **kwargs):
         """Enqueue a new command to be processed by the thread.
@@ -59,10 +59,9 @@ class ObjStorageThread(threading.Thread):
           result_type (str): one of 'result', 'exception'
           result: the result to pass back to the calling thread
         """
-        mailbox.put({
-            'type': result_type,
-            'result': result,
-        })
+        mailbox.put(
+            {"type": result_type, "result": result,}
+        )
 
     @staticmethod
     def get_result_from_mailbox(mailbox, *args, **kwargs):
@@ -80,10 +79,10 @@ class ObjStorageThread(threading.Thread):
         """
 
         result = mailbox.get(*args, **kwargs)
-        if result['type'] == 'exception':
-            raise result['result'] from None
+        if result["type"] == "exception":
+            raise result["result"] from None
         else:
-            return result['result']
+            return result["result"]
 
     @staticmethod
     def collect_results(mailbox, num_results):
@@ -92,9 +91,9 @@ class ObjStorageThread(threading.Thread):
         ret = []
         while collected < num_results:
             try:
-                ret.append(ObjStorageThread.get_result_from_mailbox(
-                    mailbox, True, 0.05
-                ))
+                ret.append(
+                    ObjStorageThread.get_result_from_mailbox(mailbox, True, 0.05)
+                )
             except queue.Empty:
                 continue
             collected += 1
@@ -104,10 +103,11 @@ class ObjStorageThread(threading.Thread):
         def call(*args, **kwargs):
             mailbox = self.queue_command(attr, *args, **kwargs)
             return self.get_result_from_mailbox(mailbox)
+
         return call
 
     def __contains__(self, *args, **kwargs):
-        mailbox = self.queue_command('__contains__', *args, **kwargs)
+        mailbox = self.queue_command("__contains__", *args, **kwargs)
         return self.get_result_from_mailbox(mailbox)
 
 
@@ -158,9 +158,7 @@ class MultiplexerObjStorage(ObjStorage):
     def __init__(self, storages, **kwargs):
         super().__init__(**kwargs)
         self.storages = storages
-        self.storage_threads = [
-            ObjStorageThread(storage) for storage in storages
-        ]
+        self.storage_threads = [ObjStorageThread(storage) for storage in storages]
         for thread in self.storage_threads:
             thread.start()
 
@@ -189,8 +187,9 @@ class MultiplexerObjStorage(ObjStorage):
             True if the configuration check worked, an exception if it didn't.
         """
         return all(
-            self.wrap_call(self.storage_threads, 'check_config',
-                           check_write=check_write)
+            self.wrap_call(
+                self.storage_threads, "check_config", check_write=check_write
+            )
         )
 
     def __contains__(self, obj_id):
@@ -213,6 +212,7 @@ class MultiplexerObjStorage(ObjStorage):
         def obj_iterator():
             for storage in self.storages:
                 yield from storage
+
         return obj_iterator()
 
     def add(self, content, obj_id=None, check_presence=True):
@@ -236,8 +236,11 @@ class MultiplexerObjStorage(ObjStorage):
             content.
         """
         return self.wrap_call(
-            self.get_write_threads(obj_id), 'add', content,
-            obj_id=obj_id, check_presence=check_presence,
+            self.get_write_threads(obj_id),
+            "add",
+            content,
+            obj_id=obj_id,
+            check_presence=check_presence,
         ).pop()
 
     def add_batch(self, contents, check_presence=True):
@@ -246,23 +249,22 @@ class MultiplexerObjStorage(ObjStorage):
         """
         write_threads = list(self.get_write_threads())
         results = self.wrap_call(
-            write_threads, 'add_batch', contents,
-            check_presence=check_presence,
+            write_threads, "add_batch", contents, check_presence=check_presence,
         )
 
-        summed = {'object:add': 0, 'object:add:bytes': 0}
+        summed = {"object:add": 0, "object:add:bytes": 0}
         for result in results:
-            summed['object:add'] += result['object:add']
-            summed['object:add:bytes'] += result['object:add:bytes']
+            summed["object:add"] += result["object:add"]
+            summed["object:add:bytes"] += result["object:add:bytes"]
 
         return {
-            'object:add': summed['object:add'] // len(results),
-            'object:add:bytes': summed['object:add:bytes'] // len(results),
+            "object:add": summed["object:add"] // len(results),
+            "object:add:bytes": summed["object:add:bytes"] // len(results),
         }
 
     def restore(self, content, obj_id=None):
         return self.wrap_call(
-            self.get_write_threads(obj_id), 'restore', content, obj_id=obj_id,
+            self.get_write_threads(obj_id), "restore", content, obj_id=obj_id,
         ).pop()
 
     def get(self, obj_id):
@@ -292,13 +294,10 @@ class MultiplexerObjStorage(ObjStorage):
 
     def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission
-        return all(
-            self.wrap_call(self.get_write_threads(obj_id), 'delete', obj_id)
-        )
+        return all(self.wrap_call(self.get_write_threads(obj_id), "delete", obj_id))
 
     def get_random(self, batch_size):
-        storages_set = [storage for storage in self.storages
-                        if len(storage) > 0]
+        storages_set = [storage for storage in self.storages if len(storage) > 0]
         if len(storages_set) <= 0:
             return []
 

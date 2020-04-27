@@ -16,21 +16,16 @@ READ_SIZE = 8192
 class RADOSObjStorage(objstorage.ObjStorage):
     """Object storage implemented with RADOS"""
 
-    def __init__(self, *, rados_id, pool_name, ceph_config,
-                 allow_delete=False):
+    def __init__(self, *, rados_id, pool_name, ceph_config, allow_delete=False):
         super().__init__(allow_delete=allow_delete)
         self.pool_name = pool_name
-        self.cluster = rados.Rados(
-            conf=ceph_config,
-            conffile='',
-            rados_id=rados_id,
-        )
+        self.cluster = rados.Rados(conf=ceph_config, conffile="", rados_id=rados_id,)
         self.cluster.connect()
         self.__ioctx = None
 
     def check_config(self, *, check_write):
         if self.pool_name not in self.cluster.list_pools():
-            raise ValueError('Pool %s does not exist' % self.pool_name)
+            raise ValueError("Pool %s does not exist" % self.pool_name)
 
     @staticmethod
     def _to_rados_obj_id(obj_id):
@@ -53,7 +48,7 @@ class RADOSObjStorage(objstorage.ObjStorage):
 
     def add(self, content, obj_id=None, check_presence=True):
         if not obj_id:
-            raise ValueError('add needs an obj_id')
+            raise ValueError("add needs an obj_id")
 
         _obj_id = self._to_rados_obj_id(obj_id)
 
@@ -81,7 +76,7 @@ class RADOSObjStorage(objstorage.ObjStorage):
             chunks.append(chunk)
             offset += len(chunk)
 
-        return b''.join(chunks)
+        return b"".join(chunks)
 
     def check(self, obj_id):
         return True

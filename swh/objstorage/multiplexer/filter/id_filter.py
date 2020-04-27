@@ -24,8 +24,9 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     def is_valid(self, obj_id):
         """ Indicates if the given id is valid.
         """
-        raise NotImplementedError('Implementations of an IdObjStorageFilter '
-                                  'must have a "is_valid" method')
+        raise NotImplementedError(
+            "Implementations of an IdObjStorageFilter " 'must have a "is_valid" method'
+        )
 
     def __contains__(self, obj_id, *args, **kwargs):
         if self.is_valid(obj_id):
@@ -48,8 +49,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
         if obj_id is None:
             obj_id = compute_hash(content)
         if self.is_valid(obj_id):
-            return self.storage.restore(content, *args,
-                                        obj_id=obj_id, **kwargs)
+            return self.storage.restore(content, *args, obj_id=obj_id, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
         if self.is_valid(obj_id):
@@ -62,13 +62,15 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
         raise ObjNotFoundError(obj_id)
 
     def get_random(self, *args, **kwargs):
-        yield from filter(lambda id: self.is_valid(id),
-                          self.storage.get_random(*args, **kwargs))
+        yield from filter(
+            lambda id: self.is_valid(id), self.storage.get_random(*args, **kwargs)
+        )
 
 
 class RegexIdObjStorageFilter(IdObjStorageFilter):
     """ Filter that allow operations if the content's id as hex match a regex.
     """
+
     def __init__(self, storage, regex):
         super().__init__(storage)
         self.regex = re.compile(regex)
@@ -81,6 +83,7 @@ class RegexIdObjStorageFilter(IdObjStorageFilter):
 class PrefixIdObjStorageFilter(IdObjStorageFilter):
     """ Filter that allow operations if the hexlified id have a given prefix.
     """
+
     def __init__(self, storage, prefix):
         super().__init__(storage)
         self.prefix = str(prefix)

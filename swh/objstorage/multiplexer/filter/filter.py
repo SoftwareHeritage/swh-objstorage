@@ -59,8 +59,7 @@ class ObjStorageFilter(ObjStorage):
         return self.storage.__len__()
 
     def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
-        return self.storage.add(content, obj_id, check_presence,
-                                *args, **kwargs)
+        return self.storage.add(content, obj_id, check_presence, *args, **kwargs)
 
     def restore(self, content, obj_id=None, *args, **kwargs):
         return self.storage.restore(content, obj_id, *args, **kwargs)
