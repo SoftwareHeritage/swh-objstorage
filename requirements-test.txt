@@ -1,4 +1,4 @@
 pytest
 apache-libcloud
-azure-storage
+azure-storage-blob >= 12.0
 python-cephlibs
