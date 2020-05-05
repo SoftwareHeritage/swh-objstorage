@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 9),
                dh-python (>= 2),
                python3-aiohttp (>= 2.1.0),
                python3-all,
-               python3-azure-storage,
+               python3-azure-storage (>= 20200130~),
                python3-click,
                python3-flask,
                python3-libcloud,
@@ -31,7 +31,7 @@ Description: Software Heritage Object Storage
 
 Package: python3-swh.objstorage.cloud
 Architecture: all
-Depends: python3-azure-storage,
+Depends: python3-azure-storage (>= 20200130~),
          python3-libcloud,
          python3-swh.objstorage (= ${binary:Version}),
          ${misc:Depends},
