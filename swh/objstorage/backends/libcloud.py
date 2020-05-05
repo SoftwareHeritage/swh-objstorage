@@ -52,20 +52,22 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       compression: compression algorithm to use for objects
       kwargs: extra arguments are passed through to the LibCloud driver
     """
-    def __init__(self,
-                 container_name: str,
-                 compression: Optional[str] = None,
-                 path_prefix: Optional[str] = None,
-                 **kwargs):
+
+    def __init__(
+        self,
+        container_name: str,
+        compression: Optional[str] = None,
+        path_prefix: Optional[str] = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.driver = self._get_driver(**kwargs)
         self.container_name = container_name
-        self.container = self.driver.get_container(
-            container_name=container_name)
+        self.container = self.driver.get_container(container_name=container_name)
         self.compression = compression
         self.path_prefix = None
         if path_prefix:
-            self.path_prefix = path_prefix.rstrip('/') + '/'
+            self.path_prefix = path_prefix.rstrip("/") + "/"
 
     def _get_driver(self, **kwargs):
         """Initialize a driver to communicate with the cloud
@@ -99,8 +101,9 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         `get_driver` method.
 
         """
-        raise NotImplementedError('%s must implement `get_provider` method'
-                                  % type(self))
+        raise NotImplementedError(
+            "%s must implement `get_provider` method" % type(self)
+        )
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -132,7 +135,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
                 continue
 
             if self.path_prefix:
-                name = name[len(self.path_prefix):]
+                name = name[len(self.path_prefix) :]
 
             yield hashutil.hash_to_bytes(name)
 
@@ -163,12 +166,12 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):
-        obj = b''.join(self._get_object(obj_id).as_stream())
+        obj = b"".join(self._get_object(obj_id).as_stream())
         d = decompressors[self.compression]()
         ret = d.decompress(obj)
         if d.unused_data:
             hex_obj_id = hashutil.hash_to_hex(obj_id)
-            raise Error('Corrupt object %s: trailing data found' % hex_obj_id)
+            raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
     def check(self, obj_id):
@@ -229,14 +232,15 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         if not isinstance(content, collections.Iterator):
             content = (content,)
         self.driver.upload_object_via_stream(
-            self._compressor(content),
-            self.container, object_path)
+            self._compressor(content), self.container, object_path
+        )
 
 
 class AwsCloudObjStorage(CloudObjStorage):
     """ Amazon's S3 Cloud-based object storage
 
     """
+
     def _get_provider(self):
         return Provider.S3
 
@@ -245,5 +249,6 @@ class OpenStackCloudObjStorage(CloudObjStorage):
     """ OpenStack Swift Cloud based object storage
 
     """
+
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT

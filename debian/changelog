@@ -1,8 +1,20 @@
-swh-objstorage (0.0.42-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (0.1.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.1.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-05-05 11:18:30 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.1.0     - port
+    swh.objstorage to newer azure.storage.blob     - cleanup black
+    python3.7
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 25 Feb 2020 12:34:08 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 05 May 2020 09:22:06 +0000
+
+swh-objstorage (0.0.43-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.43     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2020-04-27 16:07:11 +0200)
+  * Upstream changes:     - v0.0.43
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 27 Apr 2020 14:10:17 +0000
 
 swh-objstorage (0.0.42-1~swh1) unstable-swh; urgency=medium
 

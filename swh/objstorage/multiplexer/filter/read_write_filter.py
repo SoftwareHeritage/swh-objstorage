@@ -11,6 +11,7 @@ class ReadObjStorageFilter(ObjStorageFilter):
 
     Writes will always succeed without doing any actual write operations.
     """
+
     def check_config(self, *, check_write):
         return self.storage.check_config(check_write=False)
 

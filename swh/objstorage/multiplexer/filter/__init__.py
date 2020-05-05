@@ -3,29 +3,25 @@ from .id_filter import RegexIdObjStorageFilter, PrefixIdObjStorageFilter
 
 
 _FILTERS_CLASSES = {
-    'readonly': ReadObjStorageFilter,
-    'regex': RegexIdObjStorageFilter,
-    'prefix': PrefixIdObjStorageFilter
+    "readonly": ReadObjStorageFilter,
+    "regex": RegexIdObjStorageFilter,
+    "prefix": PrefixIdObjStorageFilter,
 }
 
 
-_FILTERS_PRIORITY = {
-    'readonly': 0,
-    'prefix': 1,
-    'regex': 2
-}
+_FILTERS_PRIORITY = {"readonly": 0, "prefix": 1, "regex": 2}
 
 
 def read_only():
-    return {'type': 'readonly'}
+    return {"type": "readonly"}
 
 
 def id_prefix(prefix):
-    return {'type': 'prefix', 'prefix': prefix}
+    return {"type": "prefix", "prefix": prefix}
 
 
 def id_regex(regex):
-    return {'type': 'regex', 'regex': regex}
+    return {"type": "regex", "regex": regex}
 
 
 def _filter_priority(filter_type):
@@ -64,8 +60,8 @@ def add_filter(storage, filter_conf):
         A filtered storage that perform only the valid operations.
 
     """
-    type = filter_conf['type']
-    args = {k: v for k, v in filter_conf.items() if k != 'type'}
+    type = filter_conf["type"]
+    args = {k: v for k, v in filter_conf.items() if k != "type"}
     filtered_storage = _FILTERS_CLASSES[type](storage=storage, **args)
     return filtered_storage
 
@@ -87,8 +83,7 @@ def add_filters(storage, filter_confs):
         filters.
     """
     # Reverse sorting in order to put the filter with biggest priority first.
-    filter_confs.sort(key=lambda conf: _filter_priority(conf['type']),
-                      reverse=True)
+    filter_confs.sort(key=lambda conf: _filter_priority(conf["type"]), reverse=True)
 
     # Add the bigest filter to the storage, and reduce it to accumulate filters
     # on top of it, until the smallest (fastest, see filter.filter_priority) is
