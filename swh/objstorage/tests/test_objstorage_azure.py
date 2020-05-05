@@ -3,15 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import base64
+from dataclasses import dataclass
 import unittest
-from collections import defaultdict
 from unittest.mock import patch
+from urllib.parse import urlparse, parse_qs
 
-from typing import Any, Dict
+from azure.core.exceptions import ResourceNotFoundError
+import pytest
 
-from azure.common import AzureMissingResourceHttpError
 from swh.model.hashutil import hash_to_hex
 
+import swh.objstorage.backends.azure
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 from swh.objstorage.exc import Error
@@ -19,51 +22,73 @@ from swh.objstorage.exc import Error
 from .objstorage_testing import ObjStorageTestFixture
 
 
-class MockBlob:
-    """ Libcloud object mock that replicates its API """
-
-    def __init__(self, name, content):
-        self.name = name
-        self.content = content
+@dataclass
+class MockListedObject:
+    name: str
 
 
-class MockBlockBlobService:
-    """Mock internal azure library which AzureCloudObjStorage depends upon.
+class MockDownloadClient:
+    def __init__(self, blob_data):
+        self.blob_data = blob_data
 
-    """
+    def content_as_bytes(self):
+        return self.blob_data
 
-    _data: Dict[str, Any] = {}
 
-    def __init__(self, account_name, account_key, **kwargs):
-        # do not care for the account_name and the api_secret_key here
-        self._data = defaultdict(dict)
+class MockBlobClient:
+    def __init__(self, container, blob):
+        self.container = container
+        self.blob = blob
 
-    def get_container_properties(self, container_name):
-        self._data[container_name]
-        return container_name in self._data
+    def get_blob_properties(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
 
-    def create_blob_from_bytes(self, container_name, blob_name, blob):
-        self._data[container_name][blob_name] = blob
+        return {"exists": True}
 
-    def get_blob_to_bytes(self, container_name, blob_name):
-        if blob_name not in self._data[container_name]:
-            raise AzureMissingResourceHttpError("Blob %s not found" % blob_name, 404)
-        return MockBlob(name=blob_name, content=self._data[container_name][blob_name])
+    def upload_blob(self, data, length=None):
+        if self.blob in self.container.blobs:
+            raise ValueError("Blob already exists")
 
-    def delete_blob(self, container_name, blob_name):
-        try:
-            self._data[container_name].pop(blob_name)
-        except KeyError:
-            raise AzureMissingResourceHttpError("Blob %s not found" % blob_name, 404)
-        return True
+        if length is not None and length != len(data):
+            raise ValueError("Wrong length for blob data!")
 
-    def exists(self, container_name, blob_name):
-        return blob_name in self._data[container_name]
+        self.container.blobs[self.blob] = data
 
-    def list_blobs(self, container_name, marker=None, maxresults=None):
-        for blob_name, content in sorted(self._data[container_name].items()):
-            if marker is None or blob_name > marker:
-                yield MockBlob(name=blob_name, content=content)
+    def download_blob(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
+
+        return MockDownloadClient(self.container.blobs[self.blob])
+
+    def delete_blob(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
+
+        del self.container.blobs[self.blob]
+
+
+class MockContainerClient:
+    def __init__(self, container_url):
+        self.container_url = container_url
+        self.blobs = {}
+
+    @classmethod
+    def from_container_url(cls, container_url):
+        return cls(container_url)
+
+    def get_container_properties(self):
+        return {"exists": True}
+
+    def get_blob_client(self, blob):
+        return MockBlobClient(self, blob)
+
+    def list_blobs(self):
+        for obj in sorted(self.blobs):
+            yield MockListedObject(obj)
+
+    def delete_blob(self, blob):
+        self.get_blob_client(blob.name).delete_blob()
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
@@ -72,7 +97,7 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         patcher = patch(
-            "swh.objstorage.backends.azure.BlockBlobService", MockBlockBlobService,
+            "swh.objstorage.backends.azure.ContainerClient", MockContainerClient,
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -80,9 +105,7 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage = get_objstorage(
             "azure",
             {
-                "account_name": "account-name",
-                "api_secret_key": "api-secret-key",
-                "container_name": "container-name",
+                "container_url": "https://bogus-container-url.example",
                 "compression": self.compression,
             },
         )
@@ -91,23 +114,25 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         content, obj_id = self.hash_content(b"test content is compressed")
         self.storage.add(content, obj_id=obj_id)
 
-        blob_service, container = self.storage.get_blob_service(obj_id)
         internal_id = self.storage._internal_id(obj_id)
-
-        raw_blob = blob_service.get_blob_to_bytes(container, internal_id)
+        blob_client = self.storage.get_blob_client(internal_id)
+        raw_blob = blob_client.download_blob().content_as_bytes()
 
         d = decompressors[self.compression]()
-        assert d.decompress(raw_blob.content) == content
+        assert d.decompress(raw_blob) == content
         assert d.unused_data == b""
 
     def test_trailing_data_on_stored_blob(self):
         content, obj_id = self.hash_content(b"test content without garbage")
         self.storage.add(content, obj_id=obj_id)
 
-        blob_service, container = self.storage.get_blob_service(obj_id)
         internal_id = self.storage._internal_id(obj_id)
+        blob_client = self.storage.get_blob_client(internal_id)
+        raw_blob = blob_client.download_blob().content_as_bytes()
+        new_data = raw_blob + b"trailing garbage"
 
-        blob_service._data[container][internal_id] += b"trailing garbage"
+        blob_client.delete_blob()
+        blob_client.upload_blob(data=new_data, length=len(new_data))
 
         if self.compression == "none":
             with self.assertRaises(Error) as e:
@@ -138,18 +163,14 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
     def setUp(self):
         super().setUp()
         patcher = patch(
-            "swh.objstorage.backends.azure.BlockBlobService", MockBlockBlobService,
+            "swh.objstorage.backends.azure.ContainerClient", MockContainerClient
         )
         patcher.start()
         self.addCleanup(patcher.stop)
 
         self.accounts = {}
         for prefix in "0123456789abcdef":
-            self.accounts[prefix] = {
-                "account_name": "account_%s" % prefix,
-                "api_secret_key": "secret_key_%s" % prefix,
-                "container_name": "container_%s" % prefix,
-            }
+            self.accounts[prefix] = "https://bogus-container-url.example/" + prefix
 
         self.storage = get_objstorage("azure-prefixed", {"accounts": self.accounts})
 
@@ -173,7 +194,75 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
             hex_obj_id = hash_to_hex(obj_id)
             prefix = hex_obj_id[0]
             self.assertTrue(
-                self.storage.prefixes[prefix][0].exists(
-                    self.accounts[prefix]["container_name"], hex_obj_id
-                )
+                self.storage.prefixes[prefix]
+                .get_blob_client(hex_obj_id)
+                .get_blob_properties()
             )
+
+
+def test_get_container_url():
+    # r=read, l=list, w=write, d=delete
+    policy_map = {
+        "read_only": "rl",
+        "append_only": "rwl",
+        "full": "rwdl",
+    }
+
+    for policy, expected in policy_map.items():
+        ret = swh.objstorage.backends.azure.get_container_url(
+            account_name="account_name",
+            account_key=base64.b64encode(b"account_key"),
+            container_name="container_name",
+            access_policy=policy,
+        )
+
+        p = urlparse(ret)
+        assert p.scheme == "https"
+        assert p.netloc == "account_name.blob.core.windows.net"
+        assert p.path == "/container_name"
+
+        qs = parse_qs(p.query)
+        # sp: permissions
+        assert qs["sp"] == [expected]
+        # sr: resource (c=container)
+        assert qs["sr"] == ["c"]
+        # st: start; se: expiry
+        assert qs["st"][0] < qs["se"][0]
+
+
+def test_bwcompat_args(monkeypatch):
+    monkeypatch.setattr(
+        swh.objstorage.backends.azure, "ContainerClient", MockContainerClient,
+    )
+
+    with pytest.deprecated_call():
+        objs = get_objstorage(
+            "azure",
+            {
+                "account_name": "account_name",
+                "api_secret_key": base64.b64encode(b"account_key"),
+                "container_name": "container_name",
+            },
+        )
+
+    assert objs is not None
+
+
+def test_bwcompat_args_prefixed(monkeypatch):
+    monkeypatch.setattr(
+        swh.objstorage.backends.azure, "ContainerClient", MockContainerClient,
+    )
+
+    accounts = {
+        prefix: {
+            "account_name": f"account_name{prefix}",
+            "api_secret_key": base64.b64encode(b"account_key"),
+            "container_name": "container_name",
+        }
+        for prefix in "0123456789abcdef"
+    }
+
+    with pytest.deprecated_call():
+        objs = get_objstorage("azure-prefixed", {"accounts": accounts})
+
+    assert objs is not None

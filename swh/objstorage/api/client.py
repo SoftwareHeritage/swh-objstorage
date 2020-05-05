@@ -27,7 +27,7 @@ class RemoteObjStorage:
         self._proxy = RPCClient(
             api_exception=ObjStorageAPIError,
             reraise_exceptions=[ObjNotFoundError, Error],
-            **kwargs
+            **kwargs,
         )
 
     def check_config(self, *, check_write):
