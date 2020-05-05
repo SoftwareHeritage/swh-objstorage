@@ -67,5 +67,6 @@ setup(
         "Bug Reports": "https://forge.softwareheritage.org/maniphest",
         "Funding": "https://www.softwareheritage.org/donate",
         "Source": "https://forge.softwareheritage.org/source/swh-objstorage",
+        "Documentation": "https://docs.softwareheritage.org/devel/swh-objstorage/",
     },
 )

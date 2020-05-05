@@ -64,6 +64,8 @@ class ObjStorageTestFixture:
         self.assertIsNone(result[0])
 
     def test_restore_content(self):
+        self.storage.allow_delete = True
+
         valid_content, valid_obj_id = self.hash_content(b"restore_content")
         invalid_content = b"unexpected content"
         id_adding = self.storage.add(invalid_content, valid_obj_id)

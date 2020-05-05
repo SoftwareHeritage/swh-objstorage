@@ -58,7 +58,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         container_name: str,
         compression: Optional[str] = None,
         path_prefix: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.driver = self._get_driver(**kwargs)
