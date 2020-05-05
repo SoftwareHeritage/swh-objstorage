@@ -1,3 +1,13 @@
+swh-objstorage (0.1.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.1.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-05-05 11:18:30 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.1.0     - port
+    swh.objstorage to newer azure.storage.blob     - cleanup black
+    python3.7
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 05 May 2020 09:22:06 +0000
+
 swh-objstorage (0.0.43-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.43     - (tagged by David Douard
