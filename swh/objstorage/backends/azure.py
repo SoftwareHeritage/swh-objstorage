@@ -292,7 +292,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         if not len(prefix_lengths) == 1:
             raise ValueError(
                 "Inconsistent prefixes, found lengths %s"
-                % ", ".join(str(l) for l in sorted(prefix_lengths))
+                % ", ".join(str(lst) for lst in sorted(prefix_lengths))
             )
 
         self.prefix_len = prefix_lengths.pop()
