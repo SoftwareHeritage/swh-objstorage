@@ -1,8 +1,11 @@
-swh-objstorage (0.1.0-1~swh2~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (0.1.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.1.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-05-15 14:41:30 +0200)
+  * Upstream changes:     - Release swh.objstorage v0.1.1     - Fix
+    TOCTOU in azure objstorage backend     - Fix pep8 violation
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 05 May 2020 10:14:45 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 15 May 2020 12:45:00 +0000
 
 swh-objstorage (0.1.0-1~swh2) unstable-swh; urgency=medium
 
