@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import urlparse, parse_qs
 
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 import pytest
 
 from swh.model.hashutil import hash_to_hex
@@ -48,7 +48,7 @@ class MockBlobClient:
 
     def upload_blob(self, data, length=None):
         if self.blob in self.container.blobs:
-            raise ValueError("Blob already exists")
+            raise ResourceExistsError("Blob already exists")
 
         if length is not None and length != len(data):
             raise ValueError("Wrong length for blob data!")

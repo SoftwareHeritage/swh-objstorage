@@ -14,7 +14,7 @@ from azure.storage.blob import (
     ContainerSasPermissions,
     generate_container_sas,
 )
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 
 from swh.objstorage.objstorage import (
     ObjStorage,
@@ -210,7 +210,14 @@ class AzureCloudObjStorage(ObjStorage):
         data += compressor.flush()
 
         client = self.get_blob_client(hex_obj_id)
-        client.upload_blob(data=data, length=len(data))
+        try:
+            client.upload_blob(data=data, length=len(data))
+        except ResourceExistsError:
+            # There's a race condition between check_presence and upload_blob,
+            # that we can't get rid of as the azure api doesn't allow atomic
+            # replaces or renaming a blob. As the restore operation explicitly
+            # removes the blob, it should be safe to just ignore the error.
+            pass
 
         return obj_id
 
@@ -292,7 +299,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         if not len(prefix_lengths) == 1:
             raise ValueError(
                 "Inconsistent prefixes, found lengths %s"
-                % ", ".join(str(l) for l in sorted(prefix_lengths))
+                % ", ".join(str(lst) for lst in sorted(prefix_lengths))
             )
 
         self.prefix_len = prefix_lengths.pop()
