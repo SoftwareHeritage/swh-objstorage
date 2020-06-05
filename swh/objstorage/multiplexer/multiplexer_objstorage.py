@@ -235,13 +235,18 @@ class MultiplexerObjStorage(ObjStorage):
             always readable as well, any id will be valid to retrieve a
             content.
         """
-        return self.wrap_call(
+        results = self.wrap_call(
             self.get_write_threads(obj_id),
             "add",
             content,
             obj_id=obj_id,
             check_presence=check_presence,
-        ).pop()
+        )
+
+        for result in results:
+            if not result:
+                continue
+            return result
 
     def add_batch(self, contents, check_presence=True):
         """Add a batch of new objects to the object storage.
