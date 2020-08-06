@@ -13,9 +13,9 @@ Build-Depends: debhelper (>= 9),
                python3-pytest,
                python3-rados,
                python3-setuptools,
+               python3-setuptools-scm,
                python3-swh.core (>= 0.0.65~),
-               python3-swh.model (>= 0.0.27~),
-               python3-vcversioner
+               python3-swh.model (>= 0.0.27~)
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 
