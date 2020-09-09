@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from ...objstorage import ObjStorage
+from swh.objstorage.objstorage import ObjStorage
 
 
 class ObjStorageFilter(ObjStorage):

@@ -6,8 +6,8 @@
 from swh.core.api import RPCClient
 from swh.model import hashutil
 
-from ..objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
-from ..exc import Error, ObjNotFoundError, ObjStorageAPIError
+from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
+from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
 
 
 class RemoteObjStorage:
