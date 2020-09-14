@@ -6,7 +6,10 @@
 from collections import defaultdict
 import queue
 
-from .multiplexer_objstorage import ObjStorageThread, MultiplexerObjStorage
+from swh.objstorage.multiplexer.multiplexer_objstorage import (
+    ObjStorageThread,
+    MultiplexerObjStorage,
+)
 
 
 class StripingObjStorage(MultiplexerObjStorage):
