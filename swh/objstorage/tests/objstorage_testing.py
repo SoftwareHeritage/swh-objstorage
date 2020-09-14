@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import time
-import collections
+from collections.abc import Iterator
 
 from swh.objstorage import exc
 from swh.objstorage.objstorage import compute_hash
@@ -165,7 +165,7 @@ class ObjStorageTestFixture:
             r = self.storage.get_stream(obj_id, chunk_size=1)
         except NotImplementedError:
             return
-        self.assertTrue(isinstance(r, collections.Iterator))
+        self.assertTrue(isinstance(r, Iterator))
         r = list(r)
         self.assertEqual(b"".join(r), content)
 
