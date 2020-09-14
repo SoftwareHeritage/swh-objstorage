@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .filter import ObjStorageFilter
+from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
 
 
 class ReadObjStorageFilter(ObjStorageFilter):

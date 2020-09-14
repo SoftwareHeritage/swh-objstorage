@@ -3,18 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+# WARNING: do not import unnecessary things here to keep cli startup time under
+# control
 import os
 import logging
 import time
 
 import click
-import aiohttp.web
 
-from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
-
-from swh.objstorage.factory import get_objstorage
-from swh.objstorage.api.server import validate_config, make_app
 
 
 @click.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
@@ -29,6 +26,8 @@ from swh.objstorage.api.server import validate_config, make_app
 def cli(ctx, config_file):
     """Software Heritage Objstorage tools.
     """
+    from swh.core import config
+
     if not config_file:
         config_file = os.environ.get("SWH_CONFIG_FILENAME")
 
@@ -67,6 +66,9 @@ def serve(ctx, host, port):
 
     This is not meant to be run on production systems.
     """
+    import aiohttp.web
+    from swh.objstorage.api.server import validate_config, make_app
+
     app = make_app(validate_config(ctx.obj["config"]))
     if ctx.obj["log_level"] == "DEBUG":
         app.update(debug=True)
@@ -79,6 +81,8 @@ def serve(ctx, host, port):
 def import_directories(ctx, directory):
     """Import a local directory in an existing objstorage.
     """
+    from swh.objstorage.factory import get_objstorage
+
     objstorage = get_objstorage(**ctx.obj["config"]["objstorage"])
     nobj = 0
     volume = 0
@@ -102,6 +106,8 @@ def import_directories(ctx, directory):
 def fsck(ctx):
     """Check the objstorage is not corrupted.
     """
+    from swh.objstorage.factory import get_objstorage
+
     objstorage = get_objstorage(**ctx.obj["config"]["objstorage"])
     for obj_id in objstorage:
         try:

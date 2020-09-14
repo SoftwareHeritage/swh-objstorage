@@ -6,7 +6,7 @@
 import os
 import tempfile
 import random
-import collections
+from collections.abc import Iterator
 from itertools import islice
 
 from contextlib import contextmanager
@@ -245,7 +245,7 @@ class PathSlicingObjStorage(ObjStorage):
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        if not isinstance(content, collections.Iterator):
+        if not isinstance(content, Iterator):
             content = [content]
         compressor = compressors[self.compression]()
         with _write_obj_file(hex_obj_id, self) as f:

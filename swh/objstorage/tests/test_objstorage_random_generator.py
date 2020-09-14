@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections import Iterator
+from collections.abc import Iterator
 from swh.objstorage.factory import get_objstorage
 
 

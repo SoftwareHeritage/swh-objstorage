@@ -4,7 +4,9 @@
 # See top-level LICENSE file for more information
 
 import abc
-import collections
+from collections import OrderedDict
+from collections.abc import Iterator
+
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -29,7 +31,7 @@ def patch_libcloud_s3_urlencode():
         This is required to properly compute the request signature, see
         https://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html#ConstructingTheCanonicalizedResourceElement
         """  # noqa
-        return urlencode(collections.OrderedDict(sorted(params.items())))
+        return urlencode(OrderedDict(sorted(params.items())))
 
     libcloud.storage.drivers.s3.urlencode = s3_urlencode
 
@@ -229,7 +231,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         object_path = self._object_path(obj_id)
 
-        if not isinstance(content, collections.Iterator):
+        if not isinstance(content, Iterator):
             content = (content,)
         self.driver.upload_object_via_stream(
             self._compressor(content), self.container, object_path

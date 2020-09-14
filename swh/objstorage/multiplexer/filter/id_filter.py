@@ -8,9 +8,9 @@ import abc
 
 from swh.model import hashutil
 
-from .filter import ObjStorageFilter
-from ...objstorage import compute_hash
-from ...exc import ObjNotFoundError
+from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
+from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.exc import ObjNotFoundError
 
 
 class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
