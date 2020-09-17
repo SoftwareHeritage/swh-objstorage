@@ -9,21 +9,21 @@ import string
 from typing import Dict, Optional, Union
 import warnings
 
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import (
     ContainerClient,
     ContainerSasPermissions,
     generate_container_sas,
 )
-from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 
+from swh.model import hashutil
+from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.objstorage import (
     ObjStorage,
-    compute_hash,
     compressors,
+    compute_hash,
     decompressors,
 )
-from swh.objstorage.exc import ObjNotFoundError, Error
-from swh.model import hashutil
 
 
 def get_container_url(

@@ -6,18 +6,21 @@
 import abc
 from collections import OrderedDict
 from collections.abc import Iterator
-
 from typing import Optional
 from urllib.parse import urlencode
 
-from swh.model import hashutil
-from swh.objstorage.objstorage import ObjStorage, compute_hash
-from swh.objstorage.objstorage import compressors, decompressors
-from swh.objstorage.exc import ObjNotFoundError, Error
-
 from libcloud.storage import providers
 import libcloud.storage.drivers.s3
-from libcloud.storage.types import Provider, ObjectDoesNotExistError
+from libcloud.storage.types import ObjectDoesNotExistError, Provider
+
+from swh.model import hashutil
+from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.objstorage import (
+    ObjStorage,
+    compressors,
+    compute_hash,
+    decompressors,
+)
 
 
 def patch_libcloud_s3_urlencode():

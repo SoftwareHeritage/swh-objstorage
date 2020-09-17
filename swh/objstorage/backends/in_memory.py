@@ -6,8 +6,8 @@
 import functools
 import io
 
-from swh.objstorage.exc import ObjNotFoundError, Error
-from swh.objstorage.objstorage import ObjStorage, compute_hash, DEFAULT_CHUNK_SIZE
+from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, ObjStorage, compute_hash
 
 
 class InMemoryObjStorage(ObjStorage):

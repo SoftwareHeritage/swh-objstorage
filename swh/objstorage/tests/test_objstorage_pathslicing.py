@@ -6,7 +6,7 @@
 import shutil
 import tempfile
 import unittest
-from unittest.mock import patch, DEFAULT
+from unittest.mock import DEFAULT, patch
 
 from swh.model import hashutil
 from swh.objstorage import exc

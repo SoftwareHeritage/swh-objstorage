@@ -3,10 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
 import os
-import logging
 import time
 
 import click
@@ -67,7 +68,8 @@ def serve(ctx, host, port):
     This is not meant to be run on production systems.
     """
     import aiohttp.web
-    from swh.objstorage.api.server import validate_config, make_app
+
+    from swh.objstorage.api.server import make_app, validate_config
 
     app = make_app(validate_config(ctx.obj["config"]))
     if ctx.obj["log_level"] == "DEBUG":

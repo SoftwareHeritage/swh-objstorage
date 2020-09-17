@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable
 from pkgutil import extend_path
+from typing import Iterable
 
 __path__: Iterable[str] = extend_path(__path__, __name__)

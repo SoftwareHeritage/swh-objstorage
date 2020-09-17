@@ -10,11 +10,14 @@ from urllib.parse import urljoin, urlparse
 import requests
 
 from swh.model import hashutil
-from swh.objstorage.objstorage import ObjStorage, compute_hash
-from swh.objstorage.objstorage import compressors, decompressors
-from swh.objstorage.objstorage import DEFAULT_LIMIT
-
-from swh.objstorage.exc import ObjNotFoundError, Error
+from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.objstorage import (
+    DEFAULT_LIMIT,
+    ObjStorage,
+    compressors,
+    compute_hash,
+    decompressors,
+)
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.ERROR)

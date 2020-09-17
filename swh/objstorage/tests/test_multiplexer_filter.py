@@ -5,13 +5,13 @@
 
 import random
 import shutil
+from string import ascii_lowercase
 import tempfile
 import unittest
-from string import ascii_lowercase
 
 from swh.model import hashutil
-from swh.objstorage.factory import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.multiplexer.filter import id_prefix, id_regex, read_only
 from swh.objstorage.objstorage import compute_hash
 

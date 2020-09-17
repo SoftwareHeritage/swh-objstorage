@@ -1,10 +1,10 @@
-from itertools import count, islice, repeat
-import random
-import io
 import functools
+import io
+from itertools import count, islice, repeat
 import logging
+import random
 
-from swh.objstorage.objstorage import ObjStorage, DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
+from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT, ObjStorage
 
 logger = logging.getLogger(__name__)
 
