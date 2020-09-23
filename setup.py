@@ -51,10 +51,8 @@ setup(
     extras_require={"testing": parse_requirements("test")},
     include_package_data=True,
     entry_points="""
-        [console_scripts]
-        swh-objstorage=swh.objstorage.cli:main
         [swh.cli.subcommands]
-        objstorage=swh.objstorage.cli:cli
+        objstorage=swh.objstorage.cli
     """,
     classifiers=[
         "Programming Language :: Python :: 3",
