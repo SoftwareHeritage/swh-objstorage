@@ -7,17 +7,16 @@ import base64
 from dataclasses import dataclass
 import unittest
 from unittest.mock import patch
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 import pytest
 
 from swh.model.hashutil import hash_to_hex
-
 import swh.objstorage.backends.azure
+from swh.objstorage.exc import Error
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
-from swh.objstorage.exc import Error
 
 from .objstorage_testing import ObjStorageTestFixture
 

@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from collections.abc import Iterator
+
 from swh.objstorage.factory import get_objstorage
 
 
