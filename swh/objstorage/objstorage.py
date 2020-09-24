@@ -4,17 +4,15 @@
 # See top-level LICENSE file for more information
 
 import abc
-from itertools import dropwhile, islice
 import bz2
+from itertools import dropwhile, islice
 import lzma
+from typing import Dict
 import zlib
 
 from swh.model import hashutil
 
-from typing import Dict
-
 from .exc import ObjNotFoundError
-
 
 ID_HASH_ALGO = "sha1"
 ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.

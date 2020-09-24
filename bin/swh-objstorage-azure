@@ -9,8 +9,8 @@
 
 import click
 
-from swh.objstorage import get_objstorage, exc
 from swh.core import config, hashutil
+from swh.objstorage import exc, get_objstorage
 
 
 class AzureAccess(config.SWHConfig):

@@ -3,26 +3,20 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import json
 import os
 
 import aiohttp.web
-import json
 
+from swh.core.api.asynchronous import RPCServerApp, decode_request
+from swh.core.api.asynchronous import encode_data_server as encode_data
+from swh.core.api.serializers import SWHJSONDecoder, msgpack_loads
 from swh.core.config import read as config_read
-from swh.core.api.asynchronous import (
-    RPCServerApp,
-    decode_request,
-    encode_data_server as encode_data,
-)
-
-
-from swh.core.api.serializers import msgpack_loads, SWHJSONDecoder
-
+from swh.core.statsd import statsd
 from swh.model import hashutil
+from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import DEFAULT_LIMIT
-from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.core.statsd import statsd
 
 
 def timed(f):

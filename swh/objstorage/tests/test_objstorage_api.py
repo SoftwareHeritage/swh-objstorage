@@ -6,11 +6,12 @@
 import shutil
 import tempfile
 import unittest
+
 import pytest
 
 from swh.core.api.tests.server_testing import ServerTestFixtureAsync
-from swh.objstorage.factory import get_objstorage
 from swh.objstorage.api.server import make_app
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 

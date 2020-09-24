@@ -1,6 +1,5 @@
+from .id_filter import PrefixIdObjStorageFilter, RegexIdObjStorageFilter
 from .read_write_filter import ReadObjStorageFilter
-from .id_filter import RegexIdObjStorageFilter, PrefixIdObjStorageFilter
-
 
 _FILTERS_CLASSES = {
     "readonly": ReadObjStorageFilter,

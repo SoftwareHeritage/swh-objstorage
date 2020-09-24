@@ -6,9 +6,8 @@
 import rados
 
 from swh.model import hashutil
-
-from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage import objstorage
+from swh.objstorage.exc import ObjNotFoundError
 
 READ_SIZE = 8192
 

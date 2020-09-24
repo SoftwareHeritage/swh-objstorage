@@ -1,6 +1,4 @@
 
-        [console_scripts]
-        swh-objstorage=swh.objstorage.cli:main
         [swh.cli.subcommands]
-        objstorage=swh.objstorage.cli:cli
+        objstorage=swh.objstorage.cli
     

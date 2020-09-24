@@ -3,28 +3,25 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
-import tempfile
-import random
 from collections.abc import Iterator
-from itertools import islice
-
 from contextlib import contextmanager
+from itertools import islice
+import os
+import random
+import tempfile
 
 from swh.model import hashutil
-
+from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.objstorage import (
-    compressors,
-    decompressors,
-    ObjStorage,
-    compute_hash,
-    ID_HASH_ALGO,
-    ID_HASH_LENGTH,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_LIMIT,
+    ID_HASH_ALGO,
+    ID_HASH_LENGTH,
+    ObjStorage,
+    compressors,
+    compute_hash,
+    decompressors,
 )
-from swh.objstorage.exc import ObjNotFoundError, Error
-
 
 BUFSIZ = 1048576
 

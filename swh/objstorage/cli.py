@@ -3,18 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
 import os
-import logging
 import time
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import CONTEXT_SETTINGS, swh as swh_cli_group
 
 
-@click.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
+@swh_cli_group.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--config-file",
     "-C",
@@ -23,7 +24,7 @@ from swh.core.cli import CONTEXT_SETTINGS
     help="Configuration file.",
 )
 @click.pass_context
-def cli(ctx, config_file):
+def objstorage_cli_group(ctx, config_file):
     """Software Heritage Objstorage tools.
     """
     from swh.core import config
@@ -43,7 +44,11 @@ def cli(ctx, config_file):
     ctx.obj["config"] = conf
 
 
-@cli.command("rpc-serve")
+# for BW compat
+cli = objstorage_cli_group
+
+
+@objstorage_cli_group.command("rpc-serve")
 @click.option(
     "--host",
     default="0.0.0.0",
@@ -67,7 +72,8 @@ def serve(ctx, host, port):
     This is not meant to be run on production systems.
     """
     import aiohttp.web
-    from swh.objstorage.api.server import validate_config, make_app
+
+    from swh.objstorage.api.server import make_app, validate_config
 
     app = make_app(validate_config(ctx.obj["config"]))
     if ctx.obj["log_level"] == "DEBUG":
@@ -75,7 +81,7 @@ def serve(ctx, host, port):
     aiohttp.web.run_app(app, host=host, port=int(port))
 
 
-@cli.command("import")
+@objstorage_cli_group.command("import")
 @click.argument("directory", required=True, nargs=-1)
 @click.pass_context
 def import_directories(ctx, directory):
@@ -101,7 +107,7 @@ def import_directories(ctx, directory):
     )
 
 
-@cli.command("fsck")
+@objstorage_cli_group.command("fsck")
 @click.pass_context
 def fsck(ctx):
     """Check the objstorage is not corrupted.

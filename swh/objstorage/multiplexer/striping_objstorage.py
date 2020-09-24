@@ -7,8 +7,8 @@ from collections import defaultdict
 import queue
 
 from swh.objstorage.multiplexer.multiplexer_objstorage import (
-    ObjStorageThread,
     MultiplexerObjStorage,
+    ObjStorageThread,
 )
 
 
