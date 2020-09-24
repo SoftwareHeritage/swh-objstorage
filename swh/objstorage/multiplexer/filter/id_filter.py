@@ -3,14 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import re
 import abc
+import re
 
 from swh.model import hashutil
-
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
 from swh.objstorage.objstorage import compute_hash
-from swh.objstorage.exc import ObjNotFoundError
 
 
 class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):

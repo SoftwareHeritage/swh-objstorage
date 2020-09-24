@@ -9,9 +9,9 @@ import unittest
 from libcloud.common.types import InvalidCredsError
 from libcloud.storage.types import ContainerDoesNotExistError, ObjectDoesNotExistError
 
-from swh.objstorage.objstorage import decompressors
-from swh.objstorage.exc import Error
 from swh.objstorage.backends.libcloud import CloudObjStorage
+from swh.objstorage.exc import Error
+from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
 

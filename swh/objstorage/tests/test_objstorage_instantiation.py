@@ -7,9 +7,9 @@ import shutil
 import tempfile
 import unittest
 
-from swh.objstorage.factory import get_objstorage
 from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
+from swh.objstorage.factory import get_objstorage
 
 
 class TestObjStorageInitialization(unittest.TestCase):

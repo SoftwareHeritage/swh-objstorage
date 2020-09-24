@@ -7,8 +7,8 @@ import queue
 import random
 import threading
 
-from swh.objstorage.objstorage import ObjStorage
 from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.objstorage import ObjStorage
 
 
 class ObjStorageThread(threading.Thread):

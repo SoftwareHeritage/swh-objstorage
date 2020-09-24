@@ -5,10 +5,9 @@
 
 import unittest
 
-from swh.objstorage.objstorage import decompressors
+from swh.objstorage.backends.seaweed import DEFAULT_LIMIT, WeedObjStorage
 from swh.objstorage.exc import Error
-
-from swh.objstorage.backends.seaweed import WeedObjStorage, DEFAULT_LIMIT
+from swh.objstorage.objstorage import decompressors
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 

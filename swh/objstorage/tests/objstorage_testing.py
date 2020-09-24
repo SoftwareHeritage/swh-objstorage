@@ -3,8 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import time
 from collections.abc import Iterator
+import time
 
 from swh.objstorage import exc
 from swh.objstorage.objstorage import compute_hash

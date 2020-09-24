@@ -5,15 +5,14 @@
 
 from typing import Callable, Dict, Union
 
-from swh.objstorage.objstorage import ObjStorage, ID_HASH_LENGTH  # noqa
-from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
-from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.api.client import RemoteObjStorage
+from swh.objstorage.backends.generator import RandomGeneratorObjStorage
+from swh.objstorage.backends.in_memory import InMemoryObjStorage
+from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
+from swh.objstorage.backends.seaweed import WeedObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
-from swh.objstorage.backends.seaweed import WeedObjStorage
-from swh.objstorage.backends.generator import RandomGeneratorObjStorage
-
+from swh.objstorage.objstorage import ID_HASH_LENGTH, ObjStorage  # noqa
 
 __all__ = ["get_objstorage", "ObjStorage"]
 
