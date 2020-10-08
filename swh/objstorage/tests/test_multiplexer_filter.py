@@ -28,12 +28,13 @@ class MixinTestReadFilter(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         pstorage = {
             "cls": "pathslicing",
-            "args": {"root": self.tmpdir, "slicing": "0:5"},
+            "root": self.tmpdir,
+            "slicing": "0:5",
         }
         base_storage = get_objstorage(**pstorage)
         base_storage.id = compute_hash
         self.storage = get_objstorage(
-            "filtered", {"storage_conf": pstorage, "filters_conf": [read_only()]}
+            "filtered", storage_conf=pstorage, filters_conf=[read_only()]
         )
         self.valid_content = b"pre-existing content"
         self.invalid_content = b"invalid_content"
