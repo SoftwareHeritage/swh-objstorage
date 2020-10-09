@@ -77,40 +77,39 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
             load_and_check_config(config_path)
 
 
-def test_load_and_check_config_fine(tmpdir):
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(
+            {
+                "objstorage": {
+                    "cls": "pathslicing",
+                    "args": {"root": "root", "slicing": "slicing"},
+                }
+            },
+            id="pathslicing-bw-compat",
+        ),
+        pytest.param(
+            {
+                "objstorage": {
+                    "cls": "pathslicing",
+                    "root": "root",
+                    "slicing": "slicing",
+                }
+            },
+            id="pathslicing",
+        ),
+        pytest.param(
+            {"client_max_size": "10", "objstorage": {"cls": "memory", "args": {}}},
+            id="empty-args-bw-compat",
+        ),
+        pytest.param(
+            {"client_max_size": "10", "objstorage": {"cls": "memory"}}, id="empty-args"
+        ),
+    ],
+)
+def test_load_and_check_config(tmpdir, config):
     """pathslicing configuration fine loads ok"""
-    config = {
-        "objstorage": {
-            "cls": "pathslicing",
-            "args": {"root": "root", "slicing": "slicing",},
-        }
-    }
-
-    config_path = prepare_config_file(tmpdir, config)
-    cfg = load_and_check_config(config_path)
-    assert cfg == config
-
-
-def test_load_and_check_config_no_args(tmpdir):
-    """pathslicing configuration with no args key loads ok"""
-    config = {
-        "objstorage": {"cls": "pathslicing", "root": "root", "slicing": "slicing"}
-    }
-
-    config_path = prepare_config_file(tmpdir, config)
-    cfg = load_and_check_config(config_path)
-    assert cfg == config
-
-
-def test_load_and_check_config_fine2(tmpdir):
-    config = {"client_max_size": "10", "objstorage": {"cls": "memory", "args": {}}}
-    config_path = prepare_config_file(tmpdir, config)
-    cfg = load_and_check_config(config_path)
-    assert cfg == config
-
-
-def test_load_and_check_config_only_cls(tmpdir):
-    config = {"client_max_size": "10", "objstorage": {"cls": "memory"}}
     config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path)
     assert cfg == config
