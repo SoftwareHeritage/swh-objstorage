@@ -1,3 +1,14 @@
+swh-objstorage (0.2.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.2.2     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-10-09 12:26:41 +0200)
+  * Upstream changes:     - Release swh.objstorage 0.2.2     - Deprecate
+    the `args` argument to swh.objstorage.factory.get_objstorage in     -
+    favor of using plain keyword arguments.     - linting and isorting
+    fixes
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 09 Oct 2020 10:29:22 +0000
+
 swh-objstorage (0.2.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.2.1     - (tagged by David Douard
