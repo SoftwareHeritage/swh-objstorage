@@ -35,26 +35,20 @@ def prepare_config_file(tmpdir, content, name="config.yml"):
 
 def test_load_and_check_config_no_configuration():
     """Inexistent configuration files raises"""
-    with pytest.raises(EnvironmentError) as e:
+    with pytest.raises(EnvironmentError, match="Configuration file must be defined"):
         load_and_check_config(None)
 
-    assert e.value.args[0] == "Configuration file must be defined"
-
     config_path = "/indexer/inexistent/config.yml"
-    with pytest.raises(FileNotFoundError) as e:
+    with pytest.raises(FileNotFoundError, match=f"{config_path} does not exist"):
         load_and_check_config(config_path)
-
-    assert e.value.args[0] == "Configuration file %s does not exist" % (config_path,)
 
 
 def test_load_and_check_config_invalid_configuration_toplevel(tmpdir):
     """Invalid configuration raises"""
     config = {"something": "useless"}
     config_path = prepare_config_file(tmpdir, content=config)
-    with pytest.raises(KeyError) as e:
+    with pytest.raises(KeyError, match="missing objstorage config entry"):
         load_and_check_config(config_path)
-
-    assert e.value.args[0] == "Invalid configuration; missing objstorage config entry"
 
 
 def test_load_and_check_config_invalid_configuration(tmpdir):
@@ -62,10 +56,8 @@ def test_load_and_check_config_invalid_configuration(tmpdir):
     config_path = prepare_config_file(
         tmpdir, content={"objstorage": {"something": "useless"}}
     )
-    with pytest.raises(KeyError) as e:
+    with pytest.raises(KeyError, match="missing cls config entry"):
         load_and_check_config(config_path)
-
-    assert "missing cls config entry" in e.value.args[0]
 
 
 def test_load_and_check_config_invalid_configuration_level2(tmpdir):
@@ -81,10 +73,8 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
         c = copy.deepcopy(config)
         c["objstorage"]["args"].pop(key)
         config_path = prepare_config_file(tmpdir, c)
-        with pytest.raises(KeyError) as e:
+        with pytest.raises(KeyError, match=f"missing {key} config entry"):
             load_and_check_config(config_path)
-
-        assert "missing %s config entry" % key in e.value.args[0]
 
 
 def test_load_and_check_config_fine(tmpdir):
