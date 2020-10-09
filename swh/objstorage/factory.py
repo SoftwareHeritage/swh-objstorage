@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from typing import Callable, Dict, Union
+import warnings
 
 from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
@@ -59,15 +60,15 @@ except ImportError as e:
     _STORAGE_CLASSES_MISSING["swift"] = e.args[0]
 
 
-def get_objstorage(cls, args):
+def get_objstorage(cls: str, args=None, **kwargs):
     """ Create an ObjStorage using the given implementation class.
 
     Args:
-        cls (str): objstorage class unique key contained in the
+        cls: objstorage class unique key contained in the
             _STORAGE_CLASSES dict.
-        args (dict): arguments for the required class of objstorage
-            that must match exactly the one in the `__init__` method of the
-            class.
+        kwargs: arguments for the required class of objstorage
+                that must match exactly the one in the `__init__` method of the
+                class.
     Returns:
         subclass of ObjStorage that match the given `storage_class` argument.
     Raises:
@@ -75,7 +76,17 @@ def get_objstorage(cls, args):
             key.
     """
     if cls in _STORAGE_CLASSES:
-        return _STORAGE_CLASSES[cls](**args)
+        if args is not None:
+            warnings.warn(
+                'Explicit "args" key is deprecated for objstorage initialization, '
+                "use class arguments keys directly instead.",
+                DeprecationWarning,
+            )
+            # TODO: when removing this, drop the "args" backwards compatibility
+            # from swh.objstorage.api.server configuration checker
+            kwargs = args
+
+        return _STORAGE_CLASSES[cls](**kwargs)
     else:
         raise ValueError(
             "Storage class {} is not available: {}".format(

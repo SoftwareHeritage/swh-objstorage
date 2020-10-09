@@ -12,7 +12,8 @@ import time
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS, swh as swh_cli_group
+from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import swh as swh_cli_group
 
 
 @swh_cli_group.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
