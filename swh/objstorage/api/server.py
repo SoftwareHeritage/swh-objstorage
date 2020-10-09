@@ -175,8 +175,7 @@ def make_app(config):
 
     # retro compatibility configuration settings
     app["config"] = config
-    _cfg = config["objstorage"]
-    app["objstorage"] = get_objstorage(_cfg["cls"], _cfg["args"])
+    app["objstorage"] = get_objstorage(**config["objstorage"])
 
     app.router.add_route("GET", "/", index)
     app.router.add_route("POST", "/check_config", check_config)
@@ -237,20 +236,14 @@ def validate_config(cfg):
 
     missing_keys = []
     vcfg = cfg["objstorage"]
-    for key in ("cls", "args"):
-        v = vcfg.get(key)
-        if v is None:
-            missing_keys.append(key)
+    if "cls" not in vcfg:
+        raise KeyError("Invalid configuration; missing cls config entry")
 
-    if missing_keys:
-        raise KeyError(
-            "Invalid configuration; missing %s config entry"
-            % (", ".join(missing_keys),)
-        )
-
-    cls = vcfg.get("cls")
+    cls = vcfg["cls"]
     if cls == "pathslicing":
-        args = vcfg["args"]
+        # Backwards-compatibility: either get the deprecated `args` from the
+        # objstorage config, or use the full config itself to check for keys
+        args = vcfg.get("args", vcfg)
         for key in ("root", "slicing"):
             v = args.get(key)
             if v is None:
@@ -258,7 +251,7 @@ def validate_config(cfg):
 
         if missing_keys:
             raise KeyError(
-                "Invalid configuration; missing args.%s config entry"
+                "Invalid configuration; missing %s config entry"
                 % (", ".join(missing_keys),)
             )
 
