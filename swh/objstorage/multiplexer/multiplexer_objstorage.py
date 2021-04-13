@@ -69,10 +69,12 @@ class ObjStorageThread(threading.Thread):
 
         Arguments:
           mailbox (queue.Queue): A mailbox to unpack a result from
-          args, kwargs: arguments to :func:`mailbox.get`
+          args: positional arguments to :func:`mailbox.get`
+          kwargs: keyword arguments to :func:`mailbox.get`
 
         Returns:
           the next result unpacked from the queue
+
         Raises:
           either the exception we got back from the underlying storage,
           or :exc:`queue.Empty` if :func:`mailbox.get` raises that.
