@@ -39,8 +39,9 @@ class ObjStorageThread(threading.Thread):
           mailbox (queue.Queue): explicit mailbox if the calling thread wants
             to override it.
           args, kwargs: arguments for the command.
-        Returns: queue.Queue
-          The mailbox you can read the response from
+
+        Returns:
+          queue.Queue: The mailbox you can read the response from
         """
         if not mailbox:
             mailbox = queue.Queue()
@@ -67,15 +68,17 @@ class ObjStorageThread(threading.Thread):
     def get_result_from_mailbox(mailbox, *args, **kwargs):
         """Unpack the result from the mailbox.
 
-        Arguments:
+        Args:
           mailbox (queue.Queue): A mailbox to unpack a result from
-          args, kwargs: arguments to :func:`mailbox.get`
+          args: positional arguments to :func:`mailbox.get`
+          kwargs: keyword arguments to :func:`mailbox.get`
 
         Returns:
           the next result unpacked from the queue
+
         Raises:
           either the exception we got back from the underlying storage,
-          or :exc:`queue.Empty` if :func:`mailbox.get` raises that.
+            or :exc:`queue.Empty` if :func:`mailbox.get` raises that.
         """
 
         result = mailbox.get(*args, **kwargs)

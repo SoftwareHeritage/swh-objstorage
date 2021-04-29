@@ -19,6 +19,7 @@ tox.ini
 bin/swh-objstorage-azure
 docs/.gitignore
 docs/Makefile
+docs/cli.rst
 docs/conf.py
 docs/index.rst
 docs/_static/.placeholder
