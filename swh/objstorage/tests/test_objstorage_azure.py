@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
 import base64
 import collections
 from dataclasses import dataclass
@@ -27,12 +28,26 @@ class MockListedObject:
     name: str
 
 
+class MockAsyncDownloadClient:
+    def __init__(self, blob_data):
+        self.blob_data = blob_data
+
+    def content_as_bytes(self):
+        future = asyncio.Future()
+        future.set_result(self.blob_data)
+        return future
+
+
 class MockDownloadClient:
     def __init__(self, blob_data):
         self.blob_data = blob_data
 
     def content_as_bytes(self):
         return self.blob_data
+
+    def __await__(self):
+        yield from ()
+        return MockAsyncDownloadClient(self.blob_data)
 
 
 class MockBlobClient:
@@ -93,6 +108,17 @@ def get_MockContainerClient():
         def delete_blob(self, blob):
             self.get_blob_client(blob.name).delete_blob()
 
+        def __aenter__(self):
+            return self
+
+        def __await__(self):
+            future = asyncio.Future()
+            future.set_result(self)
+            yield from future
+
+        def __aexit__(self, *args):
+            return self
+
     return MockContainerClient
 
 
@@ -104,6 +130,12 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         ContainerClient = get_MockContainerClient()
         patcher = patch(
             "swh.objstorage.backends.azure.ContainerClient", ContainerClient
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = patch(
+            "swh.objstorage.backends.azure.AsyncContainerClient", ContainerClient
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -171,6 +203,12 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
         self.ContainerClient = get_MockContainerClient()
         patcher = patch(
             "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = patch(
+            "swh.objstorage.backends.azure.AsyncContainerClient", self.ContainerClient
         )
         patcher.start()
         self.addCleanup(patcher.stop)
