@@ -121,7 +121,7 @@ class AzureCloudObjStorage(ObjStorage):
                 )
 
         super().__init__(**kwargs)
-        self.container_client = ContainerClient.from_container_url(container_url)
+        self.container_url = container_url
         self.compression = compression
 
     def get_container_client(self, hex_obj_id):
@@ -132,7 +132,7 @@ class AzureCloudObjStorage(ObjStorage):
         client according to the prefix of the object id.
 
         """
-        return self.container_client
+        return ContainerClient.from_container_url(self.container_url)
 
     def get_blob_client(self, hex_obj_id):
         """Get the azure blob client for the given hex obj id"""
@@ -142,7 +142,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     def get_all_container_clients(self):
         """Get all active block_blob_services"""
-        yield self.container_client
+        yield self.get_container_client("")
 
     def _internal_id(self, obj_id):
         """Internal id is the hex version in objstorage.
@@ -318,7 +318,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
         do_warning = False
 
-        self.prefixes = {}
+        self.container_urls = {}
         for prefix, container_url in accounts.items():
             if isinstance(container_url, dict):
                 do_warning = True
@@ -328,7 +328,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
                     container_name=container_url["container_name"],
                     access_policy="full",
                 )
-            self.prefixes[prefix] = ContainerClient.from_container_url(container_url)
+            self.container_urls[prefix] = container_url
 
         if do_warning:
             warnings.warn(
@@ -341,10 +341,13 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         """Get the block_blob_service and container that contains the object with
         internal id hex_obj_id
         """
-        return self.prefixes[hex_obj_id[: self.prefix_len]]
+        prefix = hex_obj_id[: self.prefix_len]
+        return ContainerClient.from_container_url(self.container_urls[prefix])
 
     def get_all_container_clients(self):
         """Get all active container clients"""
         # iterate on items() to sort blob services;
         # needed to be able to paginate in the list_content() method
-        yield from (v for _, v in sorted(self.prefixes.items()))
+        yield from (
+            self.get_container_client(prefix) for prefix in sorted(self.container_urls)
+        )
