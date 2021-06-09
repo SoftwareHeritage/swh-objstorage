@@ -1,4 +1,6 @@
-pytest
 apache-libcloud
 azure-storage-blob >= 12.0
+pytest
 python-cephlibs
+types-pyyaml
+types-requests
