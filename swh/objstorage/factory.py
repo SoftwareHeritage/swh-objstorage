@@ -8,6 +8,7 @@ import warnings
 
 from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
+from swh.objstorage.backends.http import HTTPReadOnlyObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
@@ -24,6 +25,7 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "memory": InMemoryObjStorage,
     "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
+    "http": HTTPReadOnlyObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {}
