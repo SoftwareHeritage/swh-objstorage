@@ -35,7 +35,9 @@ class WeedFiler(object):
     def get(self, remote_path):
         url = urljoin(self.url, remote_path)
         LOGGER.debug("Get file %s", url)
-        return requests.get(url).content
+        resp = requests.get(url)
+        resp.raise_for_status()
+        return resp.content
 
     def exists(self, remote_path):
         url = urljoin(self.url, remote_path)
