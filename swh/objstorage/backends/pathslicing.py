@@ -9,6 +9,7 @@ from itertools import islice
 import os
 import random
 import tempfile
+from typing import List
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
@@ -29,59 +30,101 @@ DIR_MODE = 0o755
 FILE_MODE = 0o644
 
 
-@contextmanager
-def _write_obj_file(hex_obj_id, objstorage):
-    """ Context manager for writing object files to the object storage.
+class PathSlicer:
+    """Helper class to compute a path based on a hash.
 
-    During writing, data are written to a temporary file, which is atomically
-    renamed to the right file name after closing.
+    Used to compute a directory path based on the object hash according to a
+    given slicing. Each slicing correspond to a directory that is named
+    according to the hash of its content.
 
-    Usage sample:
-        with _write_obj_file(hex_obj_id, objstorage):
-            f.write(obj_data)
+    For instance a file with SHA1 34973274ccef6ab4dfaaf86599792fa9c3fe4689
+    will have the following computed path:
 
-    Yields:
-        a file-like object open for writing bytes.
+    - 0:2/2:4/4:6 : 34/97/32/34973274ccef6ab4dfaaf86599792fa9c3fe4689
+    - 0:1/0:5/    : 3/34973/34973274ccef6ab4dfaaf86599792fa9c3fe4689
+
+     Args:
+         root (str): path to the root directory of the storage on the disk.
+         slicing (str): the slicing configuration.
     """
-    # Get the final paths and create the directory if absent.
-    dir = objstorage._obj_dir(hex_obj_id)
-    if not os.path.isdir(dir):
-        os.makedirs(dir, DIR_MODE, exist_ok=True)
-    path = os.path.join(dir, hex_obj_id)
 
-    # Create a temporary file.
-    (tmp, tmp_path) = tempfile.mkstemp(suffix=".tmp", prefix="hex_obj_id.", dir=dir)
+    def __init__(self, root: str, slicing: str):
+        self.root = root
+        # Make a list of tuples where each tuple contains the beginning
+        # and the end of each slicing.
+        try:
+            self.bounds = [
+                slice(*(int(x) if x else None for x in sbounds.split(":")))
+                for sbounds in slicing.split("/")
+                if sbounds
+            ]
+        except TypeError:
+            raise ValueError(
+                "Invalid slicing declaration; "
+                "it should be a of the form '<int>:<int>[/<int>:<int>]..."
+            )
 
-    # Open the file and yield it for writing.
-    tmp_f = os.fdopen(tmp, "wb")
-    yield tmp_f
+    def check_config(self):
+        """Check the slicing configuration is valid.
 
-    # Make sure the contents of the temporary file are written to disk
-    tmp_f.flush()
-    if objstorage.use_fdatasync:
-        os.fdatasync(tmp)
-    else:
-        os.fsync(tmp)
+        Raises:
+            ValueError: if the slicing configuration is invalid.
+        """
+        if len(self):
+            max_char = max(
+                max(bound.start or 0, bound.stop or 0) for bound in self.bounds
+            )
+            if ID_HASH_LENGTH < max_char:
+                raise ValueError(
+                    "Algorithm %s has too short hash for slicing to char %d"
+                    % (ID_HASH_ALGO, max_char)
+                )
 
-    # Then close the temporary file and move it to the right path.
-    tmp_f.close()
-    os.chmod(tmp_path, FILE_MODE)
-    os.rename(tmp_path, path)
+    def get_directory(self, hex_obj_id: str) -> str:
+        """ Compute the storage directory of an object.
 
+        See also: PathSlicer::get_path
 
-def _read_obj_file(hex_obj_id, objstorage):
-    """ Context manager for reading object file in the object storage.
+        Args:
+            hex_obj_id: object id as hexlified string.
 
-    Usage sample:
-        with _read_obj_file(hex_obj_id, objstorage) as f:
-            b = f.read()
+        Returns:
+            Absolute path (including root) to the directory that contains
+            the given object id.
+        """
+        return os.path.join(self.root, *self.get_slices(hex_obj_id))
 
-    Yields:
-        a file-like object open for reading bytes.
-    """
-    path = objstorage._obj_path(hex_obj_id)
+    def get_path(self, hex_obj_id: str) -> str:
+        """ Compute the full path to an object into the current storage.
 
-    return open(path, "rb")
+        See also: PathSlicer::get_directory
+
+        Args:
+            hex_obj_id(str): object id as hexlified string.
+
+        Returns:
+            Absolute path (including root) to the object corresponding
+            to the given object id.
+        """
+        return os.path.join(self.get_directory(hex_obj_id), hex_obj_id)
+
+    def get_slices(self, hex_obj_id: str) -> List[str]:
+        """Compute the path elements for the given hash.
+
+        Args:
+            hex_obj_id(str): object id as hexlified string.
+
+        Returns:
+            Relative path to the actual object corresponding to the given id as
+            a list.
+        """
+
+        assert len(hex_obj_id) == ID_HASH_LENGTH
+        return [hex_obj_id[bound] for bound in self.bounds]
+
+    def __len__(self) -> int:
+        """Number of slices of the slicer"""
+        return len(self.bounds)
 
 
 class PathSlicingObjStorage(ObjStorage):
@@ -104,32 +147,19 @@ class PathSlicingObjStorage(ObjStorage):
 
     The files in the storage are stored in gzipped compressed format.
 
-    Attributes:
-        root (string): path to the root directory of the storage on the disk.
-        bounds: list of tuples that indicates the beginning and the end of
-            each subdirectory for a content.
+    Args:
+        root (str): path to the root directory of the storage on
+            the disk.
+        slicing (str): string that indicates the slicing to perform
+            on the hash of the content to know the path where it should
+            be stored (see the documentation of the PathSlicer class).
 
     """
 
     def __init__(self, root, slicing, compression="gzip", **kwargs):
-        """ Create an object to access a hash-slicing based object storage.
-
-        Args:
-            root (string): path to the root directory of the storage on
-                the disk.
-            slicing (string): string that indicates the slicing to perform
-                on the hash of the content to know the path where it should
-                be stored.
-        """
         super().__init__(**kwargs)
         self.root = root
-        # Make a list of tuples where each tuple contains the beginning
-        # and the end of each slicing.
-        self.bounds = [
-            slice(*map(int, sbounds.split(":")))
-            for sbounds in slicing.split("/")
-            if sbounds
-        ]
+        self.slicer = PathSlicer(root, slicing)
 
         self.use_fdatasync = hasattr(os, "fdatasync")
         self.compression = compression
@@ -139,24 +169,17 @@ class PathSlicingObjStorage(ObjStorage):
     def check_config(self, *, check_write):
         """Check whether this object storage is properly configured"""
 
-        root = self.root
+        self.slicer.check_config()
 
-        if not os.path.isdir(root):
+        if not os.path.isdir(self.root):
             raise ValueError(
-                'PathSlicingObjStorage root "%s" is not a directory' % root
-            )
-
-        max_endchar = max(map(lambda bound: bound.stop, self.bounds))
-        if ID_HASH_LENGTH < max_endchar:
-            raise ValueError(
-                "Algorithm %s has too short hash for slicing to char %d"
-                % (ID_HASH_ALGO, max_endchar)
+                'PathSlicingObjStorage root "%s" is not a directory' % self.root
             )
 
         if check_write:
             if not os.access(self.root, os.W_OK):
                 raise PermissionError(
-                    'PathSlicingObjStorage root "%s" is not writable' % root
+                    'PathSlicingObjStorage root "%s" is not writable' % self.root
                 )
 
         if self.compression not in compressors:
@@ -169,7 +192,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def __contains__(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        return os.path.isfile(self._obj_path(hex_obj_id))
+        return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
     def __iter__(self):
         """Iterate over the object identifiers currently available in the
@@ -207,33 +230,6 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def _obj_dir(self, hex_obj_id):
-        """ Compute the storage directory of an object.
-
-        See also: PathSlicingObjStorage::_obj_path
-
-        Args:
-            hex_obj_id: object id as hexlified string.
-
-        Returns:
-            Path to the directory that contains the required object.
-        """
-        slices = [hex_obj_id[bound] for bound in self.bounds]
-        return os.path.join(self.root, *slices)
-
-    def _obj_path(self, hex_obj_id):
-        """ Compute the full path to an object into the current storage.
-
-        See also: PathSlicingObjStorage::_obj_dir
-
-        Args:
-            hex_obj_id: object id as hexlified string.
-
-        Returns:
-            Path to the actual object corresponding to the given id.
-        """
-        return os.path.join(self._obj_dir(hex_obj_id), hex_obj_id)
-
     def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
             obj_id = compute_hash(content)
@@ -245,7 +241,7 @@ class PathSlicingObjStorage(ObjStorage):
         if not isinstance(content, Iterator):
             content = [content]
         compressor = compressors[self.compression]()
-        with _write_obj_file(hex_obj_id, self) as f:
+        with self._write_obj_file(hex_obj_id) as f:
             for chunk in content:
                 f.write(compressor.compress(chunk))
             f.write(compressor.flush())
@@ -259,7 +255,7 @@ class PathSlicingObjStorage(ObjStorage):
         # Open the file and return its content as bytes
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         d = decompressors[self.compression]()
-        with _read_obj_file(hex_obj_id, self) as f:
+        with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             out = d.decompress(f.read())
         if d.unused_data:
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id,)
@@ -293,7 +289,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         try:
-            os.remove(self._obj_path(hex_obj_id))
+            os.remove(self.slicer.get_path(hex_obj_id))
         except FileNotFoundError:
             raise ObjNotFoundError(obj_id)
         return True
@@ -308,7 +304,7 @@ class PathSlicingObjStorage(ObjStorage):
                 a tuple (batch size, batch).
             """
             dirs = []
-            for level in range(len(self.bounds)):
+            for level in range(len(self.slicer)):
                 path = os.path.join(self.root, *dirs)
                 dir_list = next(os.walk(path))[1]
                 if "tmp" in dir_list:
@@ -334,7 +330,7 @@ class PathSlicingObjStorage(ObjStorage):
     def chunk_writer(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         compressor = compressors[self.compression]()
-        with _write_obj_file(hex_obj_id, self) as f:
+        with self._write_obj_file(hex_obj_id) as f:
             yield lambda c: f.write(compressor.compress(c))
             f.write(compressor.flush())
 
@@ -354,7 +350,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         decompressor = decompressors[self.compression]()
-        with _read_obj_file(hex_obj_id, self) as f:
+        with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             while True:
                 raw = f.read(chunk_size)
                 if not raw:
@@ -373,7 +369,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def iter_from(self, obj_id, n_leaf=False):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        slices = [hex_obj_id[bound] for bound in self.bounds]
+        slices = self.slicer.get_slices(hex_obj_id)
         rlen = len(self.root.split("/"))
 
         i = 0
@@ -392,3 +388,42 @@ class PathSlicingObjStorage(ObjStorage):
                     yield bytes.fromhex(f)
         if n_leaf:
             yield i
+
+    @contextmanager
+    def _write_obj_file(self, hex_obj_id):
+        """ Context manager for writing object files to the object storage.
+
+        During writing, data are written to a temporary file, which is atomically
+        renamed to the right file name after closing.
+
+        Usage sample:
+            with objstorage._write_obj_file(hex_obj_id):
+                f.write(obj_data)
+
+        Yields:
+            a file-like object open for writing bytes.
+        """
+        # Get the final paths and create the directory if absent.
+        dir = self.slicer.get_directory(hex_obj_id)
+        if not os.path.isdir(dir):
+            os.makedirs(dir, DIR_MODE, exist_ok=True)
+        path = os.path.join(dir, hex_obj_id)
+
+        # Create a temporary file.
+        (tmp, tmp_path) = tempfile.mkstemp(suffix=".tmp", prefix="hex_obj_id.", dir=dir)
+
+        # Open the file and yield it for writing.
+        tmp_f = os.fdopen(tmp, "wb")
+        yield tmp_f
+
+        # Make sure the contents of the temporary file are written to disk
+        tmp_f.flush()
+        if self.use_fdatasync:
+            os.fdatasync(tmp)
+        else:
+            os.fsync(tmp)
+
+        # Then close the temporary file and move it to the right path.
+        tmp_f.close()
+        os.chmod(tmp_path, FILE_MODE)
+        os.rename(tmp_path, path)
