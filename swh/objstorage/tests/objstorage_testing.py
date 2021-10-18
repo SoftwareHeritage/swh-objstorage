@@ -12,6 +12,18 @@ from swh.objstorage.objstorage import compute_hash
 
 
 class ObjStorageTestFixture:
+    num_objects = 1200
+
+    def fill_objstorage(self, num_objects):
+        all_ids = []
+        for i in range(num_objects):
+            content = b"content %d" % i
+            obj_id = compute_hash(content)
+            self.storage.add(content, obj_id, check_presence=False)
+            all_ids.append({"sha1": obj_id})
+        all_ids.sort(key=lambda d: d["sha1"])
+        return all_ids
+
     def test_types(self):
         """Checks all methods of ObjStorageInterface are implemented by this
         backend, and that they have the same signature."""
@@ -237,40 +249,50 @@ class ObjStorageTestFixture:
             self.assertIn(obj_id, self.storage)
 
     def test_content_iterator(self):
-        sto_obj_ids = iter(self.storage)
-        sto_obj_ids = list(sto_obj_ids)
+        sto_obj_ids = list(iter(self.storage))
         self.assertFalse(sto_obj_ids)
-
-        obj_ids = []
-        for i in range(100):
-            content, obj_id = self.hash_content(b"content %d" % i)
-            self.storage.add(content, obj_id=obj_id)
-            obj_ids.append({"sha1": obj_id})
+        obj_ids = self.fill_objstorage(self.num_objects)
 
         sto_obj_ids = list(self.storage)
-        self.assertCountEqual(sto_obj_ids, obj_ids)
+        assert len(sto_obj_ids) == len(obj_ids)
+        assert sto_obj_ids == obj_ids
 
-    def test_list_content(self):
-        all_ids = []
-        for i in range(1200):
-            content = b"example %d" % i
-            obj_id = compute_hash(content)
-            self.storage.add(content, obj_id)
-            all_ids.append({"sha1": obj_id})
-        all_ids.sort(key=lambda d: d["sha1"])
+    def test_list_content_all(self):
+        assert self.num_objects > 100
+        all_ids = self.fill_objstorage(self.num_objects)
 
-        ids = list(self.storage.list_content())
-        self.assertEqual(len(ids), 1200)
-        self.assertEqual(ids[0], all_ids[0])
-        self.assertEqual(ids[100], all_ids[100])
-        self.assertEqual(ids[999], all_ids[999])
+        ids = list(self.storage.list_content(limit=None))
+        assert len(ids) == len(all_ids)
+        assert ids == all_ids
+
+    def test_list_content_limit(self):
+        assert self.num_objects > 100
+        all_ids = self.fill_objstorage(self.num_objects)
 
         ids = list(self.storage.list_content(limit=10))
-        self.assertEqual(len(ids), 10)
-        self.assertEqual(ids[0], all_ids[0])
-        self.assertEqual(ids[9], all_ids[9])
+        assert len(ids) == 10
+        assert ids == all_ids[:10]
 
-        ids = list(self.storage.list_content(last_obj_id=all_ids[999], limit=100))
-        self.assertEqual(len(ids), 100)
-        self.assertEqual(ids[0], all_ids[1000])
-        self.assertEqual(ids[9], all_ids[1009])
+    def test_list_content_limit_and_last(self):
+        assert self.num_objects > 110
+        all_ids = self.fill_objstorage(self.num_objects)
+
+        id0 = self.num_objects - 105
+        ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
+        assert len(ids) == 100
+        assert ids == all_ids[id0 + 1 : id0 + 101]
+
+        # check proper behavior at the end of the range
+        id0 = self.num_objects - 51
+        ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
+        assert len(ids) == 50
+        assert ids == all_ids[-50:]
+
+        # check proper behavior after the end of the range
+        ids = list(self.storage.list_content(last_obj_id=all_ids[-1], limit=100))
+        assert not ids
+
+        ids = list(
+            self.storage.list_content(last_obj_id={"sha1": b"\xff" * 20}, limit=100)
+        )
+        assert not ids

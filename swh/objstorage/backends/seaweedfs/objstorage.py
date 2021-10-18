@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,12 +6,13 @@
 import io
 from itertools import islice
 import logging
-import os
 from typing import Iterator, Optional
+from urllib.parse import urlparse
 
 from typing_extensions import Literal
 
 from swh.model import hashutil
+from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
@@ -36,9 +37,13 @@ class SeaweedFilerObjStorage(ObjStorage):
 
     PRIMARY_HASH: Literal["sha1"] = "sha1"
 
-    def __init__(self, url, compression=None, **kwargs):
+    def __init__(self, url, compression=None, slicing="", **kwargs):
         super().__init__(**kwargs)
         self.wf = HttpFiler(url)
+        self.root_path = urlparse(url).path
+        if not self.root_path.endswith("/"):
+            self.root_path += "/"
+        self.slicer = PathSlicer(self.root_path, slicing)
         self.compression = compression
 
     def check_config(self, *, check_write):
@@ -59,13 +64,9 @@ class SeaweedFilerObjStorage(ObjStorage):
 
         You almost certainly don't want to use this method in production.
         """
-        obj_id = last_obj_id = None
-        while True:
-            for obj_id in self.list_content(last_obj_id=last_obj_id):
-                yield obj_id
-            if last_obj_id == obj_id:
-                break
-            last_obj_id = obj_id
+        for obj_id in self.list_content(limit=None):
+            assert obj_id
+            yield obj_id
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -100,7 +101,8 @@ class SeaweedFilerObjStorage(ObjStorage):
     def get(self, obj_id: ObjId) -> bytes:
         try:
             obj = self.wf.get(self._path(obj_id))
-        except Exception:
+        except Exception as exc:
+            LOGGER.info("Failed to get object %s: %r", self._path(obj_id), exc)
             raise ObjNotFoundError(obj_id)
 
         d = decompressors[self.compression]()
@@ -129,35 +131,27 @@ class SeaweedFilerObjStorage(ObjStorage):
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
         if last_obj_id:
-            objid = objid_to_default_hex(last_obj_id)
-            lastfilename = objid
+            objpath = self._path(last_obj_id)
+            startdir, lastfilename = objpath.rsplit("/", 1)
         else:
+            startdir = self.root_path
             lastfilename = None
-        for fname in islice(self.wf.iterfiles(last_file_name=lastfilename), limit):
+        for fname in islice(
+            self.wf.iterfiles(startdir, last_file_name=lastfilename), limit
+        ):
             bytehex = fname.rsplit("/", 1)[-1]
             yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(bytehex)}
 
     # internal methods
-    def _put_object(self, content, obj_id):
-        """Create an object in the cloud storage.
+    def _path(self, obj_id: ObjId):
+        """Compute the backend path for the given obj id
 
-        Created object will contain the content and be referenced by
-        the given id.
+        Given an object is, return the path part of the url to query the
+        backend seaweedfs filer service with, according the configured path
+        slicing.
 
         """
-
-        def compressor(data):
-            comp = compressors[self.compression]()
-            for chunk in data:
-                yield comp.compress(chunk)
-            yield comp.flush()
-
-        if isinstance(content, bytes):
-            content = [content]
-        self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
-
-    def _path(self, obj_id: ObjId):
-        return os.path.join(self.wf.basepath, objid_to_default_hex(obj_id))
+        return self.slicer.get_path(objid_to_default_hex(obj_id))
