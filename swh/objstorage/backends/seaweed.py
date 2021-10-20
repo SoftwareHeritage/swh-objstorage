@@ -4,7 +4,10 @@
 # See top-level LICENSE file for more information
 
 import io
+from itertools import islice
 import logging
+import os
+from typing import Iterator
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -26,53 +29,88 @@ LOGGER.setLevel(logging.ERROR)
 class WeedFiler(object):
     """Simple class that encapsulates access to a seaweedfs filer service.
 
+    Objects are expected to be in a single directory.
     TODO: handle errors
     """
 
     def __init__(self, url):
+        if not url.endswith("/"):
+            url = url + "/"
         self.url = url
+        self.baseurl = urljoin(url, "/")
+        self.basepath = urlparse(url).path
+
+        self.session = requests.Session()
+        self.session.headers["Accept"] = "application/json"
+
+        self.batchsize = DEFAULT_LIMIT
+
+    def build_url(self, path):
+        assert path == self.basepath or path.startswith(self.basepath)
+        return urljoin(self.baseurl, path)
 
     def get(self, remote_path):
-        url = urljoin(self.url, remote_path)
+        url = self.build_url(remote_path)
         LOGGER.debug("Get file %s", url)
-        resp = requests.get(url)
+        resp = self.session.get(url)
         resp.raise_for_status()
         return resp.content
 
     def exists(self, remote_path):
-        url = urljoin(self.url, remote_path)
+        url = self.build_url(remote_path)
         LOGGER.debug("Check file %s", url)
-        return requests.head(url).status_code == 200
+        return self.session.head(url).status_code == 200
 
     def put(self, fp, remote_path):
-        url = urljoin(self.url, remote_path)
+        url = self.build_url(remote_path)
         LOGGER.debug("Put file %s", url)
-        return requests.post(url, files={"file": fp})
+        return self.session.post(url, files={"file": fp})
 
     def delete(self, remote_path):
-        url = urljoin(self.url, remote_path)
+        url = self.build_url(remote_path)
         LOGGER.debug("Delete file %s", url)
-        return requests.delete(url)
+        return self.session.delete(url)
 
-    def list(self, dir, last_file_name=None, limit=DEFAULT_LIMIT):
-        """list sub folders and files of @dir. show a better look if you turn on
+    def iterfiles(self, last_file_name: str = "") -> Iterator[str]:
+        """yield absolute file names
 
-        returns a dict of "sub-folders and files"
+        Args:
+            last_file_name: if given, starts from the file just after; must
+                be basename.
+
+        Yields:
+            absolute file names
 
         """
-        d = dir if dir.endswith("/") else (dir + "/")
-        url = urljoin(self.url, d)
-        headers = {"Accept": "application/json"}
-        params = {"limit": limit}
+        for entry in self._iter_dir(last_file_name):
+            fullpath = entry["FullPath"]
+            if entry["Mode"] & 1 << 31:  # it's a directory, recurse
+                # see https://pkg.go.dev/io/fs#FileMode
+                yield from self.iterfiles(fullpath)
+            else:
+                yield fullpath
+
+    def _iter_dir(self, last_file_name: str = ""):
+        params = {"limit": self.batchsize}
         if last_file_name:
             params["lastFileName"] = last_file_name
 
-        LOGGER.debug("List directory %s", url)
-        rsp = requests.get(url, params=params, headers=headers)
-        if rsp.ok:
-            return rsp.json()
-        else:
-            LOGGER.error('Error listing "%s". [HTTP %d]' % (url, rsp.status_code))
+        LOGGER.debug("List directory %s", self.url)
+        while True:
+            rsp = self.session.get(self.url, params=params)
+            if rsp.ok:
+                dircontent = rsp.json()
+                if dircontent["Entries"]:
+                    yield from dircontent["Entries"]
+                if not dircontent["ShouldDisplayLoadMore"]:
+                    break
+                params["lastFileName"] = dircontent["LastFileName"]
+
+            else:
+                LOGGER.error(
+                    'Error listing "%s". [HTTP %d]' % (self.url, rsp.status_code)
+                )
+                break
 
 
 class WeedObjStorage(ObjStorage):
@@ -85,6 +123,8 @@ class WeedObjStorage(ObjStorage):
         super().__init__(**kwargs)
         self.wf = WeedFiler(url)
         self.root_path = urlparse(url).path
+        if not self.root_path.endswith("/"):
+            self.root_path += "/"
         self.compression = compression
 
     def check_config(self, *, check_write):
@@ -178,15 +218,13 @@ class WeedObjStorage(ObjStorage):
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         if last_obj_id:
-            last_obj_id = hashutil.hash_to_hex(last_obj_id)
-        resp = self.wf.list(self.root_path, last_obj_id, limit)
-        if resp is not None:
-            entries = resp["Entries"]
-            if entries:
-                for obj in entries:
-                    if obj is not None:
-                        bytehex = obj["FullPath"].rsplit("/", 1)[-1]
-                        yield hashutil.bytehex_to_hash(bytehex.encode())
+            objid = hashutil.hash_to_hex(last_obj_id)
+            lastfilename = objid
+        else:
+            lastfilename = None
+        for fname in islice(self.wf.iterfiles(last_file_name=lastfilename), limit):
+            bytehex = fname.rsplit("/", 1)[-1]
+            yield hashutil.bytehex_to_hash(bytehex.encode())
 
     # internal methods
     def _put_object(self, content, obj_id):
@@ -208,4 +246,4 @@ class WeedObjStorage(ObjStorage):
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
 
     def _path(self, obj_id):
-        return hashutil.hash_to_hex(obj_id)
+        return os.path.join(self.wf.basepath, hashutil.hash_to_hex(obj_id))
