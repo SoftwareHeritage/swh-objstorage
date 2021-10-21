@@ -10,7 +10,7 @@ from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
-from swh.objstorage.backends.seaweed import WeedObjStorage
+from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.objstorage import ID_HASH_LENGTH, ObjStorage  # noqa
@@ -22,7 +22,7 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "pathslicing": PathSlicingObjStorage,
     "remote": RemoteObjStorage,
     "memory": InMemoryObjStorage,
-    "seaweedfs": WeedObjStorage,
+    "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
 }
 
