@@ -1,10 +1,15 @@
 aiohttp>=3
 click
+requests
 swh.core[http]>=0.3
 swh.model>=0.0.27
 
 [testing]
-pytest
 apache-libcloud
-azure-storage-blob>=12.0
+azure-storage-blob!=12.9.0,>=12.0
+pytest
 python-cephlibs
+requests_mock[fixture]>=1.9
+requests_toolbelt
+types-pyyaml
+types-requests

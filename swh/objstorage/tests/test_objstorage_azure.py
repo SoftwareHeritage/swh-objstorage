@@ -1,9 +1,11 @@
-# Copyright (C) 2016-2020  The Software Heritage developers
+# Copyright (C) 2016-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
 import base64
+import collections
 from dataclasses import dataclass
 import unittest
 from unittest.mock import patch
@@ -26,12 +28,26 @@ class MockListedObject:
     name: str
 
 
+class MockAsyncDownloadClient:
+    def __init__(self, blob_data):
+        self.blob_data = blob_data
+
+    def content_as_bytes(self):
+        future = asyncio.Future()
+        future.set_result(self.blob_data)
+        return future
+
+
 class MockDownloadClient:
     def __init__(self, blob_data):
         self.blob_data = blob_data
 
     def content_as_bytes(self):
         return self.blob_data
+
+    def __await__(self):
+        yield from ()
+        return MockAsyncDownloadClient(self.blob_data)
 
 
 class MockBlobClient:
@@ -67,27 +83,43 @@ class MockBlobClient:
         del self.container.blobs[self.blob]
 
 
-class MockContainerClient:
-    def __init__(self, container_url):
-        self.container_url = container_url
-        self.blobs = {}
+def get_MockContainerClient():
+    blobs = collections.defaultdict(dict)  # {container_url: {blob_id: blob}}
 
-    @classmethod
-    def from_container_url(cls, container_url):
-        return cls(container_url)
+    class MockContainerClient:
+        def __init__(self, container_url):
+            self.container_url = container_url
+            self.blobs = blobs[self.container_url]
 
-    def get_container_properties(self):
-        return {"exists": True}
+        @classmethod
+        def from_container_url(cls, container_url):
+            return cls(container_url)
 
-    def get_blob_client(self, blob):
-        return MockBlobClient(self, blob)
+        def get_container_properties(self):
+            return {"exists": True}
 
-    def list_blobs(self):
-        for obj in sorted(self.blobs):
-            yield MockListedObject(obj)
+        def get_blob_client(self, blob):
+            return MockBlobClient(self, blob)
 
-    def delete_blob(self, blob):
-        self.get_blob_client(blob.name).delete_blob()
+        def list_blobs(self):
+            for obj in sorted(self.blobs):
+                yield MockListedObject(obj)
+
+        def delete_blob(self, blob):
+            self.get_blob_client(blob.name).delete_blob()
+
+        def __aenter__(self):
+            return self
+
+        def __await__(self):
+            future = asyncio.Future()
+            future.set_result(self)
+            yield from future
+
+        def __aexit__(self, *args):
+            return self
+
+    return MockContainerClient
 
 
 class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
@@ -95,8 +127,15 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        ContainerClient = get_MockContainerClient()
         patcher = patch(
-            "swh.objstorage.backends.azure.ContainerClient", MockContainerClient,
+            "swh.objstorage.backends.azure.ContainerClient", ContainerClient
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = patch(
+            "swh.objstorage.backends.azure.AsyncContainerClient", ContainerClient
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -161,8 +200,15 @@ class TestAzureCloudObjStorageBz2(TestAzureCloudObjStorage):
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
+        self.ContainerClient = get_MockContainerClient()
         patcher = patch(
-            "swh.objstorage.backends.azure.ContainerClient", MockContainerClient
+            "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = patch(
+            "swh.objstorage.backends.azure.AsyncContainerClient", self.ContainerClient
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -193,7 +239,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
             hex_obj_id = hash_to_hex(obj_id)
             prefix = hex_obj_id[0]
             self.assertTrue(
-                self.storage.prefixes[prefix]
+                self.ContainerClient(self.storage.container_urls[prefix])
                 .get_blob_client(hex_obj_id)
                 .get_blob_properties()
             )
@@ -231,7 +277,7 @@ def test_get_container_url():
 
 def test_bwcompat_args(monkeypatch):
     monkeypatch.setattr(
-        swh.objstorage.backends.azure, "ContainerClient", MockContainerClient,
+        swh.objstorage.backends.azure, "ContainerClient", get_MockContainerClient(),
     )
 
     with pytest.deprecated_call():
@@ -249,7 +295,7 @@ def test_bwcompat_args(monkeypatch):
 
 def test_bwcompat_args_prefixed(monkeypatch):
     monkeypatch.setattr(
-        swh.objstorage.backends.azure, "ContainerClient", MockContainerClient,
+        swh.objstorage.backends.azure, "ContainerClient", get_MockContainerClient(),
     )
 
     accounts = {

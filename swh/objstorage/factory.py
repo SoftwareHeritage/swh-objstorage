@@ -8,9 +8,10 @@ import warnings
 
 from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
+from swh.objstorage.backends.http import HTTPReadOnlyObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
-from swh.objstorage.backends.seaweed import WeedObjStorage
+from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.objstorage import ID_HASH_LENGTH, ObjStorage  # noqa
@@ -22,11 +23,13 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "pathslicing": PathSlicingObjStorage,
     "remote": RemoteObjStorage,
     "memory": InMemoryObjStorage,
-    "weed": WeedObjStorage,
+    "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
+    "http": HTTPReadOnlyObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {}
+_STORAGE_CLASSES_DEPRECATED = {"weed": "seaweedfs"}
 
 try:
     from swh.objstorage.backends.azure import (
@@ -75,6 +78,13 @@ def get_objstorage(cls: str, args=None, **kwargs):
         ValueError: if the given storage class is not a valid objstorage
             key.
     """
+    if cls in _STORAGE_CLASSES_DEPRECATED:
+        warnings.warn(
+            f"{cls} objstorage class is deprecated, "
+            f"use {_STORAGE_CLASSES_DEPRECATED[cls]} class instead.",
+            DeprecationWarning,
+        )
+        cls = _STORAGE_CLASSES_DEPRECATED[cls]
     if cls in _STORAGE_CLASSES:
         if args is not None:
             warnings.warn(
@@ -85,7 +95,6 @@ def get_objstorage(cls: str, args=None, **kwargs):
             # TODO: when removing this, drop the "args" backwards compatibility
             # from swh.objstorage.api.server configuration checker
             kwargs = args
-
         return _STORAGE_CLASSES[cls](**kwargs)
     else:
         raise ValueError(
