@@ -5,6 +5,7 @@
 # remote storage API server
 aiohttp >= 3
 click
+requests
 
 # optional dependencies
 # apache-libcloud
