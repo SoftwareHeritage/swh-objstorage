@@ -13,8 +13,8 @@ from requests.utils import get_encoding_from_headers
 import requests_mock
 from requests_mock.contrib import fixture
 
-from swh.objstorage.backends.seaweed import WeedObjStorage
 from swh.objstorage.exc import Error
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
@@ -130,7 +130,9 @@ class TestWeedObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = WeedObjStorage(url=self.url, compression=self.compression)
+        self.storage = get_objstorage(
+            cls="seaweedfs", url=self.url, compression=self.compression
+        )
         self.mock = FilerRequestsMock(baseurl=self.url)
 
     def test_compression(self):
