@@ -1,3 +1,14 @@
+swh-objstorage (0.3.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.3.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2021-10-21 14:26:40 +0200)
+  * Upstream changes:     - v0.3.0     - make azure's get_batch()
+    concurrent     - improve the seaweedfs backend; the cls has been
+    renamed as     - 'seaweedfs',     - add a simple read-only http-
+    based objstorage.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Oct 2021 12:40:37 +0000
+
 swh-objstorage (0.2.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.2.3     - (tagged by Antoine Lambert
