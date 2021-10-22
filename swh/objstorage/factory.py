@@ -46,13 +46,6 @@ except ImportError as e:
     _STORAGE_CLASSES_MISSING["azure-prefixed"] = e.args[0]
 
 try:
-    from swh.objstorage.backends.rados import RADOSObjStorage
-
-    _STORAGE_CLASSES["rados"] = RADOSObjStorage
-except ImportError as e:
-    _STORAGE_CLASSES_MISSING["rados"] = e.args[0]
-
-try:
     from swh.objstorage.backends.libcloud import (
         AwsCloudObjStorage,
         OpenStackCloudObjStorage,
