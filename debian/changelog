@@ -1,3 +1,9 @@
+swh-objstorage (0.3.0-1~swh2~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 22 Oct 2021 10:11:42 +0000
+
 swh-objstorage (0.3.0-1~swh2) unstable-swh; urgency=medium
 
   * Bump minimum version of python3-aiohttp and python3-swh.core.
