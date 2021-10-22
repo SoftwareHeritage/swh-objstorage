@@ -21,3 +21,21 @@ class ObjStorageAPIError(Exception):
     def __str__(self):
         args = self.args
         return "An unexpected error occurred in the api backend: %s" % args
+
+
+class ReadOnlyObjStorage(Error):
+    def __init__(self, method, *args):
+        super().__init__(*args)
+        self.method = method
+
+    def __str__(self):
+        return "This object storage is Read-Only: cannot use %s" % self.method
+
+
+class NonIterableObjStorage(Error):
+    def __init__(self, method, *args):
+        super().__init__(*args)
+        self.method = method
+
+    def __str__(self):
+        return "This object storage is not iterable: cannot use %s" % self.method

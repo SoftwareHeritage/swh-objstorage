@@ -1,13 +1,12 @@
-# Copyright (C) 2019  The Software Heritage developers
+# Copyright (C) 2019-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import io
+from itertools import islice
 import logging
-from urllib.parse import urljoin, urlparse
-
-import requests
+import os
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
@@ -19,70 +18,20 @@ from swh.objstorage.objstorage import (
     decompressors,
 )
 
+from .http import HttpFiler
+
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.ERROR)
 
 
-class WeedFiler(object):
-    """Simple class that encapsulates access to a seaweedfs filer service.
-
-    TODO: handle errors
-    """
-
-    def __init__(self, url):
-        self.url = url
-
-    def get(self, remote_path):
-        url = urljoin(self.url, remote_path)
-        LOGGER.debug("Get file %s", url)
-        return requests.get(url).content
-
-    def exists(self, remote_path):
-        url = urljoin(self.url, remote_path)
-        LOGGER.debug("Check file %s", url)
-        return requests.head(url).status_code == 200
-
-    def put(self, fp, remote_path):
-        url = urljoin(self.url, remote_path)
-        LOGGER.debug("Put file %s", url)
-        return requests.post(url, files={"file": fp})
-
-    def delete(self, remote_path):
-        url = urljoin(self.url, remote_path)
-        LOGGER.debug("Delete file %s", url)
-        return requests.delete(url)
-
-    def list(self, dir, last_file_name=None, limit=DEFAULT_LIMIT):
-        """list sub folders and files of @dir. show a better look if you turn on
-
-        returns a dict of "sub-folders and files"
-
-        """
-        d = dir if dir.endswith("/") else (dir + "/")
-        url = urljoin(self.url, d)
-        headers = {"Accept": "application/json"}
-        params = {"limit": limit}
-        if last_file_name:
-            params["lastFileName"] = last_file_name
-
-        LOGGER.debug("List directory %s", url)
-        rsp = requests.get(url, params=params, headers=headers)
-        if rsp.ok:
-            return rsp.json()
-        else:
-            LOGGER.error('Error listing "%s". [HTTP %d]' % (url, rsp.status_code))
-
-
-class WeedObjStorage(ObjStorage):
+class SeaweedFilerObjStorage(ObjStorage):
     """ObjStorage with seaweedfs abilities, using the Filer API.
 
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    def __init__(self, url="http://127.0.0.1:8888/swh", compression=None, **kwargs):
+    def __init__(self, url, compression=None, **kwargs):
         super().__init__(**kwargs)
-        self.wf = WeedFiler(url)
-        self.root_path = urlparse(url).path
+        self.wf = HttpFiler(url)
         self.compression = compression
 
     def check_config(self, *, check_write):
@@ -176,15 +125,13 @@ class WeedObjStorage(ObjStorage):
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         if last_obj_id:
-            last_obj_id = hashutil.hash_to_hex(last_obj_id)
-        resp = self.wf.list(self.root_path, last_obj_id, limit)
-        if resp is not None:
-            entries = resp["Entries"]
-            if entries:
-                for obj in entries:
-                    if obj is not None:
-                        bytehex = obj["FullPath"].rsplit("/", 1)[-1]
-                        yield hashutil.bytehex_to_hash(bytehex.encode())
+            objid = hashutil.hash_to_hex(last_obj_id)
+            lastfilename = objid
+        else:
+            lastfilename = None
+        for fname in islice(self.wf.iterfiles(last_file_name=lastfilename), limit):
+            bytehex = fname.rsplit("/", 1)[-1]
+            yield hashutil.bytehex_to_hash(bytehex.encode())
 
     # internal methods
     def _put_object(self, content, obj_id):
@@ -206,4 +153,4 @@ class WeedObjStorage(ObjStorage):
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
 
     def _path(self, obj_id):
-        return hashutil.hash_to_hex(obj_id)
+        return os.path.join(self.wf.basepath, hashutil.hash_to_hex(obj_id))

@@ -43,11 +43,14 @@ swh/objstorage/api/server.py
 swh/objstorage/backends/__init__.py
 swh/objstorage/backends/azure.py
 swh/objstorage/backends/generator.py
+swh/objstorage/backends/http.py
 swh/objstorage/backends/in_memory.py
 swh/objstorage/backends/libcloud.py
 swh/objstorage/backends/pathslicing.py
 swh/objstorage/backends/rados.py
-swh/objstorage/backends/seaweed.py
+swh/objstorage/backends/seaweedfs/__init__.py
+swh/objstorage/backends/seaweedfs/http.py
+swh/objstorage/backends/seaweedfs/objstorage.py
 swh/objstorage/multiplexer/__init__.py
 swh/objstorage/multiplexer/multiplexer_objstorage.py
 swh/objstorage/multiplexer/striping_objstorage.py
@@ -61,6 +64,7 @@ swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
 swh/objstorage/tests/test_objstorage_cloud.py
+swh/objstorage/tests/test_objstorage_http.py
 swh/objstorage/tests/test_objstorage_in_memory.py
 swh/objstorage/tests/test_objstorage_instantiation.py
 swh/objstorage/tests/test_objstorage_multiplexer.py
@@ -68,4 +72,5 @@ swh/objstorage/tests/test_objstorage_pathslicing.py
 swh/objstorage/tests/test_objstorage_random_generator.py
 swh/objstorage/tests/test_objstorage_seaweedfs.py
 swh/objstorage/tests/test_objstorage_striping.py
+swh/objstorage/tests/test_pathslicer.py
 swh/objstorage/tests/test_server.py
