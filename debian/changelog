@@ -1,3 +1,11 @@
+swh-objstorage (0.3.0-1~swh2) unstable-swh; urgency=medium
+
+  * Bump minimum version of python3-aiohttp and python3-swh.core.
+  * Add dependencies on python3-fixtures, python3-requests-mock and
+    pyrthon3-requests-toolbelt.
+
+ -- David Douard <david.douard@sdfa3.org>  Fri, 22 Oct 2021 12:02:48 +0200
+
 swh-objstorage (0.3.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.3.0     - (tagged by David Douard
