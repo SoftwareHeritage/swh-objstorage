@@ -1,4 +1,4 @@
-# Copyright (C) 2019  The Software Heritage developers
+# Copyright (C) 2019-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -113,3 +113,13 @@ def test_load_and_check_config(tmpdir, config):
     config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path)
     assert cfg == config
+
+
+@pytest.mark.parametrize(
+    "config", [pytest.param({"objstorage": {"cls": "noop",}}, id="noop",),],
+)
+def test_load_and_check_config_raise(tmpdir, config):
+    """pathslicing configuration fine loads ok"""
+    config_path = prepare_config_file(tmpdir, config)
+    with pytest.raises(EnvironmentError, match="not be used in production"):
+        load_and_check_config(config_path)

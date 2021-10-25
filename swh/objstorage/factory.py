@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2020  The Software Heritage developers
+# Copyright (C) 2016-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,6 +10,7 @@ from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
 from swh.objstorage.backends.http import HTTPReadOnlyObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
+from swh.objstorage.backends.noop import NoopObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
@@ -26,6 +27,7 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
     "http": HTTPReadOnlyObjStorage,
+    "noop": NoopObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {}
