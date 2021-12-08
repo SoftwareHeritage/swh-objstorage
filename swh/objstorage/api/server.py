@@ -255,9 +255,6 @@ def validate_config(cfg):
                 % (", ".join(missing_keys),)
             )
 
-    elif cls == "noop":
-        raise EnvironmentError("Noop implementations should not be used in production.")
-
     return cfg
 
 

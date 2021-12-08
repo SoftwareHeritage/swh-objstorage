@@ -106,6 +106,7 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
         pytest.param(
             {"client_max_size": "10", "objstorage": {"cls": "memory"}}, id="empty-args"
         ),
+        pytest.param({"objstorage": {"cls": "noop",}}, id="noop",),
     ],
 )
 def test_load_and_check_config(tmpdir, config):
@@ -113,13 +114,3 @@ def test_load_and_check_config(tmpdir, config):
     config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path)
     assert cfg == config
-
-
-@pytest.mark.parametrize(
-    "config", [pytest.param({"objstorage": {"cls": "noop",}}, id="noop",),],
-)
-def test_load_and_check_config_raise(tmpdir, config):
-    """pathslicing configuration fine loads ok"""
-    config_path = prepare_config_file(tmpdir, config)
-    with pytest.raises(EnvironmentError, match="not be used in production"):
-        load_and_check_config(config_path)
