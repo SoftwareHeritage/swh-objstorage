@@ -1,0 +1,31 @@
+- hosts: mon
+  gather_facts: no
+  become: true
+
+  tasks:
+
+    - name: scp context/ceph_key.*
+      copy:
+        src: "context/{{ item }}"
+        dest: "{{ item }}"
+      loop:
+        - ceph_key
+        - ceph_key.pub
+
+    - name: cephadm bootstrap
+      shell: |
+        set -ex
+        cephadm bootstrap --mon-ip {{ hostvars[groups['mon'][0]]['ansible_default_ipv4']['address'] }}
+        cephadm shell ceph cephadm clear-key
+        ceph config-key set mgr/cephadm/ssh_identity_key -i ceph_key
+        ceph config-key set mgr/cephadm/ssh_identity_pub -i ceph_key.pub
+        ceph orch apply osd --all-available-devices
+      args:
+        creates: /etc/ceph/ceph.pub
+
+    - name: cephadm shell ceph mgr fail
+      shell: |
+        set -ex
+        ceph config set mon mon_allow_pool_delete true
+        # does not work for some reason: must be done manually
+        cephadm shell ceph mgr fail # required for mgr/cephadm/ssh_identity* to be refreshed

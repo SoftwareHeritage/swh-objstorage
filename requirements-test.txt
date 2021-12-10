@@ -1,7 +1,11 @@
 apache-libcloud
 azure-storage-blob >= 12.0, != 12.9.0  # version 12.9.0 breaks mypy https://github.com/Azure/azure-sdk-for-python/pull/20891
 pytest
+pytest-asyncio
+pytest-mock
 requests_mock[fixture] >= 1.9
 requests_toolbelt
 types-pyyaml
 types-requests
+pytest-postgresql < 4.0.0  # version 4.0 depends on psycopg 3. https://github.com/ClearcodeHQ/pytest-postgresql/blob/main/CHANGES.rst#400
+

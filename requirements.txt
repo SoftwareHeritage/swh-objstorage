@@ -6,6 +6,8 @@
 aiohttp >= 3
 click
 requests
+psycopg2
+sh
 
 # optional dependencies
 # apache-libcloud
