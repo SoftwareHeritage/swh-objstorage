@@ -6,15 +6,16 @@
 
 import psycopg2
 
-from .database import Database
+from .database import Database, DatabaseAdmin
 
 
 class RWShard(Database):
     def __init__(self, name, **kwargs):
-        super().__init__(kwargs["shard_dsn"])
         self._name = name
-        self.create_database(self.name)
-        self.db = self.create_table(f"{self.dsn}/{self.name}")
+        DatabaseAdmin(kwargs["base_dsn"], self.name).create_database()
+        super().__init__(kwargs["shard_dsn"], self.name)
+        self.create_tables()
+        self.db = self.connect_database()
         self.size = self.total_size()
         self.limit = kwargs["shard_max_size"]
 
@@ -24,6 +25,10 @@ class RWShard(Database):
             del self.db
 
     @property
+    def lock(self):
+        return 452343  # an abitrary unique number
+
+    @property
     def name(self):
         return self._name
 
@@ -31,22 +36,18 @@ class RWShard(Database):
         return self.size > self.limit
 
     def drop(self):
-        self.drop_database(self.name)
+        DatabaseAdmin(self.dsn, self.dbname).drop_database()
 
-    def create_table(self, dsn):
-        db = psycopg2.connect(dsn)
-        db.autocommit = True
-        c = db.cursor()
-        c.execute(
+    @property
+    def database_tables(self):
+        return [
             """
         CREATE TABLE IF NOT EXISTS objects(
           key BYTEA PRIMARY KEY,
           content BYTEA
         )
-        """
-        )
-        c.close()
-        return db
+        """,
+        ]
 
     def total_size(self):
         with self.db.cursor() as c:

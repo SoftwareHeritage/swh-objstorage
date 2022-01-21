@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import abc
 from contextlib import contextmanager
 import logging
 import time
@@ -12,9 +13,10 @@ import psycopg2
 logger = logging.getLogger(__name__)
 
 
-class Database:
-    def __init__(self, dsn):
+class DatabaseAdmin:
+    def __init__(self, dsn, dbname=None):
         self.dsn = dsn
+        self.dbname = dbname
 
     @contextmanager
     def admin_cursor(self):
@@ -30,26 +32,26 @@ class Database:
         finally:
             c.close()
 
-    def create_database(self, database):
+    def create_database(self):
         with self.admin_cursor() as c:
             c.execute(
                 "SELECT datname FROM pg_catalog.pg_database "
-                f"WHERE datname = '{database}'"
+                f"WHERE datname = '{self.dbname}'"
             )
             if c.rowcount == 0:
                 try:
-                    c.execute(f"CREATE DATABASE {database}")
+                    c.execute(f"CREATE DATABASE {self.dbname}")
                 except psycopg2.errors.UniqueViolation:
                     # someone else created the database, it is fine
                     pass
 
-    def drop_database(self, database):
+    def drop_database(self):
         with self.admin_cursor() as c:
             c.execute(
                 "SELECT pg_terminate_backend(pg_stat_activity.pid)"
                 "FROM pg_stat_activity "
                 "WHERE pg_stat_activity.datname = %s;",
-                (database,),
+                (self.dbname,),
             )
             #
             # Dropping the database may fail because the server takes time
@@ -72,13 +74,13 @@ class Database:
             #
             for i in range(60):
                 try:
-                    c.execute(f"DROP DATABASE IF EXISTS {database}")
+                    c.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
                     return
                 except psycopg2.errors.ObjectInUse:
-                    logger.warning(f"{database} database drop fails, waiting 10s")
+                    logger.warning(f"{self.dbname} database drop fails, waiting 10s")
                     time.sleep(10)
                     continue
-            raise Exception(f"database drop failed on {database}")
+            raise Exception(f"database drop failed on {self.dbname}")
 
     def list_databases(self):
         with self.admin_cursor() as c:
@@ -87,3 +89,36 @@ class Database:
                 "WHERE datistemplate = false and datname != 'postgres'"
             )
             return [r[0] for r in c.fetchall()]
+
+
+class Database(abc.ABC):
+    def __init__(self, dsn, dbname):
+        self.dsn = dsn
+        self.dbname = dbname
+
+    @property
+    @abc.abstractmethod
+    def lock(self):
+        "Return an arbitrary unique number for pg_advisory_lock when creating tables"
+        raise NotImplementedError("Database.lock")
+
+    @property
+    @abc.abstractmethod
+    def database_tables(self):
+        "Return the list of CREATE TABLE statements for all tables in the database"
+        raise NotImplementedError("Database.database_tables")
+
+    def create_tables(self):
+        db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
+        db.autocommit = True
+        c = db.cursor()
+        c.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
+        for table in self.database_tables:
+            c.execute(table)
+        c.close()
+        db.close()  # so the pg_advisory_lock is released
+
+    def connect_database(self):
+        db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
+        db.autocommit = True
+        return db

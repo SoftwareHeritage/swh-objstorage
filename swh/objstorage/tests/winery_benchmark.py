@@ -34,6 +34,8 @@ class Worker(object):
             base_dsn=self.args["base_dsn"],
             shard_dsn=self.args["shard_dsn"],
             shard_max_size=self.args["shard_max_size"],
+            throttle_read=self.args["throttle_read"],
+            throttle_write=self.args["throttle_write"],
         )
         with self.storage.winery.base.db.cursor() as c:
             while True:
@@ -74,6 +76,8 @@ class Worker(object):
             base_dsn=self.args["base_dsn"],
             shard_dsn=self.args["shard_dsn"],
             shard_max_size=self.args["shard_max_size"],
+            throttle_read=self.args["throttle_read"],
+            throttle_write=self.args["throttle_write"],
         )
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")

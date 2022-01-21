@@ -7,28 +7,28 @@ import uuid
 
 import psycopg2
 
-from .database import Database
+from .database import Database, DatabaseAdmin
 
 
 class SharedBase(Database):
     def __init__(self, **kwargs):
-        super().__init__(kwargs["base_dsn"])
-        database = "sharedbase"
-        self.create_database(database)
-        self.db = self.create_table(f"{self.dsn}/{database}")
+        DatabaseAdmin(kwargs["base_dsn"], "sharedbase").create_database()
+        super().__init__(kwargs["base_dsn"], "sharedbase")
+        self.create_tables()
+        self.db = self.connect_database()
         self._whoami = None
 
     def uninit(self):
         self.db.close()
         del self.db
 
-    def create_table(self, dsn):
-        db = psycopg2.connect(dsn)
-        db.autocommit = True
-        c = db.cursor()
-        lock = 314116  # an abitrary unique number
-        c.execute("SELECT pg_advisory_lock(%s)", (lock,))
-        c.execute(
+    @property
+    def lock(self):
+        return 314116  # an abitrary unique number
+
+    @property
+    def database_tables(self):
+        return [
             """
         CREATE TABLE IF NOT EXISTS shards(
             id SERIAL PRIMARY KEY,
@@ -36,22 +36,15 @@ class SharedBase(Database):
             packing BOOLEAN NOT NULL,
             name CHAR(32) NOT NULL UNIQUE
         )
-        """
-        )
-        c.execute(
+        """,
             """
         CREATE TABLE IF NOT EXISTS signature2shard(
             signature BYTEA PRIMARY KEY,
             inflight BOOLEAN NOT NULL,
             shard INTEGER NOT NULL
         )
-        """
-        )
-        c.close()
-        db.close()  # so the pg_advisory_lock is released
-        db = psycopg2.connect(dsn)
-        db.autocommit = True
-        return db
+        """,
+        ]
 
     @property
     def whoami(self):

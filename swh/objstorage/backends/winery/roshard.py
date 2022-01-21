@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,6 +8,8 @@ import logging
 import sh
 
 from swh.perfecthash import Shard
+
+from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ class Pool(object):
 class ROShard:
     def __init__(self, name, **kwargs):
         self.pool = Pool(shard_max_size=kwargs["shard_max_size"])
+        self.throttler = Throttler(**kwargs)
         self.name = name
 
     def create(self, count):
@@ -71,4 +74,10 @@ class ROShard:
         return self.shard.load() == self.shard
 
     def get(self, key):
-        return self.shard.lookup(key)
+        return self.throttler.throttle_get(self.shard.lookup, key)
+
+    def add(self, content, obj_id):
+        return self.throttler.throttle_add(self.shard.write, obj_id, content)
+
+    def save(self):
+        return self.shard.save()

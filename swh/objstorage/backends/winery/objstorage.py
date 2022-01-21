@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -103,10 +103,10 @@ class Packer:
         self.rw.uninit()
 
     def run(self):
-        shard = self.ro.create(self.rw.count())
+        self.ro.create(self.rw.count())
         for obj_id, content in self.rw.all():
-            shard.write(obj_id, content)
-        shard.save()
+            self.ro.add(content, obj_id)
+        self.ro.save()
         base = SharedBase(**self.args)
         base.shard_packing_ends(self.shard)
         base.uninit()

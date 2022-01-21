@@ -33,3 +33,15 @@ def pytest_addoption(parser):
         help="Number of requests a ro worker performs",
         default=1,
     )
+    parser.addoption(
+        "--winery-bench-throttle-read",
+        type=int,
+        help="Maximum number of bytes per second read",
+        default=100 * 1024 * 1024,
+    )
+    parser.addoption(
+        "--winery-bench-throttle-write",
+        type=int,
+        help="Maximum number of bytes per second write",
+        default=100 * 1024 * 1024,
+    )

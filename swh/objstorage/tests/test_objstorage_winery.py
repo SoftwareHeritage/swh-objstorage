@@ -9,8 +9,14 @@ import pytest
 import sh
 
 from swh.objstorage import exc
-from swh.objstorage.backends.winery.database import Database
+from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import Packer, pack
+from swh.objstorage.backends.winery.throttler import (
+    BandwidthCalculator,
+    IOThrottler,
+    LeakyBucket,
+    Throttler,
+)
 from swh.objstorage.factory import get_objstorage
 
 from .winery_benchmark import Bench, work
@@ -49,7 +55,12 @@ def storage(request, postgresql):
         f":@{postgresql.info.host}:{postgresql.info.port}"
     )
     storage = get_objstorage(
-        cls="winery", base_dsn=dsn, shard_dsn=dsn, shard_max_size=shard_max_size
+        cls="winery",
+        base_dsn=dsn,
+        shard_dsn=dsn,
+        shard_max_size=shard_max_size,
+        throttle_write=200 * 1024 * 1024,
+        throttle_read=100 * 1024 * 1024,
     )
     yield storage
     storage.winery.uninit()
@@ -57,10 +68,10 @@ def storage(request, postgresql):
     # pytest-postgresql will not remove databases that it did not
     # create between tests (only at the very end).
     #
-    d = Database(dsn)
+    d = DatabaseAdmin(dsn)
     for database in d.list_databases():
         if database != postgresql.info.dbname and database != "tests_tmpl":
-            d.drop_database(database)
+            DatabaseAdmin(dsn, database).drop_database()
 
 
 @pytest.fixture
@@ -204,6 +215,8 @@ async def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
         "duration": pytestconfig.getoption("--winery-bench-duration"),
         "base_dsn": dsn,
         "shard_dsn": dsn,
+        "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
+        "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
     assert await Bench(kwargs).run() == kwargs["rw_workers"] + kwargs["ro_workers"]
 
@@ -222,3 +235,140 @@ async def test_winery_bench_fake(pytestconfig, mocker):
 
     mocker.patch("swh.objstorage.tests.winery_benchmark.Worker.run", side_effect=run)
     assert await Bench(kwargs).run() == kwargs["rw_workers"] + kwargs["ro_workers"]
+
+
+def test_winery_leaky_bucket_tick(mocker):
+    total = 100
+    half = 50
+    b = LeakyBucket(total)
+    sleep = mocker.spy(time, "sleep")
+    assert b.current == b.total
+    sleep.assert_not_called()
+    #
+    # Bucket is at 100, add(50) => drops to 50
+    #
+    b.add(half)
+    assert b.current == half
+    sleep.assert_not_called()
+    #
+    # Bucket is at 50, add(50) => drops to 0
+    #
+    b.add(half)
+    assert b.current == 0
+    sleep.assert_not_called()
+    #
+    # Bucket is at 0, add(50) => waits until it is at 50 and then drops to 0
+    #
+    b.add(half)
+    assert b.current == 0
+    sleep.assert_called_once()
+    #
+    # Sleep more than one second, bucket is full again, i.e. at 100
+    #
+    time.sleep(2)
+    mocker.resetall()
+    b.add(0)
+    assert b.current == total
+    sleep.assert_not_called()
+    #
+    # Bucket is full at 100 and and waits when requesting 150 which is
+    # more than it can contain
+    #
+    b.add(total + half)
+    assert b.current == 0
+    sleep.assert_called_once()
+    mocker.resetall()
+    #
+    # Bucket is empty and and waits when requesting 150 which is more
+    # than it can contain
+    #
+    b.add(total + half)
+    assert b.current == 0
+    sleep.assert_called_once()
+    mocker.resetall()
+
+
+def test_winery_leaky_bucket_reset():
+    b = LeakyBucket(100)
+    assert b.total == 100
+    assert b.current == b.total
+    b.reset(50)
+    assert b.total == 50
+    assert b.current == b.total
+    b.reset(100)
+    assert b.total == 100
+    assert b.current == 50
+
+
+def test_winery_bandwidth_calculator(mocker):
+    now = 1
+
+    def monotonic():
+        return now
+
+    mocker.patch("time.monotonic", side_effect=monotonic)
+    b = BandwidthCalculator()
+    assert b.get() == 0
+    count = 100 * 1024 * 1024
+    going_up = []
+    for t in range(b.duration):
+        now += 1
+        b.add(count)
+        going_up.append(b.get())
+    assert b.get() == count
+    going_down = []
+    for t in range(b.duration - 1):
+        now += 1
+        b.add(0)
+        going_down.append(b.get())
+    going_down.reverse()
+    assert going_up[:-1] == going_down
+    assert len(b.history) == b.duration - 1
+
+
+def test_winery_io_throttler(postgresql, mocker):
+    dsn = (
+        f"postgres://{postgresql.info.user}"
+        f":@{postgresql.info.host}:{postgresql.info.port}"
+    )
+    DatabaseAdmin(dsn, "throttler").create_database()
+    sleep = mocker.spy(time, "sleep")
+    speed = 100
+    i = IOThrottler("read", base_dsn=dsn, throttle_read=100)
+    count = speed
+    i.add(count)
+    sleep.assert_not_called()
+    i.add(count)
+    sleep.assert_called_once()
+    #
+    # Force slow down
+    #
+    mocker.resetall()
+    i.sync_interval = 0
+    i.max_speed = 1
+    assert i.max_speed != i.bucket.total
+    i.add(2)
+    assert i.max_speed == i.bucket.total
+    sleep.assert_called_once()
+
+
+def test_winery_throttler(postgresql):
+    dsn = (
+        f"postgres://{postgresql.info.user}"
+        f":@{postgresql.info.host}:{postgresql.info.port}"
+    )
+    t = Throttler(base_dsn=dsn, throttle_read=100, throttle_write=100)
+
+    base = {}
+    key = "KEY"
+    content = "CONTENT"
+
+    def reader(k):
+        return base[k]
+
+    def writer(k, v):
+        base[k] = v
+        return True
+
+    assert t.throttle_add(writer, key, content) is True
+    assert t.throttle_get(reader, key) == content

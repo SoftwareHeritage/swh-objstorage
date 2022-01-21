@@ -57,7 +57,7 @@ class PoolHelper(Pool):
             "m=2",
             "crush-failure-domain=host",
         )
-        self.ceph.osd.pool.create(data, "200", "erasure", data)
+        self.ceph.osd.pool.create(data, "100", "erasure", data)
         self.ceph.osd.pool.set(data, "allow_ec_overwrites", "true")
         self.ceph.osd.pool.set(data, "pg_autoscale_mode", "off")
         logger.info(f"ceph osd pool create {self.name}")
