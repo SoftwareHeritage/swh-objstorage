@@ -12,6 +12,7 @@ from swh.objstorage.objstorage import ObjStorage, compute_hash
 from .roshard import ROShard
 from .rwshard import RWShard
 from .sharedbase import SharedBase
+from .stats import Stats
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ def pack(shard, **kwargs):
 
 class Packer:
     def __init__(self, shard, **kwargs):
+        self.stats = Stats(kwargs.get("output_dir"))
         self.args = kwargs
         self.shard = shard
         self.init()
@@ -106,6 +108,9 @@ class Packer:
         self.ro.create(self.rw.count())
         for obj_id, content in self.rw.all():
             self.ro.add(content, obj_id)
+            if self.stats.stats_active:
+                self.stats.stats_read(obj_id, content)
+                self.stats.stats_write(obj_id, content)
         self.ro.save()
         base = SharedBase(**self.args)
         base.shard_packing_ends(self.shard)

@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,6 +10,9 @@ import os
 import random
 import time
 
+import psycopg2
+
+from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 
 logger = logging.getLogger(__name__)
@@ -19,8 +22,9 @@ def work(kind, args):
     return Worker(args).run(kind)
 
 
-class Worker(object):
+class Worker:
     def __init__(self, args):
+        self.stats = Stats(args.get("output_dir"))
         self.args = args
 
     def run(self, kind):
@@ -28,6 +32,14 @@ class Worker(object):
         return kind
 
     def ro(self):
+        try:
+            self._ro()
+        except psycopg2.OperationalError:
+            # It may happen when the database is dropped, just
+            # conclude the read loop gracefully and move on
+            pass
+
+    def _ro(self):
         self.storage = get_objstorage(
             cls="winery",
             readonly=True,
@@ -36,6 +48,7 @@ class Worker(object):
             shard_max_size=self.args["shard_max_size"],
             throttle_read=self.args["throttle_read"],
             throttle_write=self.args["throttle_write"],
+            output_dir=self.args.get("output_dir"),
         )
         with self.storage.winery.base.db.cursor() as c:
             while True:
@@ -52,7 +65,10 @@ class Worker(object):
             start = time.time()
             for row in c:
                 obj_id = row[0].tobytes()
-                assert self.storage.get(obj_id) is not None
+                content = self.storage.get(obj_id)
+                assert content is not None
+                if self.stats.stats_active:
+                    self.stats.stats_read(obj_id, content)
             elapsed = time.time() - start
             logger.info(f"Worker(ro, {os.getpid()}): finished ({elapsed:.2f}s)")
 
@@ -78,6 +94,7 @@ class Worker(object):
             shard_max_size=self.args["shard_max_size"],
             throttle_read=self.args["throttle_read"],
             throttle_write=self.args["throttle_write"],
+            output_dir=self.args.get("output_dir"),
         )
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")
@@ -86,7 +103,9 @@ class Worker(object):
         count = 0
         while len(self.storage.winery.packers) == 0:
             content = random_content.read(random.choice(self.payloads))
-            self.storage.add(content=content)
+            obj_id = self.storage.add(content=content)
+            if self.stats.stats_active:
+                self.stats.stats_write(obj_id, content)
             count += 1
         logger.info(f"Worker(rw, {os.getpid()}): packing {count} objects")
         packer = self.storage.winery.packers[0]

@@ -65,6 +65,20 @@ For each host found in context/ssh-config
 
 * ssh -i context/cluster_key -F context/ssh-config ceph1
 
+# Run the benchmarks
+
+The `tox -e winery` command is used to run the benchmarks with the desired parameters. Upon completion the raw data can be found in the `winery-test-environment/context/stats` directory and is displayed on the standard output as well as rendered in a graph, if a display is available (see the `winery-test-environment/render-stats.py` for the details).
+
+### Example
+
+* tox -e winery -- -s --log-cli-level=INFO -vvv -k test_winery_bench_real --winery-bench-duration 30  --winery-shard-max-size $((10 * 1024 * 1024)) --winery-bench-ro-worker-max-request 2000
+
+### Get all benchmark flags
+
+Run the following command and look for flags that start with `--winery-bench-`
+
+* tox -e winery -- --help
+
 # Destroy
 
 ## libvirt

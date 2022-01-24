@@ -21,7 +21,7 @@ class Pool(object):
         self.args = kwargs
         self.rbd = sh.sudo.bake("rbd", f"--pool={self.name}")
         self.ceph = sh.sudo.bake("ceph")
-        self.image_size = self.args["shard_max_size"] * 2
+        self.image_size = int((self.args["shard_max_size"] * 2) / (1024 * 1024))
 
     def image_list(self):
         try:

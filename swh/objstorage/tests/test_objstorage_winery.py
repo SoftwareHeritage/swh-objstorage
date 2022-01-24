@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import time
 
 import pytest
@@ -11,6 +12,7 @@ import sh
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import Packer, pack
+from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
     BandwidthCalculator,
     IOThrottler,
@@ -206,6 +208,7 @@ async def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
         f":@{postgresql.info.host}:{postgresql.info.port}"
     )
     kwargs = {
+        "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
         "rw_workers": pytestconfig.getoption("--winery-bench-rw-workers"),
         "ro_workers": pytestconfig.getoption("--winery-bench-ro-workers"),
         "shard_max_size": pytestconfig.getoption("--winery-shard-max-size"),
@@ -218,7 +221,8 @@ async def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
-    assert await Bench(kwargs).run() == kwargs["rw_workers"] + kwargs["ro_workers"]
+    count = await Bench(kwargs).run()
+    assert count > 0
 
 
 @pytest.mark.asyncio
@@ -372,3 +376,21 @@ def test_winery_throttler(postgresql):
 
     assert t.throttle_add(writer, key, content) is True
     assert t.throttle_get(reader, key) == content
+
+
+def test_winery_stats(tmpdir):
+    s = Stats(None)
+    assert s.stats_active is False
+    s = Stats(tmpdir / "stats")
+    assert s.stats_active is True
+    assert os.path.exists(s.stats_filename)
+    size = os.path.getsize(s.stats_filename)
+    s._stats_flush_interval = 0
+    k = "KEY"
+    v = "CONTENT"
+    s.stats_read(k, v)
+    s.stats_write(k, v)
+    s.stats_read(k, v)
+    s.stats_write(k, v)
+    s.__del__()
+    assert os.path.getsize(s.stats_filename) > size

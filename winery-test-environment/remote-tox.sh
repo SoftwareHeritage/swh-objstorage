@@ -16,16 +16,28 @@ function sanity_check() {
     fi
 }
 
-function copy() {
+function copy_to() {
     RSYNC_RSH="$SSH" rsync -av --exclude=.mypy_cache --exclude=.coverage --exclude=.eggs --exclude=swh.objstorage.egg-info --exclude=winery-test-environment/context --exclude=.tox --exclude='*~' --exclude=__pycache__ --exclude='*.py[co]' $(git rev-parse --show-toplevel)/ debian@ceph1:/home/debian/swh-objstorage/
+}
+
+function copy_from() {
+    RSYNC_RSH="$SSH" rsync -av --delete debian@ceph1:/tmp/winery/ ${DIR}/context/stats/
+}
+
+function render() {
+    python ${DIR}/render-stats.py ${DIR}/context/stats/
 }
 
 function run() {
     sanity_check || return 1
 
-    copy || return 1
+    copy_to || return 1
 
     $SSH -t debian@ceph1 bash -c "'cd swh-objstorage ; ../venv/bin/tox -e py3 -- -k test_winery $*'" || return 1
+
+    copy_from || return 1
+
+    render || return 1
 }
 
 run "$@"

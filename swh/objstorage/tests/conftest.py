@@ -4,6 +4,11 @@ def pytest_configure(config):
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--winery-bench-output-directory",
+        help="Directory in which the performance results are stored",
+        default="/tmp/winery",
+    )
+    parser.addoption(
         "--winery-bench-rw-workers",
         type=int,
         help="Number of Read/Write workers",
