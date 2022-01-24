@@ -9,7 +9,6 @@
     - name: Add the user 'debian'
       user:
         name: debian
-        group: debian
 
     - name: Allow 'debian' group to have passwordless sudo
       lineinfile:

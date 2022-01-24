@@ -15,6 +15,7 @@ function ssh_key() {
     if ! test -f cluster_key; then
 	ssh-keygen -f cluster_key -N '' -t rsa
     fi
+    chmod 600 cluster_key
 }
 
 function stop() {
