@@ -6,8 +6,9 @@
 import logging
 from multiprocessing import Process
 
+from swh.model import hashutil
 from swh.objstorage import exc
-from swh.objstorage.objstorage import ObjStorage, compute_hash
+from swh.objstorage.objstorage import ObjStorage
 
 from .roshard import ROShard
 from .rwshard import RWShard
@@ -15,6 +16,11 @@ from .sharedbase import SharedBase
 from .stats import Stats
 
 logger = logging.getLogger(__name__)
+
+
+def compute_hash(content):
+    algo = "sha256"
+    return hashutil.MultiHash.from_data(content, hash_names=[algo],).digest().get(algo)
 
 
 class WineryObjStorage(ObjStorage):
@@ -63,10 +69,16 @@ class WineryBase:
 
 
 class WineryReader(WineryBase):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.shards = {}
+
     def roshard(self, name):
-        shard = ROShard(name, **self.args)
-        shard.load()
-        return shard
+        if name not in self.shards:
+            shard = ROShard(name, **self.args)
+            shard.load()
+            self.shards[name] = shard
+        return self.shards[name]
 
     def get(self, obj_id):
         shard_info = self.base.get(obj_id)

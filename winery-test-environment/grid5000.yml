@@ -39,11 +39,14 @@
   tasks:
 
     # do that before lvm gets a chance to investigate and get the wrong idea
-    # about /dev/sdc on grid5000 because there surely will be leftovers from
+    # about /dev/disk2 on grid5000 because there surely will be leftovers from
     # whoever used the machine last
-    - name: zap /dev/sdc
+    - name: clear leftovers from the disk to be used for OSDs
       shell: |
-        dd if=/dev/zero of=/dev/sdc count=100 bs=1024k
+        dd if=/dev/zero of=/dev/disk2 count=100 bs=1024k
+        touch /etc/dd.done
+      args:
+        creates: /etc/dd.done
 
 - hosts: all
   become: true

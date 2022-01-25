@@ -96,7 +96,10 @@ def test_winery_add_get(winery):
     shard = winery.base.whoami
     content = b"SOMETHING"
     obj_id = winery.add(content=content)
-    assert obj_id.hex() == "0c8c841f7d9fd4874d841506d3ffc16808b1d579"
+    assert (
+        obj_id.hex()
+        == "866878b165607851782d8d233edf0c261172ff67926330d3bbd10c705b92d24f"
+    )
     assert winery.add(content=content, obj_id=obj_id) == obj_id
     assert winery.add(content=content, obj_id=obj_id, check_presence=False) == obj_id
     assert winery.base.whoami == shard
@@ -112,7 +115,10 @@ def test_winery_add_and_pack(winery, mocker):
     shard = winery.base.whoami
     content = b"SOMETHING"
     obj_id = winery.add(content=content)
-    assert obj_id.hex() == "0c8c841f7d9fd4874d841506d3ffc16808b1d579"
+    assert (
+        obj_id.hex()
+        == "866878b165607851782d8d233edf0c261172ff67926330d3bbd10c705b92d24f"
+    )
     assert winery.base.whoami != shard
     assert len(winery.packers) == 1
     packer = winery.packers[0]

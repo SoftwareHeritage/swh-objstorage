@@ -33,8 +33,8 @@
 
     # the desired side effect here is twofold
     # * device zap blocks until the osd daemon is ready on the target host
-    # * on grid5000 /dev/sdc needs to be applied
-    - name: zap /dev/sdc
+    # * on grid5000 /dev/disk2 needs to be applied
+    - name: zap /dev/disk2
       shell: |
-        ceph orch device zap {{ inventory_hostname }} /dev/sdc --force || true
+        ceph orch device zap {{ inventory_hostname }} /dev/disk2 --force || true
       delegate_to: ceph1
