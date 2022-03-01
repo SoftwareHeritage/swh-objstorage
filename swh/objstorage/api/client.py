@@ -71,12 +71,7 @@ class RemoteObjStorage:
     # Streaming methods
 
     def add_stream(self, content_iter, obj_id, check_presence=True):
-        obj_id = hashutil.hash_to_hex(obj_id)
-        return self._proxy.post_stream(
-            "content/add_stream/{}".format(obj_id),
-            params={"check_presence": check_presence},
-            data=content_iter,
-        )
+        raise NotImplementedError
 
     def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
         obj_id = hashutil.hash_to_hex(obj_id)

@@ -95,7 +95,5 @@ class HttpFiler:
                 params["lastFileName"] = dircontent["LastFileName"]
 
             else:
-                LOGGER.error(
-                    'Error listing "%s". [HTTP %d]', self.url, rsp.status_code
-                )
+                LOGGER.error('Error listing "%s". [HTTP %d]', self.url, rsp.status_code)
                 break

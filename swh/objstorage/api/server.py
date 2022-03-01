@@ -3,14 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import json
 import os
 
 import aiohttp.web
 
 from swh.core.api.asynchronous import RPCServerApp, decode_request
 from swh.core.api.asynchronous import encode_data_server as encode_data
-from swh.core.api.serializers import SWHJSONDecoder, msgpack_loads
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
 from swh.model import hashutil
@@ -106,39 +104,6 @@ async def get_random_contents(request):
 
 
 @timed
-async def add_stream(request):
-    hex_id = request.match_info["hex_id"]
-    obj_id = hashutil.hash_to_bytes(hex_id)
-    check_pres = request.query.get("check_presence", "").lower() == "true"
-    objstorage = request.app["objstorage"]
-
-    if check_pres and obj_id in objstorage:
-        return encode_data(obj_id)
-
-    # XXX this really should go in a decode_stream_request coroutine in
-    # swh.core, but since py35 does not support async generators, it cannot
-    # easily be made for now
-    content_type = request.headers.get("Content-Type")
-    if content_type == "application/x-msgpack":
-        decode = msgpack_loads
-    elif content_type == "application/json":
-        decode = lambda x: json.loads(x, cls=SWHJSONDecoder)  # noqa
-    else:
-        raise ValueError("Wrong content type `%s` for API request" % content_type)
-
-    buffer = b""
-    with objstorage.chunk_writer(obj_id) as write:
-        while not request.content.at_eof():
-            data, eot = await request.content.readchunk()
-            buffer += data
-            if eot:
-                write(decode(buffer))
-                buffer = b""
-
-    return encode_data(obj_id)
-
-
-@timed
 async def get_stream(request):
     hex_id = request.match_info["hex_id"]
     obj_id = hashutil.hash_to_bytes(hex_id)
@@ -188,7 +153,6 @@ def make_app(config):
     app.router.add_route("POST", "/content/check", check)
     app.router.add_route("POST", "/content/delete", delete)
     app.router.add_route("GET", "/content", list_content)
-    app.router.add_route("POST", "/content/add_stream/{hex_id}", add_stream)
     app.router.add_route("GET", "/content/get_stream/{hex_id}", get_stream)
     return app
 

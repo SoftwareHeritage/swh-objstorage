@@ -335,6 +335,22 @@ class PathSlicingObjStorage(ObjStorage):
             f.write(compressor.flush())
 
     def add_stream(self, content_iter, obj_id, check_presence=True):
+        """Add a new object to the object storage using streaming.
+
+        This function is identical to add() except it takes a generator that
+        yields the chunked content instead of the whole content at once.
+
+        Args:
+            content (bytes): chunked generator that yields the object's raw
+                content to add in storage.
+            obj_id (bytes): object identifier
+            check_presence (bool): indicate if the presence of the
+                content should be verified before adding the file.
+
+        Returns:
+            the id (bytes) of the object into the storage.
+
+        """
         if check_presence and obj_id in self:
             return obj_id
 
