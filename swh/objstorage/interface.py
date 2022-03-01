@@ -3,11 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Dict
+
+from typing_extensions import Protocol, runtime_checkable
+
 from swh.core.api import remote_api_endpoint
 from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
 
 
-class ObjStorageInterface:
+@runtime_checkable
+class ObjStorageInterface(Protocol):
     """ High-level API to manipulate the Software Heritage object storage.
 
     Conceptually, the object storage offers the following methods:
@@ -80,7 +85,7 @@ class ObjStorageInterface:
         ...
 
     @remote_api_endpoint("content/add/batch")
-    def add_batch(self, contents, check_presence=True):
+    def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage.
 
         Args:

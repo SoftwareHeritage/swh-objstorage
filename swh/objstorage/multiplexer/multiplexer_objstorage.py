@@ -6,6 +6,7 @@
 import queue
 import random
 import threading
+from typing import Dict
 
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.objstorage import ObjStorage
@@ -251,7 +252,7 @@ class MultiplexerObjStorage(ObjStorage):
                 continue
             return result
 
-    def add_batch(self, contents, check_presence=True):
+    def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage.
 
         """

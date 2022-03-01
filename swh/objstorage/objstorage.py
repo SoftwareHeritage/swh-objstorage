@@ -83,11 +83,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def __contains__(self, obj_id, *args, **kwargs):
+    def __contains__(self, obj_id):
         pass
 
     @abc.abstractmethod
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id=None, check_presence=True):
         pass
 
     def add_batch(self, contents, check_presence=True) -> Dict:
@@ -100,15 +100,15 @@ class ObjStorage(metaclass=abc.ABCMeta):
             summary["object:add:bytes"] += len(content)
         return summary
 
-    def restore(self, content, obj_id=None, *args, **kwargs):
+    def restore(self, content, obj_id=None):
         # check_presence to false will erase the potential previous content.
         return self.add(content, obj_id, check_presence=False)
 
     @abc.abstractmethod
-    def get(self, obj_id, *args, **kwargs):
+    def get(self, obj_id):
         pass
 
-    def get_batch(self, obj_ids, *args, **kwargs):
+    def get_batch(self, obj_ids):
         for obj_id in obj_ids:
             try:
                 yield self.get(obj_id)
@@ -116,17 +116,17 @@ class ObjStorage(metaclass=abc.ABCMeta):
                 yield None
 
     @abc.abstractmethod
-    def check(self, obj_id, *args, **kwargs):
+    def check(self, obj_id):
         pass
 
     @abc.abstractmethod
-    def delete(self, obj_id, *args, **kwargs):
+    def delete(self, obj_id):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
 
     # Management methods
 
-    def get_random(self, batch_size, *args, **kwargs):
+    def get_random(self, batch_size):
         pass
 
     # Streaming methods
