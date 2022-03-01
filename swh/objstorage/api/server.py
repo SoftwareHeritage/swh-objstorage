@@ -11,6 +11,7 @@ from swh.core.api.asynchronous import RPCServerApp, decode_request
 from swh.core.api.asynchronous import encode_data_server as encode_data
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
+from swh.core.utils import grouper
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
@@ -124,8 +125,10 @@ async def list_content(request):
     response = aiohttp.web.StreamResponse()
     response.enable_chunked_encoding()
     await response.prepare(request)
-    for obj_id in request.app["objstorage"].list_content(last_obj_id, limit=limit):
-        await response.write(obj_id)
+    for group in grouper(
+        request.app["objstorage"].list_content(last_obj_id, limit=limit), 100
+    ):
+        await response.write(b"".join(group))
     await response.write_eof()
     return response
 
