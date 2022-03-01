@@ -4,9 +4,12 @@
 # See top-level LICENSE file for more information
 
 from swh.core.api import RPCClient
+from swh.core.utils import iter_chunks
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
 from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
+
+SHA1_SIZE = 20
 
 
 class RemoteObjStorage:
@@ -80,10 +83,12 @@ class RemoteObjStorage:
         )
 
     def __iter__(self):
-        yield from self._proxy.get_stream("content")
+        yield from self.list_content()
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         params = {"limit": limit}
         if last_obj_id:
             params["last_obj_id"] = hashutil.hash_to_hex(last_obj_id)
-        yield from self._proxy.get_stream("content", params=params)
+        yield from iter_chunks(
+            self._proxy.get_stream("content", params=params), chunk_size=SHA1_SIZE
+        )
