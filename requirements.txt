@@ -3,7 +3,6 @@
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 
 # remote storage API server
-aiohttp >= 3
 click
 requests
 psycopg2

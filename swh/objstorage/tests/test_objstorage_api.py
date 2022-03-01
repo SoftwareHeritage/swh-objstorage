@@ -9,15 +9,13 @@ import unittest
 
 import pytest
 
-from swh.core.api.tests.server_testing import ServerTestFixtureAsync
-from swh.objstorage.api.server import make_app
+from swh.core.api.tests.server_testing import ServerTestFixture
+from swh.objstorage.api.server import app
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 
-class TestRemoteObjStorage(
-    ServerTestFixtureAsync, ObjStorageTestFixture, unittest.TestCase
-):
+class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.TestCase):
     """ Test the remote archive API.
     """
 
@@ -33,7 +31,7 @@ class TestRemoteObjStorage(
             "client_max_size": 8 * 1024 * 1024,
         }
 
-        self.app = make_app(self.config)
+        self.app = app
         super().setUp()
         self.storage = get_objstorage("remote", {"url": self.url()})
 
