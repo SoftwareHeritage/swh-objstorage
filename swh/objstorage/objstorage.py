@@ -15,9 +15,18 @@ from swh.model import hashutil
 from .exc import ObjNotFoundError
 
 ID_HASH_ALGO = "sha1"
-ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
-DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024  # Size in bytes of the streaming chunks
+
+ID_HEXDIGEST_LENGTH = 40
+"""Size in bytes of the hash hexadecimal representation."""
+
+ID_DIGEST_LENGTH = 20
+"""Size in bytes of the hash"""
+
+DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024
+"""Size in bytes of the streaming chunks"""
+
 DEFAULT_LIMIT = 10000
+"""Default number of results of ``list_content``."""
 
 
 def compute_hash(content):

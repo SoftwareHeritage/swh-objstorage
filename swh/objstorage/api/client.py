@@ -8,9 +8,11 @@ from swh.core.utils import iter_chunks
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
-
-SHA1_SIZE = 20
+from swh.objstorage.objstorage import (
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_LIMIT,
+    ID_DIGEST_LENGTH,
+)
 
 
 class RemoteObjStorage(RPCClient):
@@ -50,5 +52,5 @@ class RemoteObjStorage(RPCClient):
         if last_obj_id:
             params["last_obj_id"] = hashutil.hash_to_hex(last_obj_id)
         yield from iter_chunks(
-            self._get_stream("content", params=params), chunk_size=SHA1_SIZE
+            self._get_stream("content", params=params), chunk_size=ID_DIGEST_LENGTH
         )

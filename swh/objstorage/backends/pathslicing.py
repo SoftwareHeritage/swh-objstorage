@@ -17,7 +17,7 @@ from swh.objstorage.objstorage import (
     DEFAULT_CHUNK_SIZE,
     DEFAULT_LIMIT,
     ID_HASH_ALGO,
-    ID_HASH_LENGTH,
+    ID_HEXDIGEST_LENGTH,
     ObjStorage,
     compressors,
     compute_hash,
@@ -74,7 +74,7 @@ class PathSlicer:
             max_char = max(
                 max(bound.start or 0, bound.stop or 0) for bound in self.bounds
             )
-            if ID_HASH_LENGTH < max_char:
+            if ID_HEXDIGEST_LENGTH < max_char:
                 raise ValueError(
                     "Algorithm %s has too short hash for slicing to char %d"
                     % (ID_HASH_ALGO, max_char)
@@ -119,7 +119,7 @@ class PathSlicer:
             a list.
         """
 
-        assert len(hex_obj_id) == ID_HASH_LENGTH
+        assert len(hex_obj_id) == ID_HEXDIGEST_LENGTH
         return [hex_obj_id[bound] for bound in self.bounds]
 
     def __len__(self) -> int:
