@@ -14,6 +14,9 @@ override_dh_install:
 		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/azure.py \
 		   $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/libcloud.py \
 		   $(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
+		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.winery/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
+		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/winery \
+		   $(CURDIR)/debian/python3-swh.objstorage.winery/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
 	done
 
 override_dh_auto_test:

@@ -34,7 +34,6 @@ Homepage: https://forge.softwareheritage.org/source/swh-objstorage
 Package: python3-swh.objstorage
 Architecture: all
 Depends:
- python3-aiohttp (>= 2.1.0),
  python3-swh.core (>= 0.0.65~),
  python3-swh.model (>= 0.0.27~),
  ${misc:Depends},
@@ -49,6 +48,19 @@ Depends:
  python3-azure-storage (>= 20200130~),
  python3-libcloud,
  python3-swh.objstorage (= ${binary:Version}),
+ ${misc:Depends},
+ ${python3:Depends},
+Breaks:
+ python3-swh.objstorage (<= 0.0.7~),
+Description: Software Heritage Cloud Object Storage
+
+Package: python3-swh.objstorage.winery
+Architecture: all
+Depends:
+ python3-psycopg2,
+ python3-sh,
+ python3-swh.objstorage (= ${binary:Version}),
+ python3-swh.perfecthash,
  ${misc:Depends},
  ${python3:Depends},
 Breaks:
