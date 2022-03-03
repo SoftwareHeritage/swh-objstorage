@@ -1,3 +1,14 @@
+swh-objstorage (1.0.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.0.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2022-03-03 11:31:33 +0100)
+  * Upstream changes:     - Release swh.objstorage 1.0     - Land the
+    winery objstorage     - Remove the add_stream method from the RPC
+    service     - Migrate the RPC service away from aiohttp     -
+    Cleanup constants in swh.objstorage.objstorage
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 03 Mar 2022 10:38:48 +0000
+
 swh-objstorage (0.3.0-1~swh2) unstable-swh; urgency=medium
 
   * Bump minimum version of python3-aiohttp and python3-swh.core.
