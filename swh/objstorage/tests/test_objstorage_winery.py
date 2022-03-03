@@ -20,6 +20,7 @@ from swh.objstorage.backends.winery.throttler import (
     Throttler,
 )
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.utils import call_async
 
 from .winery_benchmark import Bench, work
 from .winery_testing_helpers import PoolHelper, SharedBaseHelper
@@ -207,8 +208,7 @@ def test_winery_bench_work(winery, ceph_pool, tmpdir):
     assert work("ro", winery.args) == "ro"
 
 
-@pytest.mark.asyncio
-async def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
+def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
     dsn = (
         f"postgres://{postgresql.info.user}"
         f":@{postgresql.info.host}:{postgresql.info.port}"
@@ -227,12 +227,11 @@ async def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
-    count = await Bench(kwargs).run()
+    count = call_async(Bench(kwargs).run)
     assert count > 0
 
 
-@pytest.mark.asyncio
-async def test_winery_bench_fake(pytestconfig, mocker):
+def test_winery_bench_fake(pytestconfig, mocker):
     kwargs = {
         "rw_workers": pytestconfig.getoption("--winery-bench-rw-workers"),
         "ro_workers": pytestconfig.getoption("--winery-bench-ro-workers"),
@@ -244,7 +243,7 @@ async def test_winery_bench_fake(pytestconfig, mocker):
         return kind
 
     mocker.patch("swh.objstorage.tests.winery_benchmark.Worker.run", side_effect=run)
-    assert await Bench(kwargs).run() == kwargs["rw_workers"] + kwargs["ro_workers"]
+    assert call_async(Bench(kwargs).run) == kwargs["rw_workers"] + kwargs["ro_workers"]
 
 
 def test_winery_leaky_bucket_tick(mocker):
