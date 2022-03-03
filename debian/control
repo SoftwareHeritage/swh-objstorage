@@ -23,7 +23,6 @@ Build-Depends:
  python3-swh.core (>= 0.3),
  python3-swh.model (>= 0.0.27),
  python3-swh.perfecthash (>= 0.1.2),
- python3-typeshed,
  python3-typing-extensions,
 # The above dependencies are automatically generated; add manual ones below
  python3-fixtures,
