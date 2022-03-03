@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 export PYBUILD_NAME=swh.objstorage
+export PYBUILD_TEST_ARGS=-vv
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
@@ -10,12 +11,9 @@ override_dh_install:
 	rm -v $(CURDIR)/debian/python3-*/usr/lib/python*/dist-packages/swh/__init__.py
 	set -e; for pyvers in $(shell py3versions -vr); do \
 		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
-		mkdir -p $(CURDIR)/debian/python3-swh.objstorage.rados/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
 		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/azure.py \
 		   $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/libcloud.py \
 		   $(CURDIR)/debian/python3-swh.objstorage.cloud/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
-		mv $(CURDIR)/debian/python3-swh.objstorage/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends/rados.py \
-		   $(CURDIR)/debian/python3-swh.objstorage.rados/usr/lib/python$$pyvers/dist-packages/swh/objstorage/backends ; \
 	done
 
 override_dh_auto_test:

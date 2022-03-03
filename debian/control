@@ -2,51 +2,48 @@ Source: swh-objstorage
 Maintainer: Software Heritage developers <swh-devel@inria.fr>
 Section: python
 Priority: optional
-Build-Depends: debhelper (>= 9),
-               dh-python (>= 2),
-               python3-aiohttp (>= 3),
-               python3-all,
-               python3-azure-storage (>= 20200130~),
-               python3-click,
-               python3-flask,
-               python3-fixtures,
-               python3-libcloud,
-               python3-pytest,
-               python3-requests-mock,
-               python3-requests-toolbelt,
-               python3-setuptools,
-               python3-setuptools-scm,
-               python3-sh,
-               python3-swh.core (>= 0.3~),
-               python3-swh.model (>= 0.0.27~)
+Build-Depends:
+ debhelper (>= 9),
+ dh-python (>= 2),
+ python3-all,
+ python3-azure-storage (>= 20200130~),
+ python3-click,
+ python3-fixtures,
+ python3-flask,
+ python3-libcloud,
+ python3-pytest,
+ python3-pytest-postgresql,
+ python3-requests-mock,
+ python3-requests-toolbelt,
+ python3-setuptools,
+ python3-setuptools-scm,
+ python3-sh,
+ python3-swh.core (>= 0.3~),
+ python3-swh.model (>= 0.0.27~),
+ python3-swh.perfecthash,
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DOBJS/
 
 Package: python3-swh.objstorage
 Architecture: all
-Depends: python3-aiohttp (>= 2.1.0),
-         python3-swh.core (>= 0.0.65~),
-         python3-swh.model (>= 0.0.27~),
-         ${misc:Depends},
-         ${python3:Depends}
-Breaks: python3-swh.archiver (<< 0.0.3~)
+Depends:
+ python3-aiohttp (>= 2.1.0),
+ python3-swh.core (>= 0.0.65~),
+ python3-swh.model (>= 0.0.27~),
+ ${misc:Depends},
+ ${python3:Depends},
+Breaks:
+ python3-swh.archiver (<< 0.0.3~),
 Description: Software Heritage Object Storage
 
 Package: python3-swh.objstorage.cloud
 Architecture: all
-Depends: python3-azure-storage (>= 20200130~),
-         python3-libcloud,
-         python3-swh.objstorage (= ${binary:Version}),
-         ${misc:Depends},
-         ${python3:Depends}
-Breaks: python3-swh.objstorage (<= 0.0.7~)
+Depends:
+ python3-azure-storage (>= 20200130~),
+ python3-libcloud,
+ python3-swh.objstorage (= ${binary:Version}),
+ ${misc:Depends},
+ ${python3:Depends},
+Breaks:
+ python3-swh.objstorage (<= 0.0.7~),
 Description: Software Heritage Cloud Object Storage
-
-Package: python3-swh.objstorage.rados
-Architecture: all
-Depends: python3-rados,
-         python3-swh.objstorage (= ${binary:Version}),
-         ${misc:Depends},
-         ${python3:Depends}
-Breaks: python3-swh.objstorage (<= 0.0.25~)
-Description: Software Heritage Object Storage based on RADOS
