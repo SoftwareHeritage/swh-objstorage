@@ -3,7 +3,7 @@
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 
 click
-typing-extensions
+typing-extensions >= 3.7.4
 
 # seaweedfs backend
 requests
