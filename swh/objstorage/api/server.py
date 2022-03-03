@@ -119,6 +119,9 @@ def list_content():
     return app.response_class(generate())
 
 
+api_cfg = None
+
+
 def load_and_check_config(config_file):
     """Check the minimal configuration is set to run the api or raise an
        error explanation.
@@ -188,8 +191,11 @@ def make_app_from_configfile():
     """Load configuration and then build application to run
 
     """
-    config_file = os.environ.get("SWH_CONFIG_FILENAME")
-    app.config = load_and_check_config(config_file)
+    global api_cfg
+    if not api_cfg:
+        config_path = os.environ.get("SWH_CONFIG_FILENAME")
+        api_cfg = load_and_check_config(config_path)
+        app.config.update(api_cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
     return app
