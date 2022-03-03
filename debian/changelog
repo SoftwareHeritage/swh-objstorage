@@ -1,8 +1,11 @@
-swh-objstorage (1.0.4-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (1.0.5-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.0.5     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2022-03-03 19:56:38 +0100)
+  * Upstream changes:     - Release swh.objstorage v1.0.5     - Avoid
+    iterating on the whole objstorage at each RPC call...
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 03 Mar 2022 17:58:40 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 03 Mar 2022 19:00:54 +0000
 
 swh-objstorage (1.0.4-1~swh1) unstable-swh; urgency=medium
 

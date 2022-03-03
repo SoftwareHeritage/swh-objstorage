@@ -43,7 +43,7 @@ def timed_context(f_name):
 
 def get_objstorage():
     global objstorage
-    if not objstorage:
+    if objstorage is None:
         objstorage = get_swhobjstorage(**app.config["objstorage"])
 
     return objstorage
