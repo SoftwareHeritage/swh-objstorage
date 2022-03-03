@@ -2,13 +2,8 @@
 # should match https://pypi.python.org/pypi names. For the full spec or
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 
-# remote storage API server
 click
-requests
-psycopg2
-sh
 typing-extensions
 
-# optional dependencies
-# apache-libcloud
-# azure-storage-blob >= 12.0
+# seaweedfs backend
+requests

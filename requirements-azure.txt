@@ -1,0 +1,1 @@
+azure-storage-blob >= 12.0, != 12.9.0  # version 12.9.0 breaks mypy https://github.com/Azure/azure-sdk-for-python/pull/20891
