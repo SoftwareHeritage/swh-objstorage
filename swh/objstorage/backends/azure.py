@@ -27,6 +27,7 @@ from swh.objstorage.objstorage import (
     compute_hash,
     decompressors,
 )
+from swh.objstorage.utils import call_async
 
 
 def get_container_url(
@@ -74,16 +75,6 @@ def get_container_url(
     )
 
     return f"https://{account_name}.blob.core.windows.net/{container_name}?{signature}"
-
-
-def call_async(f, *args):
-    """Calls an async coroutine from a synchronous function."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(f(*args))
-    finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
 
 
 class AzureCloudObjStorage(ObjStorage):
