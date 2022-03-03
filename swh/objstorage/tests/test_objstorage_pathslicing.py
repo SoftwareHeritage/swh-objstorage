@@ -11,7 +11,7 @@ from unittest.mock import DEFAULT, patch
 from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import ID_HASH_LENGTH
+from swh.objstorage.objstorage import ID_DIGEST_LENGTH
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -86,7 +86,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             all_ids.append(obj_id)
         all_ids.sort()
 
-        ids = list(self.storage.iter_from(b"\x00" * (ID_HASH_LENGTH // 2)))
+        ids = list(self.storage.iter_from(b"\x00" * ID_DIGEST_LENGTH))
         self.assertEqual(len(ids), len(all_ids))
         self.assertEqual(ids, all_ids)
 

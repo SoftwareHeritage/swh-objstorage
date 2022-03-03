@@ -24,13 +24,13 @@ class InMemoryObjStorage(ObjStorage):
     def check_config(self, *, check_write):
         return True
 
-    def __contains__(self, obj_id, *args, **kwargs):
+    def __contains__(self, obj_id):
         return obj_id in self.state
 
     def __iter__(self):
         return iter(sorted(self.state))
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id=None, check_presence=True):
         if obj_id is None:
             obj_id = compute_hash(content)
 
@@ -41,20 +41,20 @@ class InMemoryObjStorage(ObjStorage):
 
         return obj_id
 
-    def get(self, obj_id, *args, **kwargs):
+    def get(self, obj_id):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         return self.state[obj_id]
 
-    def check(self, obj_id, *args, **kwargs):
+    def check(self, obj_id):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
         if compute_hash(self.state[obj_id]) != obj_id:
             raise Error("Corrupt object %s" % obj_id)
         return True
 
-    def delete(self, obj_id, *args, **kwargs):
+    def delete(self, obj_id):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)

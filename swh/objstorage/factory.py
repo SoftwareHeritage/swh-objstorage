@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2020  The Software Heritage developers
+# Copyright (C) 2016-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,11 +10,13 @@ from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.backends.generator import RandomGeneratorObjStorage
 from swh.objstorage.backends.http import HTTPReadOnlyObjStorage
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
+from swh.objstorage.backends.noop import NoopObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
+from swh.objstorage.backends.winery import WineryObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
-from swh.objstorage.objstorage import ID_HASH_LENGTH, ObjStorage  # noqa
+from swh.objstorage.objstorage import ID_HEXDIGEST_LENGTH, ObjStorage  # noqa
 
 __all__ = ["get_objstorage", "ObjStorage"]
 
@@ -26,6 +28,8 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
     "http": HTTPReadOnlyObjStorage,
+    "winery": WineryObjStorage,
+    "noop": NoopObjStorage,
 }
 
 _STORAGE_CLASSES_MISSING = {}
@@ -42,13 +46,6 @@ try:
 except ImportError as e:
     _STORAGE_CLASSES_MISSING["azure"] = e.args[0]
     _STORAGE_CLASSES_MISSING["azure-prefixed"] = e.args[0]
-
-try:
-    from swh.objstorage.backends.rados import RADOSObjStorage
-
-    _STORAGE_CLASSES["rados"] = RADOSObjStorage
-except ImportError as e:
-    _STORAGE_CLASSES_MISSING["rados"] = e.args[0]
 
 try:
     from swh.objstorage.backends.libcloud import (

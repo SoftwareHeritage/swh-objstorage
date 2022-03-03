@@ -4,13 +4,45 @@
 # See top-level LICENSE file for more information
 
 from collections.abc import Iterator
+import inspect
 import time
 
 from swh.objstorage import exc
+from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash
 
 
 class ObjStorageTestFixture:
+    def test_types(self):
+        """Checks all methods of ObjStorageInterface are implemented by this
+        backend, and that they have the same signature."""
+        # Create an instance of the protocol (which cannot be instantiated
+        # directly, so this creates a subclass, then instantiates it)
+        interface = type("_", (ObjStorageInterface,), {})()
+
+        assert "get_batch" in dir(interface)
+
+        missing_methods = []
+
+        for meth_name in dir(interface):
+            if meth_name.startswith("_"):
+                continue
+            interface_meth = getattr(interface, meth_name)
+            concrete_meth = getattr(self.storage, meth_name)
+
+            expected_signature = inspect.signature(interface_meth)
+            actual_signature = inspect.signature(concrete_meth)
+
+            assert expected_signature == actual_signature, meth_name
+
+        assert missing_methods == []
+
+        # If all the assertions above succeed, then this one should too.
+        # But there's no harm in double-checking.
+        # And we could replace the assertions above by this one, but unlike
+        # the assertions above, it doesn't explain what is missing.
+        assert isinstance(self.storage, ObjStorageInterface)
+
     def hash_content(self, content):
         obj_id = compute_hash(content)
         return content, obj_id

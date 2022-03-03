@@ -48,7 +48,15 @@ setup(
     install_requires=parse_requirements() + parse_requirements("swh"),
     setup_requires=["setuptools-scm"],
     use_scm_version=True,
-    extras_require={"testing": parse_requirements("test")},
+    extras_require={
+        "testing": parse_requirements("test")
+        + parse_requirements("azure")
+        + parse_requirements("libcloud")
+        + parse_requirements("winery"),
+        "azure": parse_requirements("azure"),
+        "libcloud": parse_requirements("libcloud"),
+        "winery": parse_requirements("winery"),
+    },
     include_package_data=True,
     entry_points="""
         [swh.cli.subcommands]

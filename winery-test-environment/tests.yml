@@ -1,0 +1,32 @@
+- name: install test environment
+  gather_facts: no
+  hosts: mon
+
+  pre_tasks:
+
+    - name: apt install
+      apt:
+        name:
+          - emacs-nox
+          - gcc
+          - libcap-dev
+          - libcmph-dev
+          - libpq-dev
+          - postgresql-client-common
+          - postgresql-13
+          - python3-pip
+          - python3-rbd
+          - rsync
+          - tmux
+          - virtualenv
+      become: true
+
+    - name: configure venv
+      shell: |
+        virtualenv venv
+        venv/bin/pip3 install tox
+      args:
+        creates: venv
+        chdir: /home/debian
+      become: true
+      become_user: debian

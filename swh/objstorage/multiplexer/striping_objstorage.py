@@ -5,6 +5,7 @@
 
 from collections import defaultdict
 import queue
+from typing import Dict
 
 from swh.objstorage.multiplexer.multiplexer_objstorage import (
     MultiplexerObjStorage,
@@ -49,16 +50,16 @@ class StripingObjStorage(MultiplexerObjStorage):
         for i in range(self.num_storages):
             yield self.storage_threads[(idx + i) % self.num_storages]
 
-    def add_batch(self, contents, check_presence=True):
+    def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage.
 
         """
-        content_by_storage_index = defaultdict(dict)
+        content_by_storage_index: Dict[bytes, Dict] = defaultdict(dict)
         for obj_id, content in contents.items():
             storage_index = self.get_storage_index(obj_id)
             content_by_storage_index[storage_index][obj_id] = content
 
-        mailbox = queue.Queue()
+        mailbox: queue.Queue[Dict] = queue.Queue()
         for storage_index, contents in content_by_storage_index.items():
             self.storage_threads[storage_index].queue_command(
                 "add_batch", contents, check_presence=check_presence, mailbox=mailbox,
