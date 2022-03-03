@@ -1,8 +1,8 @@
-swh-objstorage (1.0.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (1.0.1-2~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Drop typeshed build-dependency
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 03 Mar 2022 13:07:36 +0000
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 03 Mar 2022 14:19:41 +0100
 
 swh-objstorage (1.0.1-1~swh1) unstable-swh; urgency=medium
 
