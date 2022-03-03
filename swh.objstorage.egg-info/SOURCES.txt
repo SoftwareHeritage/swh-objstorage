@@ -10,8 +10,11 @@ README.md
 mypy.ini
 pyproject.toml
 pytest.ini
+requirements-azure.txt
+requirements-libcloud.txt
 requirements-swh.txt
 requirements-test.txt
+requirements-winery.txt
 requirements.txt
 setup.cfg
 setup.py
