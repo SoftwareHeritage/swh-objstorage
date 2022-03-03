@@ -1,8 +1,11 @@
 apache-libcloud
 azure-storage-blob >= 12.0, != 12.9.0  # version 12.9.0 breaks mypy https://github.com/Azure/azure-sdk-for-python/pull/20891
-pytest
-python-cephlibs
+pytest < 7.0.0  # v7.0.0 removed _pytest.tmpdir.TempdirFactory, which is used by some of the pytest plugins we use
+pytest-asyncio
+pytest-mock
 requests_mock[fixture] >= 1.9
 requests_toolbelt
 types-pyyaml
 types-requests
+pytest-postgresql < 4.0.0  # version 4.0 depends on psycopg 3. https://github.com/ClearcodeHQ/pytest-postgresql/blob/main/CHANGES.rst#400
+

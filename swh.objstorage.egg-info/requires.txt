@@ -1,15 +1,20 @@
-aiohttp>=3
 click
 requests
+psycopg2
+sh
+typing-extensions
 swh.core[http]>=0.3
 swh.model>=0.0.27
+swh.perfecthash>=0.1.2
 
 [testing]
 apache-libcloud
 azure-storage-blob!=12.9.0,>=12.0
-pytest
-python-cephlibs
+pytest<7.0.0
+pytest-asyncio
+pytest-mock
 requests_mock[fixture]>=1.9
 requests_toolbelt
 types-pyyaml
 types-requests
+pytest-postgresql<4.0.0

@@ -66,20 +66,24 @@ cli = objstorage_cli_group
     show_default=True,
     help="Binding port of the server",
 )
+@click.option(
+    "--debug/--no-debug",
+    default=True,
+    help="Indicates if the server should run in debug mode",
+)
 @click.pass_context
-def serve(ctx, host, port):
+def serve(ctx, host, port, debug):
     """Run a standalone objstorage server.
 
     This is not meant to be run on production systems.
     """
-    import aiohttp.web
+    from swh.objstorage.api.server import app, validate_config
 
-    from swh.objstorage.api.server import make_app, validate_config
-
-    app = make_app(validate_config(ctx.obj["config"]))
-    if ctx.obj["log_level"] == "DEBUG":
-        app.update(debug=True)
-    aiohttp.web.run_app(app, host=host, port=int(port))
+    if "log_level" in ctx.obj:
+        logging.getLogger("werkzeug").setLevel(ctx.obj["log_level"])
+    validate_config(ctx.obj["config"])
+    app.config.update(ctx.obj["config"])
+    app.run(host, port=int(port), debug=bool(debug))
 
 
 @objstorage_cli_group.command("import")

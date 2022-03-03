@@ -1,0 +1,13 @@
+---
+ceph:
+  children:
+    mon:
+    osd:
+
+mon:
+  hosts:
+    ceph1:
+
+rw:
+  hosts:
+    ceph2:

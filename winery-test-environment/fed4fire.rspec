@@ -1,0 +1,59 @@
+<?xml version='1.0'?>
+<rspec xmlns="http://www.geni.net/resources/rspec/3" type="request" generated_by="jFed RSpec Editor" generated="2021-12-12T13:02:49.068+01:00" xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" xmlns:delay="http://www.protogeni.net/resources/rspec/ext/delay/1" xmlns:jfed-command="http://jfed.iminds.be/rspec/ext/jfed-command/1" xmlns:client="http://www.protogeni.net/resources/rspec/ext/client/1" xmlns:jfed-ssh-keys="http://jfed.iminds.be/rspec/ext/jfed-ssh-keys/1" xmlns:jfed="http://jfed.iminds.be/rspec/ext/jfed/1" xmlns:sharedvlan="http://www.protogeni.net/resources/rspec/ext/shared-vlan/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geni.net/resources/rspec/3 http://www.geni.net/resources/rspec/3/request.xsd ">
+  <node client_id="ceph1" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="58.0" y="93.0"/>
+  </node>
+  <node client_id="ceph2" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="158.0" y="93.0"/>
+  </node>
+  <node client_id="ceph3" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="258.0" y="93.0"/>
+  </node>
+  <node client_id="ceph4" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="358.0" y="93.0"/>
+  </node>
+  <node client_id="ceph5" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="458.0" y="93.0"/>
+  </node>
+  <node client_id="ceph6" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="58.0" y="193.0"/>
+  </node>
+  <node client_id="ceph7" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="158.0" y="193.0"/>
+  </node>
+  <node client_id="ceph8" exclusive="true" component_manager_id="urn:publicid:IDN+am.grid5000.fr+authority+am">
+    <sliver_type name="raw-pc">
+      <disk_image name="urn:publicid:IDN+am.grid5000.fr+image+kadeploy3:debian11-x64-base"/>
+    </sliver_type>
+    <hardware_type name="dahu-grenoble"/>
+    <location xmlns="http://jfed.iminds.be/rspec/ext/jfed/1" x="258.0" y="193.0"/>
+  </node>
+</rspec>

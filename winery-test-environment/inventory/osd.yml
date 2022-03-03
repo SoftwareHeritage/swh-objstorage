@@ -1,0 +1,9 @@
+---
+osd:
+  hosts:
+    ceph3:
+    ceph4:
+    ceph5:
+    ceph6:
+    ceph7:
+    ceph8:
