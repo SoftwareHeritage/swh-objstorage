@@ -42,6 +42,7 @@ swh/objstorage/factory.py
 swh/objstorage/interface.py
 swh/objstorage/objstorage.py
 swh/objstorage/py.typed
+swh/objstorage/utils.py
 swh/objstorage/api/__init__.py
 swh/objstorage/api/client.py
 swh/objstorage/api/server.py
