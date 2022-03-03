@@ -13,7 +13,6 @@ from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.backends.noop import NoopObjStorage
 from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
-from swh.objstorage.backends.winery import WineryObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.objstorage import ID_HEXDIGEST_LENGTH, ObjStorage  # noqa
@@ -28,7 +27,6 @@ _STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
     "seaweedfs": SeaweedFilerObjStorage,
     "random": RandomGeneratorObjStorage,
     "http": HTTPReadOnlyObjStorage,
-    "winery": WineryObjStorage,
     "noop": NoopObjStorage,
 }
 
@@ -58,6 +56,13 @@ try:
 except ImportError as e:
     _STORAGE_CLASSES_MISSING["s3"] = e.args[0]
     _STORAGE_CLASSES_MISSING["swift"] = e.args[0]
+
+try:
+    from swh.objstorage.backends.winery import WineryObjStorage
+
+    _STORAGE_CLASSES["winery"] = WineryObjStorage
+except ImportError as e:
+    _STORAGE_CLASSES_MISSING["winery"] = e.args[0]
 
 
 def get_objstorage(cls: str, args=None, **kwargs):
