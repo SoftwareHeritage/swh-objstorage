@@ -1,0 +1,81 @@
+# https://www.grid5000.fr/w/Docker#Using_docker-cache.grid5000.fr
+
+- hosts: mon
+  gather_facts: no
+  become: true
+
+  tasks:
+
+    - name: Add the user 'debian'
+      user:
+        name: debian
+
+    - name: Allow 'debian' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^%debian'
+        line: '%debian ALL=(ALL) NOPASSWD: ALL'
+        validate: visudo -cf %s
+
+    - name: mkdir /home/debian/.ssh
+      file:
+        path: /home/debian/.ssh
+        state: directory
+        mode: 0700
+        owner: debian
+        group: debian
+
+
+    - name: copy authorized_keys to /home/debian
+      shell: |
+        cp /root/.ssh/authorized_keys /home/debian/.ssh/authorized_keys
+        chown debian:debian /home/debian/.ssh/authorized_keys
+        chmod 0600 /home/debian/.ssh/authorized_keys
+
+- hosts: osd
+  become: true
+
+  tasks:
+
+    # do that before lvm gets a chance to investigate and get the wrong idea
+    # about /dev/disk2 on grid5000 because there surely will be leftovers from
+    # whoever used the machine last
+    - name: clear leftovers from the disk to be used for OSDs
+      shell: |
+        dd if=/dev/zero of=/dev/disk2 count=100 bs=1024k
+        touch /etc/dd.done
+      args:
+        creates: /etc/dd.done
+
+- hosts: all
+  become: true
+
+  pre_tasks:
+
+    - name: mkdir /etc/docker
+      file:
+        path: /etc/docker
+        state: directory
+        mode: 755
+
+  roles:
+    - geerlingguy.docker
+
+  tasks:
+
+    - name: docker cache
+      copy:
+        content: |
+          {
+            "registry-mirrors": [
+              "http://docker-cache.grid5000.fr"
+            ],
+            "bip": "192.168.42.1/24"
+          }
+        dest: /etc/docker/daemon.json
+
+    - name: systemctl restart docker
+      service:
+        name: docker
+        state: restarted

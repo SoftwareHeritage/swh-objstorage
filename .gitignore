@@ -11,3 +11,6 @@ dist
 version.txt
 .tox
 .mypy_cache/
+winery-test-environment/context
+
+

@@ -108,3 +108,9 @@ def test_http_objstorage_not_iterable():
         len(sto_front)
     with pytest.raises(exc.NonIterableObjStorage):
         iter(sto_front)
+
+
+def test_http_cannonical_url():
+    url = "http://127.0.0.1/content"
+    sto = get_objstorage(cls="http", url=url)
+    assert sto.root_path == url + "/"

@@ -1,4 +1,2 @@
-
-        [swh.cli.subcommands]
-        objstorage=swh.objstorage.cli
-    
+[swh.cli.subcommands]
+objstorage = swh.objstorage.cli

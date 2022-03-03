@@ -1,0 +1,93 @@
+#
+# notes to install a client
+#  https://docs.ceph.com/en/latest/cephadm/client-setup/
+#  ceph config generate-minimal-conf > /etc/ceph/ceph.conf
+#  ceph auth get-or-create client.admin > /etc/ceph/ceph.keyring
+#
+- hosts: localhost
+  gather_facts: false
+
+  pre_tasks:
+
+    - name: keygen ceph_key
+      shell: |
+        mkdir -p context
+        ssh-keygen -f context/ceph_key -N '' -t rsa
+      args:
+        creates: context/ceph_key
+
+- hosts: all
+  become: true
+
+  pre_tasks:
+
+    - name: mkdir /root/.ssh
+      file:
+        path: /root/.ssh
+        state: directory
+        mode: 0700
+
+    - name: touch /root/.ssh/authorized_keys
+      file:
+        path: /root/.ssh/authorized_keys
+        state: touch
+
+    - name: add context/ceph_key.pub to /root/.ssh/authorized_keys
+      lineinfile:
+        path: /root/.ssh/authorized_keys
+        line: "{{ lookup('file', 'context/ceph_key.pub') }}"
+
+    - name: apt install
+      apt:
+        name:
+          - htop
+          - iotop
+          - iftop
+          - iperf
+
+- hosts: ceph
+  become: true
+
+  pre_tasks:
+
+    - name: apt install lvm2 curl gnupg2
+      apt:
+        name:
+          - lvm2
+          - curl
+          - gnupg2
+
+    - name: apt-key https://download.ceph.com/keys/release.asc
+      apt_key:
+        url: https://download.ceph.com/keys/release.asc
+
+    - name: add repository
+      apt_repository:
+        repo: "deb https://download.ceph.com/debian-pacific/ bullseye main"
+        filename: ceph
+
+    - name: apt install cephadm ceph-common
+      apt:
+        name:
+          - cephadm
+          - ceph-common
+
+  roles:
+    - geerlingguy.docker
+
+- hosts: all
+  become: true
+  # so that lineinfile does not race against itself
+  serial: 1
+
+  tasks:
+
+    - name: "add {{ inventory_hostname }} to /etc/hosts"
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }} {{ inventory_hostname }}"
+      delegate_to: ceph1
+
+    - name: set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"

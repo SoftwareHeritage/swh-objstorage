@@ -1,0 +1,40 @@
+---
+- hosts: osd
+  gather_facts: no
+  become: true
+
+  tasks:
+
+    - name: add host
+      shell: |
+        ceph orch host add {{ inventory_hostname }}
+      delegate_to: ceph1
+
+- hosts: osd
+  gather_facts: no
+  become: true
+
+  tasks:
+
+    - name: wait for host
+      shell: |
+        ceph orch host ls | grep '^{{ inventory_hostname }} '
+      delegate_to: ceph1
+      register: host
+      until: host is success
+      retries: 30
+      delay: 5
+
+- hosts: osd
+  gather_facts: no
+  become: true
+
+  tasks:
+
+    # the desired side effect here is twofold
+    # * device zap blocks until the osd daemon is ready on the target host
+    # * on grid5000 /dev/disk2 needs to be applied
+    - name: zap /dev/disk2
+      shell: |
+        ceph orch device zap {{ inventory_hostname }} /dev/disk2 --force || true
+      delegate_to: ceph1
