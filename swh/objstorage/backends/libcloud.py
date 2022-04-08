@@ -124,7 +124,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             return True
 
     def __iter__(self):
-        """ Iterate over the objects present in the storage
+        """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
         may have bad efficiency: due to the very high amount of objects in it
@@ -242,18 +242,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
 
 class AwsCloudObjStorage(CloudObjStorage):
-    """ Amazon's S3 Cloud-based object storage
-
-    """
+    """Amazon's S3 Cloud-based object storage"""
 
     def _get_provider(self):
         return Provider.S3
 
 
 class OpenStackCloudObjStorage(CloudObjStorage):
-    """ OpenStack Swift Cloud based object storage
-
-    """
+    """OpenStack Swift Cloud based object storage"""
 
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT

@@ -81,7 +81,7 @@ class PathSlicer:
                 )
 
     def get_directory(self, hex_obj_id: str) -> str:
-        """ Compute the storage directory of an object.
+        """Compute the storage directory of an object.
 
         See also: PathSlicer::get_path
 
@@ -95,7 +95,7 @@ class PathSlicer:
         return os.path.join(self.root, *self.get_slices(hex_obj_id))
 
     def get_path(self, hex_obj_id: str) -> str:
-        """ Compute the full path to an object into the current storage.
+        """Compute the full path to an object into the current storage.
 
         See also: PathSlicer::get_directory
 
@@ -258,7 +258,9 @@ class PathSlicingObjStorage(ObjStorage):
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             out = d.decompress(f.read())
         if d.unused_data:
-            raise Error("Corrupt object %s: trailing data found" % hex_obj_id,)
+            raise Error(
+                "Corrupt object %s: trailing data found" % hex_obj_id,
+            )
 
         return out
 
@@ -267,7 +269,9 @@ class PathSlicingObjStorage(ObjStorage):
             data = self.get(obj_id)
         except OSError:
             hex_obj_id = hashutil.hash_to_hex(obj_id)
-            raise Error("Corrupt object %s: not a proper compressed file" % hex_obj_id,)
+            raise Error(
+                "Corrupt object %s: not a proper compressed file" % hex_obj_id,
+            )
 
         checksums = hashutil.MultiHash.from_data(
             data, hash_names=[ID_HASH_ALGO]
@@ -298,7 +302,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def get_random(self, batch_size):
         def get_random_content(self, batch_size):
-            """ Get a batch of content inside a single directory.
+            """Get a batch of content inside a single directory.
 
             Returns:
                 a tuple (batch size, batch).
@@ -407,7 +411,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     @contextmanager
     def _write_obj_file(self, hex_obj_id):
-        """ Context manager for writing object files to the object storage.
+        """Context manager for writing object files to the object storage.
 
         During writing, data are written to a temporary file, which is atomically
         renamed to the right file name after closing.

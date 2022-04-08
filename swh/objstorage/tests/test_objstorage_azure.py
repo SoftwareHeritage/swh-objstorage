@@ -277,7 +277,9 @@ def test_get_container_url():
 
 def test_bwcompat_args(monkeypatch):
     monkeypatch.setattr(
-        swh.objstorage.backends.azure, "ContainerClient", get_MockContainerClient(),
+        swh.objstorage.backends.azure,
+        "ContainerClient",
+        get_MockContainerClient(),
     )
 
     with pytest.deprecated_call():
@@ -295,7 +297,9 @@ def test_bwcompat_args(monkeypatch):
 
 def test_bwcompat_args_prefixed(monkeypatch):
     monkeypatch.setattr(
-        swh.objstorage.backends.azure, "ContainerClient", get_MockContainerClient(),
+        swh.objstorage.backends.azure,
+        "ContainerClient",
+        get_MockContainerClient(),
     )
 
     accounts = {

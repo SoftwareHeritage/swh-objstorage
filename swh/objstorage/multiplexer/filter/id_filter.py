@@ -13,7 +13,7 @@ from swh.objstorage.objstorage import compute_hash
 
 
 class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
-    """ Filter that only allow operations if the object id match a requirement.
+    """Filter that only allow operations if the object id match a requirement.
 
     Even for read operations, check before if the id match the requirements.
     This may prevent for unnecessary disk access.
@@ -21,8 +21,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def is_valid(self, obj_id):
-        """ Indicates if the given id is valid.
-        """
+        """Indicates if the given id is valid."""
         raise NotImplementedError(
             "Implementations of an IdObjStorageFilter " 'must have a "is_valid" method'
         )
@@ -67,8 +66,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
 
 
 class RegexIdObjStorageFilter(IdObjStorageFilter):
-    """ Filter that allow operations if the content's id as hex match a regex.
-    """
+    """Filter that allow operations if the content's id as hex match a regex."""
 
     def __init__(self, storage, regex):
         super().__init__(storage)
@@ -80,8 +78,7 @@ class RegexIdObjStorageFilter(IdObjStorageFilter):
 
 
 class PrefixIdObjStorageFilter(IdObjStorageFilter):
-    """ Filter that allow operations if the hexlified id have a given prefix.
-    """
+    """Filter that allow operations if the hexlified id have a given prefix."""
 
     def __init__(self, storage, prefix):
         super().__init__(storage)

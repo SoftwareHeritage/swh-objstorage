@@ -65,7 +65,10 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
     config = {
         "objstorage": {
             "cls": "pathslicing",
-            "args": {"root": "root", "slicing": "slicing",},
+            "args": {
+                "root": "root",
+                "slicing": "slicing",
+            },
             "client_max_size": "10",
         }
     }
@@ -106,7 +109,14 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
         pytest.param(
             {"client_max_size": "10", "objstorage": {"cls": "memory"}}, id="empty-args"
         ),
-        pytest.param({"objstorage": {"cls": "noop",}}, id="noop",),
+        pytest.param(
+            {
+                "objstorage": {
+                    "cls": "noop",
+                }
+            },
+            id="noop",
+        ),
     ],
 )
 def test_load_and_check_config(tmpdir, config):

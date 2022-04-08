@@ -13,7 +13,7 @@ from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
 
 @runtime_checkable
 class ObjStorageInterface(Protocol):
-    """ High-level API to manipulate the Software Heritage object storage.
+    """High-level API to manipulate the Software Heritage object storage.
 
     Conceptually, the object storage offers the following methods:
 

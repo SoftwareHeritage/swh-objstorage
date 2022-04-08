@@ -43,7 +43,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         return self.wf.exists(self._path(obj_id))
 
     def __iter__(self):
-        """ Iterate over the objects present in the storage
+        """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
         may have bad efficiency: due to the very high amount of objects in it

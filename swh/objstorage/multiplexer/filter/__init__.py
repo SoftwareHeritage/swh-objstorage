@@ -66,7 +66,7 @@ def add_filter(storage, filter_conf):
 
 
 def add_filters(storage, filter_confs):
-    """ Add multiple filters to the given storage.
+    """Add multiple filters to the given storage.
 
     (See filter.add_filter)
 

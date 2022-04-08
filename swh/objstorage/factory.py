@@ -66,7 +66,7 @@ except ImportError as e:
 
 
 def get_objstorage(cls: str, args=None, **kwargs):
-    """ Create an ObjStorage using the given implementation class.
+    """Create an ObjStorage using the given implementation class.
 
     Args:
         cls: objstorage class unique key contained in the

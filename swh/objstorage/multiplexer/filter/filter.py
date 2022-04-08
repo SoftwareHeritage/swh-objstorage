@@ -40,7 +40,7 @@ class ObjStorageFilter(ObjStorage):
         return self.storage.__contains__(*args, **kwargs)
 
     def __iter__(self):
-        """ Iterates over the content of each storages
+        """Iterates over the content of each storages
 
         Warning: The `__iter__` methods frequently have bad performance. You
         almost certainly don't want to use this method in production as the
@@ -49,7 +49,7 @@ class ObjStorageFilter(ObjStorage):
         return self.storage.__iter__()
 
     def __len__(self):
-        """ Compute the number of objects in the current object storage.
+        """Compute the number of objects in the current object storage.
 
         Warning: performance issue in `__iter__` also applies here.
 

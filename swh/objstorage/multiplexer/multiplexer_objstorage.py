@@ -62,7 +62,10 @@ class ObjStorageThread(threading.Thread):
           result: the result to pass back to the calling thread
         """
         mailbox.put(
-            {"type": result_type, "result": result,}
+            {
+                "type": result_type,
+                "result": result,
+            }
         )
 
     @staticmethod
@@ -220,7 +223,7 @@ class MultiplexerObjStorage(ObjStorage):
         return obj_iterator()
 
     def add(self, content, obj_id=None, check_presence=True):
-        """ Add a new object to the object storage.
+        """Add a new object to the object storage.
 
         If the adding step works in all the storages that accept this content,
         this is a success. Otherwise, the full adding step is an error even if
@@ -253,12 +256,13 @@ class MultiplexerObjStorage(ObjStorage):
             return result
 
     def add_batch(self, contents, check_presence=True) -> Dict:
-        """Add a batch of new objects to the object storage.
-
-        """
+        """Add a batch of new objects to the object storage."""
         write_threads = list(self.get_write_threads())
         results = self.wrap_call(
-            write_threads, "add_batch", contents, check_presence=check_presence,
+            write_threads,
+            "add_batch",
+            contents,
+            check_presence=check_presence,
         )
 
         summed = {"object:add": 0, "object:add:bytes": 0}
@@ -273,7 +277,10 @@ class MultiplexerObjStorage(ObjStorage):
 
     def restore(self, content, obj_id=None):
         return self.wrap_call(
-            self.get_write_threads(obj_id), "restore", content, obj_id=obj_id,
+            self.get_write_threads(obj_id),
+            "restore",
+            content,
+            obj_id=obj_id,
         ).pop()
 
     def get(self, obj_id):

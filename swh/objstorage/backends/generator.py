@@ -165,8 +165,7 @@ def gen_random_content(total=None, filesize=None):
 
 
 class RandomGeneratorObjStorage(ObjStorage):
-    """A stupid read-only storage that generates blobs for testing purpose.
-    """
+    """A stupid read-only storage that generates blobs for testing purpose."""
 
     def __init__(self, filesize=None, total=None, **kwargs):
         super().__init__()

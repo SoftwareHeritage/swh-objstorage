@@ -13,7 +13,7 @@ from swh.objstorage.factory import get_objstorage
 
 
 class TestObjStorageInitialization(unittest.TestCase):
-    """ Test that the methods for ObjStorage initializations with
+    """Test that the methods for ObjStorage initializations with
     `get_objstorage` works properly.
     """
 

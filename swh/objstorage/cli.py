@@ -21,13 +21,15 @@ from swh.core.cli import swh as swh_cli_group
     "--config-file",
     "-C",
     default=None,
-    type=click.Path(exists=True, dir_okay=False,),
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+    ),
     help="Configuration file.",
 )
 @click.pass_context
 def objstorage_cli_group(ctx, config_file):
-    """Software Heritage Objstorage tools.
-    """
+    """Software Heritage Objstorage tools."""
     from swh.core import config
 
     if not config_file:
@@ -90,8 +92,7 @@ def serve(ctx, host, port, debug):
 @click.argument("directory", required=True, nargs=-1)
 @click.pass_context
 def import_directories(ctx, directory):
-    """Import a local directory in an existing objstorage.
-    """
+    """Import a local directory in an existing objstorage."""
     from swh.objstorage.factory import get_objstorage
 
     objstorage = get_objstorage(**ctx.obj["config"]["objstorage"])
@@ -115,8 +116,7 @@ def import_directories(ctx, directory):
 @objstorage_cli_group.command("fsck")
 @click.pass_context
 def fsck(ctx):
-    """Check the objstorage is not corrupted.
-    """
+    """Check the objstorage is not corrupted."""
     from swh.objstorage.factory import get_objstorage
 
     objstorage = get_objstorage(**ctx.obj["config"]["objstorage"])

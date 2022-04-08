@@ -165,9 +165,7 @@ class AzureCloudObjStorage(ObjStorage):
         yield self.get_container_client("")
 
     def _internal_id(self, obj_id):
-        """Internal id is the hex version in objstorage.
-
-        """
+        """Internal id is the hex version in objstorage."""
         return hashutil.hash_to_hex(obj_id)
 
     def check_config(self, *, check_write):
@@ -182,9 +180,7 @@ class AzureCloudObjStorage(ObjStorage):
         return True
 
     def __contains__(self, obj_id):
-        """Does the storage contains the obj_id.
-
-        """
+        """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
         client = self.get_blob_client(hex_obj_id)
         try:
@@ -195,9 +191,7 @@ class AzureCloudObjStorage(ObjStorage):
             return True
 
     def __iter__(self):
-        """Iterate over the objects present in the storage.
-
-        """
+        """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():
                 yield hashutil.hash_to_bytes(obj.name)
@@ -212,9 +206,7 @@ class AzureCloudObjStorage(ObjStorage):
         return sum(1 for i in self)
 
     def add(self, content, obj_id=None, check_presence=True):
-        """Add an obj in storage if it's not there already.
-
-        """
+        """Add an obj in storage if it's not there already."""
         if obj_id is None:
             # Checksum is missing, compute it on the fly.
             obj_id = compute_hash(content)
@@ -242,9 +234,7 @@ class AzureCloudObjStorage(ObjStorage):
         return obj_id
 
     def restore(self, content, obj_id=None):
-        """Restore a content.
-
-        """
+        """Restore a content."""
         if obj_id is None:
             # Checksum is missing, compute it on the fly.
             obj_id = compute_hash(content)
@@ -255,9 +245,7 @@ class AzureCloudObjStorage(ObjStorage):
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):
-        """retrieve blob's content if found.
-
-        """
+        """retrieve blob's content if found."""
         return call_async(self._get_async, obj_id)
 
     async def _get_async(self, obj_id, container_clients=None):
@@ -311,9 +299,7 @@ class AzureCloudObjStorage(ObjStorage):
         return call_async(self._get_batch_async, obj_ids)
 
     def check(self, obj_id):
-        """Check the content integrity.
-
-        """
+        """Check the content integrity."""
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:

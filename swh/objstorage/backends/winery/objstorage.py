@@ -20,7 +20,14 @@ logger = logging.getLogger(__name__)
 
 def compute_hash(content):
     algo = "sha256"
-    return hashutil.MultiHash.from_data(content, hash_names=[algo],).digest().get(algo)
+    return (
+        hashutil.MultiHash.from_data(
+            content,
+            hash_names=[algo],
+        )
+        .digest()
+        .get(algo)
+    )
 
 
 class WineryObjStorage(ObjStorage):

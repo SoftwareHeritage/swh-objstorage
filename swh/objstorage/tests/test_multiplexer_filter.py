@@ -93,7 +93,7 @@ class MixinTestReadFilter(unittest.TestCase):
 
 
 class MixinTestIdFilter:
-    """ Mixin class that tests the filters based on filter.IdFilter
+    """Mixin class that tests the filters based on filter.IdFilter
 
     Methods "make_valid", "make_invalid" and "filter_storage" must be
     implemented by subclasses.

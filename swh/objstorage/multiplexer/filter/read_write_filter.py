@@ -7,7 +7,7 @@ from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
 
 
 class ReadObjStorageFilter(ObjStorageFilter):
-    """ Filter that disable write operation of the storage.
+    """Filter that disable write operation of the storage.
 
     Writes will always succeed without doing any actual write operations.
     """

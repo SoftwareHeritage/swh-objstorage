@@ -41,7 +41,10 @@ def compute_hash(content):
 
     """
     return (
-        hashutil.MultiHash.from_data(content, hash_names=[ID_HASH_ALGO],)
+        hashutil.MultiHash.from_data(
+            content,
+            hash_names=[ID_HASH_ALGO],
+        )
         .digest()
         .get(ID_HASH_ALGO)
     )

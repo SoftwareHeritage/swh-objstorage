@@ -69,7 +69,9 @@ class ObjStorageServerApp(RPCServerApp):
 
 
 app = ObjStorageServerApp(
-    __name__, backend_class=ObjStorageInterface, backend_factory=get_objstorage,
+    __name__,
+    backend_class=ObjStorageInterface,
+    backend_factory=get_objstorage,
 )
 objstorage = None
 
@@ -187,9 +189,7 @@ def validate_config(cfg):
 
 
 def make_app_from_configfile():
-    """Load configuration and then build application to run
-
-    """
+    """Load configuration and then build application to run"""
     global api_cfg
     if not api_cfg:
         config_path = os.environ.get("SWH_CONFIG_FILENAME")
