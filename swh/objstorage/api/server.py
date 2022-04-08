@@ -99,7 +99,7 @@ def get_stream(hex_id):
 
     def generate():
         with timed_context("get_stream"):
-            yield from objstorage.get_stream(obj_id, 2 << 20)
+            yield from get_objstorage().get_stream(obj_id, 2 << 20)
 
     return app.response_class(generate())
 
@@ -112,9 +112,8 @@ def list_content():
     limit = int(request.args.get("limit", DEFAULT_LIMIT))
 
     def generate():
-        yield b""
         with timed_context("get_stream"):
-            yield from objstorage.list_content(last_obj_id, limit=limit)
+            yield from get_objstorage().list_content(last_obj_id, limit=limit)
 
     return app.response_class(generate())
 
