@@ -61,7 +61,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def __init__(
         self,
         container_name: str,
-        compression: Optional[str] = None,
+        compression: str = "gzip",
         path_prefix: Optional[str] = None,
         **kwargs,
     ):
