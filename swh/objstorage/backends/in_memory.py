@@ -3,11 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import functools
-import io
-
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, ObjStorage, compute_hash
+from swh.objstorage.objstorage import ObjStorage, compute_hash
 
 
 class InMemoryObjStorage(ObjStorage):
@@ -61,11 +58,3 @@ class InMemoryObjStorage(ObjStorage):
 
         self.state.pop(obj_id)
         return True
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-
-        data = io.BytesIO(self.state[obj_id])
-        reader = functools.partial(data.read, chunk_size)
-        yield from iter(reader, b"")

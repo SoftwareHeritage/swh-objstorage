@@ -22,9 +22,6 @@ ID_HEXDIGEST_LENGTH = 40
 ID_DIGEST_LENGTH = 20
 """Size in bytes of the hash"""
 
-DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024
-"""Size in bytes of the streaming chunks"""
-
 DEFAULT_LIMIT = 10000
 """Default number of results of ``list_content``."""
 
@@ -142,12 +139,6 @@ class ObjStorage(metaclass=abc.ABCMeta):
         pass
 
     # Streaming methods
-
-    def add_stream(self, content_iter, obj_id, check_presence=True):
-        raise NotImplementedError
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        raise NotImplementedError
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         it = iter(self)

@@ -8,11 +8,7 @@ from swh.core.utils import iter_chunks
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import (
-    DEFAULT_CHUNK_SIZE,
-    DEFAULT_LIMIT,
-    ID_DIGEST_LENGTH,
-)
+from swh.objstorage.objstorage import DEFAULT_LIMIT, ID_DIGEST_LENGTH
 
 
 class RemoteObjStorage(RPCClient):
@@ -34,15 +30,6 @@ class RemoteObjStorage(RPCClient):
 
     def restore(self, content, obj_id=None):
         return self.add(content, obj_id, check_presence=False)
-
-    def add_stream(self, content_iter, obj_id, check_presence=True):
-        raise NotImplementedError
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        obj_id = hashutil.hash_to_hex(obj_id)
-        return self._get_stream(
-            "content/get_stream/{}".format(obj_id), chunk_size=chunk_size
-        )
 
     def __iter__(self):
         yield from self.list_content()

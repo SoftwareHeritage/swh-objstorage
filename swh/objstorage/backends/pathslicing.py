@@ -14,7 +14,6 @@ from typing import List
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.objstorage import (
-    DEFAULT_CHUNK_SIZE,
     DEFAULT_LIMIT,
     ID_HASH_ALGO,
     ID_HEXDIGEST_LENGTH,
@@ -337,48 +336,6 @@ class PathSlicingObjStorage(ObjStorage):
         with self._write_obj_file(hex_obj_id) as f:
             yield lambda c: f.write(compressor.compress(c))
             f.write(compressor.flush())
-
-    def add_stream(self, content_iter, obj_id, check_presence=True):
-        """Add a new object to the object storage using streaming.
-
-        This function is identical to add() except it takes a generator that
-        yields the chunked content instead of the whole content at once.
-
-        Args:
-            content (bytes): chunked generator that yields the object's raw
-                content to add in storage.
-            obj_id (bytes): object identifier
-            check_presence (bool): indicate if the presence of the
-                content should be verified before adding the file.
-
-        Returns:
-            the id (bytes) of the object into the storage.
-
-        """
-        if check_presence and obj_id in self:
-            return obj_id
-
-        with self.chunk_writer(obj_id) as writer:
-            for chunk in content_iter:
-                writer(chunk)
-
-        return obj_id
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
-        decompressor = decompressors[self.compression]()
-        with open(self.slicer.get_path(hex_obj_id), "rb") as f:
-            while True:
-                raw = f.read(chunk_size)
-                if not raw:
-                    break
-                r = decompressor.decompress(raw)
-                if not r:
-                    continue
-                yield r
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         if last_obj_id:

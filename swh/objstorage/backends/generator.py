@@ -1,10 +1,8 @@
-import functools
-import io
 from itertools import count, islice, repeat
 import logging
 import random
 
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT, ObjStorage
+from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage
 
 logger = logging.getLogger(__name__)
 
@@ -212,11 +210,6 @@ class RandomGeneratorObjStorage(ObjStorage):
 
     def delete(self, obj_id, *args, **kwargs):
         return True
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        data = io.BytesIO(next(self.content_generator))
-        reader = functools.partial(data.read, chunk_size)
-        yield from iter(reader, b"")
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
         it = iter(self)

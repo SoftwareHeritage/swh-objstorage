@@ -8,7 +8,7 @@ from typing import Dict
 from typing_extensions import Protocol, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
+from swh.objstorage.objstorage import DEFAULT_LIMIT
 
 
 @runtime_checkable
@@ -29,10 +29,6 @@ class ObjStorageInterface(Protocol):
 
     - get_random()    get random object id of existing contents (used for the
                       content integrity checker).
-
-    Some of the methods have available streaming equivalents:
-
-    - get_stream()     same as get() but returns a chunked iterator
 
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
@@ -199,23 +195,6 @@ class ObjStorageInterface(Protocol):
         Yields:
             An iterable of ids (bytes) of contents that are in the
             current object storage.
-
-        """
-        ...
-
-    # Streaming methods
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        """Retrieve the content of a given object as a chunked iterator.
-
-        Args:
-            obj_id (bytes): object id.
-
-        Returns:
-            the content of the requested object as bytes.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
 
         """
         ...

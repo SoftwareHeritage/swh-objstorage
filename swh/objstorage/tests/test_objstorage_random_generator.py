@@ -17,13 +17,6 @@ def test_random_generator_objstorage():
     assert max(lengths) <= 55056238
 
 
-def test_random_generator_objstorage_get_stream():
-    sto = get_objstorage("random", {})
-    gen = sto.get_stream(None)
-    assert isinstance(gen, Iterator)
-    assert list(gen)  # ensure the iterator can be consumed
-
-
 def test_random_generator_objstorage_list_content():
     sto = get_objstorage("random", {"total": 100})
     assert isinstance(sto.list_content(), Iterator)

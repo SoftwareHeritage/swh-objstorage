@@ -15,7 +15,6 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
-from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -92,20 +91,6 @@ def index():
     return "SWH Objstorage API server"
 
 
-# Streaming methods
-
-
-@app.route("/content/get_stream/<hex_id>")
-def get_stream(hex_id):
-    obj_id = hashutil.hash_to_bytes(hex_id)
-
-    def generate():
-        with timed_context("get_stream"):
-            yield from get_objstorage().get_stream(obj_id, 2 << 20)
-
-    return app.response_class(generate())
-
-
 @app.route("/content")
 def list_content():
     last_obj_id = request.args.get("last_obj_id")
@@ -114,7 +99,7 @@ def list_content():
     limit = int(request.args.get("limit", DEFAULT_LIMIT))
 
     def generate():
-        with timed_context("get_stream"):
+        with timed_context("list_content"):
             yield from get_objstorage().list_content(last_obj_id, limit=limit)
 
     return app.response_class(generate())
