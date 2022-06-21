@@ -109,7 +109,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
             summary["object:add:bytes"] += len(content)
         return summary
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         # check_presence to false will erase the potential previous content.
         return self.add(content, obj_id, check_presence=False)
 

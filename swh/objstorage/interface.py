@@ -92,7 +92,7 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         """Restore a content that have been corrupted.
 
         This function is identical to add but does not check if

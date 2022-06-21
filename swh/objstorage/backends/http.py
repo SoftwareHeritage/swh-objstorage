@@ -59,7 +59,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def delete(self, obj_id):
         raise exc.ReadOnlyObjStorage("delete")
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         raise exc.ReadOnlyObjStorage("restore")
 
     def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):

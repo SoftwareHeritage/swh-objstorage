@@ -100,7 +100,7 @@ def test_http_objstorage_read_only():
     with pytest.raises(exc.ReadOnlyObjStorage):
         sto_front.add(content, obj_id=obj_id)
     with pytest.raises(exc.ReadOnlyObjStorage):
-        sto_front.restore(b"")
+        sto_front.restore(b"", obj_id=compute_hash(b""))
     with pytest.raises(exc.ReadOnlyObjStorage):
         sto_front.delete(b"\x00" * 20)
 

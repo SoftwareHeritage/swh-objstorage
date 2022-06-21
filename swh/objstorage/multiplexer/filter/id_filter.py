@@ -9,7 +9,6 @@ import re
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
-from swh.objstorage.objstorage import compute_hash
 
 
 class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
@@ -41,9 +40,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
         if self.is_valid(obj_id):
             return self.storage.add(content, *args, obj_id=obj_id, **kwargs)
 
-    def restore(self, content, obj_id=None, *args, **kwargs):
-        if obj_id is None:
-            obj_id = compute_hash(content)
+    def restore(self, content, obj_id, *args, **kwargs):
         if self.is_valid(obj_id):
             return self.storage.restore(content, *args, obj_id=obj_id, **kwargs)
 

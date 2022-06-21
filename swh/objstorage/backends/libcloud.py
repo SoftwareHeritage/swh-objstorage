@@ -163,7 +163,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         self._put_object(content, obj_id)
         return obj_id
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):

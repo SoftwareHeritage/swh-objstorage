@@ -229,12 +229,8 @@ class AzureCloudObjStorage(ObjStorage):
 
         return obj_id
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         """Restore a content."""
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
         if obj_id in self:
             self.delete(obj_id)
 

@@ -291,7 +291,7 @@ class MixinTestIdFilter:
             self.storage.check(corrupted_id)
         with self.assertRaises(Error):
             self.storage.check(valid_id)
-        self.storage.restore(valid_content)
+        self.storage.restore(valid_content, obj_id=valid_id)
         self.storage.check(valid_id)
 
 

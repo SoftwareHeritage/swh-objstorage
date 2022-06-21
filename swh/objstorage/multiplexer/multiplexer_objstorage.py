@@ -275,7 +275,7 @@ class MultiplexerObjStorage(ObjStorage):
             "object:add:bytes": summed["object:add:bytes"] // len(results),
         }
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         return self.wrap_call(
             self.get_write_threads(obj_id),
             "restore",

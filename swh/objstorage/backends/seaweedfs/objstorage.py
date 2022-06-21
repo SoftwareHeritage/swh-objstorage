@@ -89,7 +89,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
         return obj_id
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content, obj_id):
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id):
