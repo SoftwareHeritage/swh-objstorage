@@ -7,9 +7,11 @@ import io
 from itertools import islice
 import logging
 import os
+from typing import Iterator, Optional
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
@@ -72,27 +74,26 @@ class SeaweedFilerObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         if check_presence and obj_id in self:
             return obj_id
 
         def compressor(data):
             comp = compressors[self.compression]()
-            for chunk in data:
-                yield comp.compress(chunk)
+            yield comp.compress(data)
             yield comp.flush()
 
-        if isinstance(content, bytes):
-            content = [content]
+        assert isinstance(
+            content, bytes
+        ), "list of content chunks is not supported anymore"
 
-        # XXX should handle streaming correctly...
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
         return obj_id
 
-    def restore(self, content, obj_id):
+    def restore(self, content: bytes, obj_id: ObjId):
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         try:
             obj = self.wf.get(self._path(obj_id))
         except Exception:
@@ -105,21 +106,25 @@ class SeaweedFilerObjStorage(ObjStorage):
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
         self.wf.delete(self._path(obj_id))
         return True
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[ObjId]:
         if last_obj_id:
             objid = hashutil.hash_to_hex(last_obj_id)
             lastfilename = objid

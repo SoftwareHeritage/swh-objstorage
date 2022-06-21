@@ -15,7 +15,7 @@ from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
 from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
-from swh.objstorage.objstorage import ID_HEXDIGEST_LENGTH, ObjStorage  # noqa
+from swh.objstorage.objstorage import ObjStorage
 
 __all__ = ["get_objstorage", "ObjStorage"]
 

@@ -8,7 +8,7 @@ import contextlib
 import datetime
 from itertools import product
 import string
-from typing import Dict, Optional, Union
+from typing import Dict, Iterator, List, Optional, Union
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -21,6 +21,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
@@ -205,7 +206,7 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         """Add an obj in storage if it's not there already."""
         if check_presence and obj_id in self:
             return obj_id
@@ -229,14 +230,14 @@ class AzureCloudObjStorage(ObjStorage):
 
         return obj_id
 
-    def restore(self, content, obj_id):
+    def restore(self, content: bytes, obj_id: ObjId):
         """Restore a content."""
         if obj_id in self:
             self.delete(obj_id)
 
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         """retrieve blob's content if found."""
         return call_async(self._get_async, obj_id)
 
@@ -286,18 +287,18 @@ class AzureCloudObjStorage(ObjStorage):
                 ]
             )
 
-    def get_batch(self, obj_ids):
+    def get_batch(self, obj_ids: List[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return call_async(self._get_batch_async, obj_ids)
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         """Check the content integrity."""
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         """Delete an object."""
         super().delete(obj_id)  # Check delete permission
         hex_obj_id = self._internal_id(obj_id)

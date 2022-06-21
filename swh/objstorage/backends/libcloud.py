@@ -15,6 +15,7 @@ from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
@@ -156,17 +157,17 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         if check_presence and obj_id in self:
             return obj_id
 
         self._put_object(content, obj_id)
         return obj_id
 
-    def restore(self, content, obj_id):
+    def restore(self, content: bytes, obj_id: ObjId):
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
         d = decompressors[self.compression]()
         ret = d.decompress(obj)
@@ -175,7 +176,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check that the file exists, as _get_object raises ObjNotFoundError
         self._get_object(obj_id)
         # Check the content integrity
@@ -184,7 +185,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         obj = self._get_object(obj_id)
         return self.driver.delete_object(obj)

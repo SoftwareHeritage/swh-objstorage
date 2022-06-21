@@ -1,7 +1,9 @@
 from itertools import count, islice, repeat
 import logging
 import random
+from typing import Iterator, Optional
 
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage
 
 logger = logging.getLogger(__name__)
@@ -211,7 +213,11 @@ class RandomGeneratorObjStorage(ObjStorage):
     def delete(self, obj_id, *args, **kwargs):
         return True
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[ObjId]:
         it = iter(self)
         if last_obj_id:
             next(it)

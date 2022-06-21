@@ -10,8 +10,8 @@ from unittest.mock import DEFAULT, patch
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.constants import ID_DIGEST_LENGTH
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import ID_DIGEST_LENGTH
 
 from .objstorage_testing import ObjStorageTestFixture
 

@@ -1,26 +1,20 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections.abc import Iterator
 from contextlib import contextmanager
 from itertools import islice
 import os
 import random
 import tempfile
-from typing import List
+from typing import Iterable, Iterator, List, Optional
 
 from swh.model import hashutil
+from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.objstorage import (
-    DEFAULT_LIMIT,
-    ID_HASH_ALGO,
-    ID_HEXDIGEST_LENGTH,
-    ObjStorage,
-    compressors,
-    decompressors,
-)
+from swh.objstorage.interface import ObjId
+from swh.objstorage.objstorage import ObjStorage, compressors, decompressors
 
 BUFSIZ = 1048576
 
@@ -188,11 +182,11 @@ class PathSlicingObjStorage(ObjStorage):
 
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[bytes]:
         """Iterate over the object identifiers currently available in the
         storage.
 
@@ -217,7 +211,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         return obj_iterator()
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Compute the number of objects available in the storage.
 
         Warning: this currently uses `__iter__`, its warning about bad
@@ -228,23 +222,25 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(
+        self,
+        content: bytes,
+        obj_id: ObjId,
+        check_presence: bool = True,
+    ) -> ObjId:
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
-        if not isinstance(content, Iterator):
-            content = [content]
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
-            for chunk in content:
-                f.write(compressor.compress(chunk))
+            f.write(compressor.compress(content))
             f.write(compressor.flush())
 
         return obj_id
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -260,7 +256,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         return out
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         try:
             data = self.get(obj_id)
         except OSError:
@@ -282,7 +278,7 @@ class PathSlicingObjStorage(ObjStorage):
                 % (hashutil.hash_to_hex(obj_id), hashutil.hash_to_hex(actual_obj_id))
             )
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
@@ -296,7 +292,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     # Management methods
 
-    def get_random(self, batch_size):
+    def get_random(self, batch_size: int) -> Iterable[ObjId]:
         def get_random_content(self, batch_size):
             """Get a batch of content inside a single directory.
 
@@ -334,7 +330,9 @@ class PathSlicingObjStorage(ObjStorage):
             yield lambda c: f.write(compressor.compress(c))
             f.write(compressor.flush())
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+    ) -> Iterator[ObjId]:
         if last_obj_id:
             it = self.iter_from(last_obj_id)
         else:

@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, compute_hash
 
 
@@ -27,7 +28,7 @@ class InMemoryObjStorage(ObjStorage):
     def __iter__(self):
         return iter(sorted(self.state))
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         if check_presence and obj_id in self:
             return obj_id
 
@@ -35,20 +36,19 @@ class InMemoryObjStorage(ObjStorage):
 
         return obj_id
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         return self.state[obj_id]
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
         if compute_hash(self.state[obj_id]) != obj_id:
-            raise Error("Corrupt object %s" % obj_id)
-        return True
+            raise Error("Corrupt object %s" % obj_id.hex())
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)

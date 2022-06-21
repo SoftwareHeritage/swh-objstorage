@@ -3,12 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Iterator, Optional
+
 from swh.core.api import RPCClient
 from swh.core.utils import iter_chunks
 from swh.model import hashutil
+from swh.objstorage.constants import DEFAULT_LIMIT, ID_DIGEST_LENGTH
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
-from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import DEFAULT_LIMIT, ID_DIGEST_LENGTH
+from swh.objstorage.interface import ObjId, ObjStorageInterface
 
 
 class RemoteObjStorage(RPCClient):
@@ -28,13 +30,17 @@ class RemoteObjStorage(RPCClient):
     reraise_exceptions = [ObjNotFoundError, Error]
     backend_class = ObjStorageInterface
 
-    def restore(self, content, obj_id):
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId):
         return self.add(content, obj_id, check_presence=False)
 
     def __iter__(self):
         yield from self.list_content()
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[ObjId]:
         params = {"limit": limit}
         if last_obj_id:
             params["last_obj_id"] = hashutil.hash_to_hex(last_obj_id)

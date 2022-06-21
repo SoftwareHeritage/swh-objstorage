@@ -7,6 +7,7 @@ import logging
 from multiprocessing import Process
 
 from swh.objstorage import exc
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
 from .roshard import ROShard
@@ -28,7 +29,7 @@ class WineryObjStorage(ObjStorage):
     def uninit(self):
         self.winery.uninit()
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         return self.winery.get(obj_id)
 
     def check_config(self, *, check_write):
@@ -37,13 +38,13 @@ class WineryObjStorage(ObjStorage):
     def __contains__(self, obj_id):
         return obj_id in self.winery
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         return self.winery.add(content, obj_id, check_presence)
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         return self.winery.check(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         raise PermissionError("Delete is not allowed.")
 
 
@@ -74,7 +75,7 @@ class WineryReader(WineryBase):
             self.shards[name] = shard
         return self.shards[name]
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         shard_info = self.base.get(obj_id)
         if shard_info is None:
             raise exc.ObjNotFoundError(obj_id)
@@ -140,7 +141,7 @@ class WineryWriter(WineryReader):
         self.shard.uninit()
         super().uninit()
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         if check_presence and obj_id in self:
             return obj_id
 
@@ -157,7 +158,7 @@ class WineryWriter(WineryReader):
 
         return obj_id
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # load all shards packing == True and not locked (i.e. packer
         # was interrupted for whatever reason) run pack for each of them
         pass

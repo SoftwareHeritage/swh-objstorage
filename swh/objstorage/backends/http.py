@@ -4,12 +4,14 @@
 # See top-level LICENSE file for more information
 
 import logging
+from typing import Iterator, Optional
 from urllib.parse import urljoin
 
 import requests
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
@@ -53,19 +55,23 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def __len__(self):
         raise exc.NonIterableObjStorage("__len__")
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         raise exc.ReadOnlyObjStorage("add")
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         raise exc.ReadOnlyObjStorage("delete")
 
-    def restore(self, content, obj_id):
+    def restore(self, content: bytes, obj_id: ObjId):
         raise exc.ReadOnlyObjStorage("restore")
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[ObjId]:
         raise exc.NonIterableObjStorage("__len__")
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         try:
             resp = self.session.get(self._path(obj_id))
             resp.raise_for_status()
@@ -81,7 +87,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
                 raise exc.Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)

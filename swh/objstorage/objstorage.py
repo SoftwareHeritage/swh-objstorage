@@ -7,23 +7,14 @@ import abc
 import bz2
 from itertools import dropwhile, islice
 import lzma
-from typing import Dict
+from typing import Callable, Dict, Iterable, Iterator, List, Optional
 import zlib
 
 from swh.model import hashutil
 
+from .constants import DEFAULT_LIMIT, ID_HASH_ALGO
 from .exc import ObjNotFoundError
-
-ID_HASH_ALGO = "sha1"
-
-ID_HEXDIGEST_LENGTH = 40
-"""Size in bytes of the hash hexadecimal representation."""
-
-ID_DIGEST_LENGTH = 20
-"""Size in bytes of the hash"""
-
-DEFAULT_LIMIT = 10000
-"""Default number of results of ``list_content``."""
+from .interface import ObjId, ObjStorageInterface
 
 
 def compute_hash(content, algo=ID_HASH_ALGO):
@@ -56,28 +47,43 @@ class NullCompressor:
 
 
 class NullDecompressor:
-    def decompress(self, data):
+    def decompress(self, data: bytes) -> bytes:
         return data
 
     @property
-    def unused_data(self):
+    def unused_data(self) -> bytes:
         return b""
 
 
-decompressors = {
-    "bz2": bz2.BZ2Decompressor,
-    "lzma": lzma.LZMADecompressor,
-    "gzip": lambda: zlib.decompressobj(wbits=31),
-    "zlib": zlib.decompressobj,
-    "none": NullDecompressor,
+class _CompressorProtocol:
+    def compress(self, data: bytes) -> bytes:
+        ...
+
+    def flush(self) -> bytes:
+        ...
+
+
+class _DecompressorProtocol:
+    def decompress(self, data: bytes) -> bytes:
+        ...
+
+    unused_data: bytes
+
+
+decompressors: Dict[str, Callable[[], _DecompressorProtocol]] = {
+    "bz2": bz2.BZ2Decompressor,  # type: ignore
+    "lzma": lzma.LZMADecompressor,  # type: ignore
+    "gzip": lambda: zlib.decompressobj(wbits=31),  # type: ignore
+    "zlib": zlib.decompressobj,  # type: ignore
+    "none": NullDecompressor,  # type: ignore
 }
 
-compressors = {
-    "bz2": bz2.BZ2Compressor,
-    "lzma": lzma.LZMACompressor,
-    "gzip": lambda: zlib.compressobj(wbits=31),
-    "zlib": zlib.compressobj,
-    "none": NullCompressor,
+compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
+    "bz2": bz2.BZ2Compressor,  # type: ignore
+    "lzma": lzma.LZMACompressor,  # type: ignore
+    "gzip": lambda: zlib.compressobj(wbits=31),  # type: ignore
+    "zlib": zlib.compressobj,  # type: ignore
+    "none": NullCompressor,  # type: ignore
 }
 
 
@@ -87,19 +93,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         # it becomes needed
         self.allow_delete = allow_delete
 
-    @abc.abstractmethod
-    def check_config(self, *, check_write):
-        pass
-
-    @abc.abstractmethod
-    def __contains__(self, obj_id):
-        pass
-
-    @abc.abstractmethod
-    def add(self, content, obj_id, check_presence=True):
-        pass
-
-    def add_batch(self, contents, check_presence=True) -> Dict:
+    def add_batch(self: ObjStorageInterface, contents, check_presence=True) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
         for obj_id, content in contents.items():
             if check_presence and obj_id in self:
@@ -109,15 +103,13 @@ class ObjStorage(metaclass=abc.ABCMeta):
             summary["object:add:bytes"] += len(content)
         return summary
 
-    def restore(self, content, obj_id):
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId):
         # check_presence to false will erase the potential previous content.
         return self.add(content, obj_id, check_presence=False)
 
-    @abc.abstractmethod
-    def get(self, obj_id):
-        pass
-
-    def get_batch(self, obj_ids):
+    def get_batch(
+        self: ObjStorageInterface, obj_ids: List[ObjId]
+    ) -> Iterator[Optional[bytes]]:
         for obj_id in obj_ids:
             try:
                 yield self.get(obj_id)
@@ -125,23 +117,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
                 yield None
 
     @abc.abstractmethod
-    def check(self, obj_id):
-        pass
-
-    @abc.abstractmethod
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
 
-    # Management methods
-
-    def get_random(self, batch_size):
+    def get_random(self, batch_size: int) -> Iterable[ObjId]:
         pass
 
-    # Streaming methods
-
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self: ObjStorageInterface,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[ObjId]:
         it = iter(self)
-        if last_obj_id:
-            it = dropwhile(lambda x: x <= last_obj_id, it)
+        if last_obj_id is not None:
+            it = dropwhile(last_obj_id.__ge__, it)
         return islice(it, limit)

@@ -6,9 +6,10 @@
 import queue
 import random
 import threading
-from typing import Dict
+from typing import Dict, Iterable
 
 from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -222,7 +223,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         return obj_iterator()
 
-    def add(self, content, obj_id, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
         """Add a new object to the object storage.
 
         If the adding step works in all the storages that accept this content,
@@ -255,6 +256,8 @@ class MultiplexerObjStorage(ObjStorage):
                 continue
             return result
 
+        assert False, "No backend objstorage configured"
+
     def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage."""
         write_threads = list(self.get_write_threads())
@@ -275,7 +278,7 @@ class MultiplexerObjStorage(ObjStorage):
             "object:add:bytes": summed["object:add:bytes"] // len(results),
         }
 
-    def restore(self, content, obj_id):
+    def restore(self, content: bytes, obj_id: ObjId):
         return self.wrap_call(
             self.get_write_threads(obj_id),
             "restore",
@@ -283,7 +286,7 @@ class MultiplexerObjStorage(ObjStorage):
             obj_id=obj_id,
         ).pop()
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         for storage in self.get_read_threads(obj_id):
             try:
                 return storage.get(obj_id)
@@ -292,7 +295,7 @@ class MultiplexerObjStorage(ObjStorage):
         # If no storage contains this content, raise the error
         raise ObjNotFoundError(obj_id)
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         nb_present = 0
         for storage in self.get_read_threads(obj_id):
             try:
@@ -308,11 +311,11 @@ class MultiplexerObjStorage(ObjStorage):
         if nb_present == 0:
             raise ObjNotFoundError(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         return all(self.wrap_call(self.get_write_threads(obj_id), "delete", obj_id))
 
-    def get_random(self, batch_size):
+    def get_random(self, batch_size: int) -> Iterable[ObjId]:
         storages_set = [storage for storage in self.storages if len(storage) > 0]
         if len(storages_set) <= 0:
             return []
