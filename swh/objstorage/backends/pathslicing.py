@@ -19,7 +19,6 @@ from swh.objstorage.objstorage import (
     ID_HEXDIGEST_LENGTH,
     ObjStorage,
     compressors,
-    compute_hash,
     decompressors,
 )
 
@@ -229,9 +228,7 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            obj_id = compute_hash(content)
+    def add(self, content, obj_id, check_presence=True):
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
             return obj_id

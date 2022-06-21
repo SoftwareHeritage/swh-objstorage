@@ -72,11 +72,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
+    def add(self, content, obj_id, check_presence=True):
         if check_presence and obj_id in self:
             return obj_id
 

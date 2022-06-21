@@ -26,7 +26,7 @@ DEFAULT_LIMIT = 10000
 """Default number of results of ``list_content``."""
 
 
-def compute_hash(content):
+def compute_hash(content, algo=ID_HASH_ALGO):
     """Compute the content's hash.
 
     Args:
@@ -40,10 +40,10 @@ def compute_hash(content):
     return (
         hashutil.MultiHash.from_data(
             content,
-            hash_names=[ID_HASH_ALGO],
+            hash_names=[algo],
         )
         .digest()
-        .get(ID_HASH_ALGO)
+        .get(algo)
     )
 
 
@@ -96,7 +96,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         pass
 
     def add_batch(self, contents, check_presence=True) -> Dict:

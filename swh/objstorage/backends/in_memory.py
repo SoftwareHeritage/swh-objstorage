@@ -27,10 +27,7 @@ class InMemoryObjStorage(ObjStorage):
     def __iter__(self):
         return iter(sorted(self.state))
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            obj_id = compute_hash(content)
-
+    def add(self, content, obj_id, check_presence=True):
         if check_presence and obj_id in self:
             return obj_id
 

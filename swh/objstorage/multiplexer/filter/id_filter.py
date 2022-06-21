@@ -37,9 +37,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     def __iter__(self):
         yield from filter(lambda id: self.is_valid(id), iter(self.storage))
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
-        if obj_id is None:
-            obj_id = compute_hash(content)
+    def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         if self.is_valid(obj_id):
             return self.storage.add(content, *args, obj_id=obj_id, **kwargs)
 

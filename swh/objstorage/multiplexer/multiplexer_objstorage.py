@@ -222,7 +222,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         return obj_iterator()
 
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         """Add a new object to the object storage.
 
         If the adding step works in all the storages that accept this content,

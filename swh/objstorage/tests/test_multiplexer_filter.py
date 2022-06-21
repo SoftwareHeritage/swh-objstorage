@@ -32,7 +32,6 @@ class MixinTestReadFilter(unittest.TestCase):
             "slicing": "0:5",
         }
         base_storage = get_objstorage(**pstorage)
-        base_storage.id = compute_hash
         self.storage = get_objstorage(
             "filtered", storage_conf=pstorage, filters_conf=[read_only()]
         )
@@ -41,12 +40,13 @@ class MixinTestReadFilter(unittest.TestCase):
         self.true_invalid_content = b"Anything that is not correct"
         self.absent_content = b"non-existent content"
         # Create a valid content.
-        self.valid_id = base_storage.add(self.valid_content)
+        self.valid_id = compute_hash(self.valid_content)
+        base_storage.add(self.valid_content, obj_id=self.valid_id)
         # Create an invalid id and add a content with it.
-        self.invalid_id = base_storage.id(self.true_invalid_content)
+        self.invalid_id = compute_hash(self.true_invalid_content)
         base_storage.add(self.invalid_content, obj_id=self.invalid_id)
         # Compute an id for a non-existing content.
-        self.absent_id = base_storage.id(self.absent_content)
+        self.absent_id = compute_hash(self.absent_content)
 
     def tearDown(self):
         super().tearDown()
@@ -113,56 +113,54 @@ class MixinTestIdFilter:
         storage = get_objstorage(**self.sconf)
         self.base_storage = storage
         self.storage = self.filter_storage(self.sconf)
-        # Set the id calculators
-        storage.id = compute_hash
 
         # Present content with valid id
         self.present_valid_content = self.ensure_valid(b"yroqdtotji")
-        self.present_valid_id = storage.id(self.present_valid_content)
+        self.present_valid_id = compute_hash(self.present_valid_content)
 
         # Present content with invalid id
         self.present_invalid_content = self.ensure_invalid(b"glxddlmmzb")
-        self.present_invalid_id = storage.id(self.present_invalid_content)
+        self.present_invalid_id = compute_hash(self.present_invalid_content)
 
         # Missing content with valid id
         self.missing_valid_content = self.ensure_valid(b"rmzkdclkez")
-        self.missing_valid_id = storage.id(self.missing_valid_content)
+        self.missing_valid_id = compute_hash(self.missing_valid_content)
 
         # Missing content with invalid id
         self.missing_invalid_content = self.ensure_invalid(b"hlejfuginh")
-        self.missing_invalid_id = storage.id(self.missing_invalid_content)
+        self.missing_invalid_id = compute_hash(self.missing_invalid_content)
 
         # Present corrupted content with valid id
         self.present_corrupted_valid_content = self.ensure_valid(b"cdsjwnpaij")
         self.true_present_corrupted_valid_content = self.ensure_valid(b"mgsdpawcrr")
-        self.present_corrupted_valid_id = storage.id(
+        self.present_corrupted_valid_id = compute_hash(
             self.true_present_corrupted_valid_content
         )
 
         # Present corrupted content with invalid id
         self.present_corrupted_invalid_content = self.ensure_invalid(b"pspjljnrco")
         self.true_present_corrupted_invalid_content = self.ensure_invalid(b"rjocbnnbso")
-        self.present_corrupted_invalid_id = storage.id(
+        self.present_corrupted_invalid_id = compute_hash(
             self.true_present_corrupted_invalid_content
         )
 
         # Missing (potentially) corrupted content with valid id
         self.missing_corrupted_valid_content = self.ensure_valid(b"zxkokfgtou")
         self.true_missing_corrupted_valid_content = self.ensure_valid(b"royoncooqa")
-        self.missing_corrupted_valid_id = storage.id(
+        self.missing_corrupted_valid_id = compute_hash(
             self.true_missing_corrupted_valid_content
         )
 
         # Missing (potentially) corrupted content with invalid id
         self.missing_corrupted_invalid_content = self.ensure_invalid(b"hxaxnrmnyk")
         self.true_missing_corrupted_invalid_content = self.ensure_invalid(b"qhbolyuifr")
-        self.missing_corrupted_invalid_id = storage.id(
+        self.missing_corrupted_invalid_id = compute_hash(
             self.true_missing_corrupted_invalid_content
         )
 
         # Add the content that are supposed to be present
-        self.storage.add(self.present_valid_content)
-        self.storage.add(self.present_invalid_content)
+        self.storage.add(self.present_valid_content, obj_id=self.present_valid_id)
+        self.storage.add(self.present_invalid_content, obj_id=self.present_invalid_id)
         self.storage.add(
             self.present_corrupted_valid_content, obj_id=self.present_corrupted_valid_id
         )
@@ -183,14 +181,14 @@ class MixinTestIdFilter:
     def ensure_valid(self, content=None):
         if content is None:
             content = get_random_content()
-        while not self.storage.is_valid(self.base_storage.id(content)):
+        while not self.storage.is_valid(compute_hash(content)):
             content = get_random_content()
         return content
 
     def ensure_invalid(self, content=None):
         if content is None:
             content = get_random_content()
-        while self.storage.is_valid(self.base_storage.id(content)):
+        while self.storage.is_valid(compute_hash(content)):
             content = get_random_content()
         return content
 
@@ -274,20 +272,20 @@ class MixinTestIdFilter:
         # Add valid and invalid contents to the storage and check their
         # presence with the unfiltered storage.
         valid_content = self.ensure_valid(b"ulepsrjbgt")
-        valid_id = self.base_storage.id(valid_content)
+        valid_id = compute_hash(valid_content)
         invalid_content = self.ensure_invalid(b"znvghkjked")
-        invalid_id = self.base_storage.id(invalid_content)
-        self.storage.add(valid_content)
-        self.storage.add(invalid_content)
+        invalid_id = compute_hash(invalid_content)
+        self.storage.add(valid_content, obj_id=valid_id)
+        self.storage.add(invalid_content, obj_id=invalid_id)
         self.assertTrue(valid_id in self.base_storage)
         self.assertFalse(invalid_id in self.base_storage)
 
     def test_restore(self):
         # Add corrupted content to the storage and the try to restore it
         valid_content = self.ensure_valid(b"ulepsrjbgt")
-        valid_id = self.base_storage.id(valid_content)
+        valid_id = compute_hash(valid_content)
         corrupted_content = self.ensure_valid(b"ltjkjsloyb")
-        corrupted_id = self.base_storage.id(corrupted_content)
+        corrupted_id = compute_hash(corrupted_content)
         self.storage.add(corrupted_content, obj_id=valid_id)
         with self.assertRaises(ObjNotFoundError):
             self.storage.check(corrupted_id)

@@ -202,7 +202,7 @@ class RandomGeneratorObjStorage(ObjStorage):
     def get(self, obj_id, *args, **kwargs):
         return next(self.content_generator)
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         pass
 
     def check(self, obj_id, *args, **kwargs):

@@ -53,7 +53,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def __len__(self):
         raise exc.NonIterableObjStorage("__len__")
 
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         raise exc.ReadOnlyObjStorage("add")
 
     def delete(self, obj_id):

@@ -6,7 +6,6 @@
 import logging
 from multiprocessing import Process
 
-from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage.objstorage import ObjStorage
 
@@ -16,18 +15,6 @@ from .sharedbase import SharedBase
 from .stats import Stats
 
 logger = logging.getLogger(__name__)
-
-
-def compute_hash(content):
-    algo = "sha256"
-    return (
-        hashutil.MultiHash.from_data(
-            content,
-            hash_names=[algo],
-        )
-        .digest()
-        .get(algo)
-    )
 
 
 class WineryObjStorage(ObjStorage):
@@ -50,7 +37,7 @@ class WineryObjStorage(ObjStorage):
     def __contains__(self, obj_id):
         return obj_id in self.winery
 
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         return self.winery.add(content, obj_id, check_presence)
 
     def check(self, obj_id):
@@ -153,10 +140,7 @@ class WineryWriter(WineryReader):
         self.shard.uninit()
         super().uninit()
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            obj_id = compute_hash(content)
-
+    def add(self, content, obj_id, check_presence=True):
         if check_presence and obj_id in self:
             return obj_id
 

@@ -62,15 +62,13 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         """Add a new object to the object storage.
 
         Args:
             content (bytes): object's raw content to add in storage.
             obj_id (bytes): checksum of [bytes] using [ID_HASH_ALGO]
-                algorithm. When given, obj_id will be trusted to match
-                the bytes. If missing, obj_id will be computed on the
-                fly.
+                algorithm. It is trusted to match the bytes.
             check_presence (bool): indicate if the presence of the
                 content should be verified before adding the file.
 

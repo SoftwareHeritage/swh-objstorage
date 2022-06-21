@@ -9,6 +9,7 @@ from requests_mock.contrib import fixture
 
 from swh.objstorage import exc
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import compute_hash
 
 
 def build_objstorage():
@@ -24,7 +25,8 @@ def build_objstorage():
     sto_back = get_objstorage(cls="memory")
     objids = []
     for i in range(100):
-        objids.append(sto_back.add(f"some content {i}".encode()))
+        content = f"some content {i}".encode()
+        objids.append(sto_back.add(content, obj_id=compute_hash(content)))
 
     url = "http://127.0.0.1/content/"
     sto_front = get_objstorage(cls="http", url=url)
@@ -93,8 +95,10 @@ def test_http_objstorage_check():
 def test_http_objstorage_read_only():
     sto_front, sto_back, objids = build_objstorage()
 
+    content = b""
+    obj_id = compute_hash(content)
     with pytest.raises(exc.ReadOnlyObjStorage):
-        sto_front.add(b"")
+        sto_front.add(content, obj_id=obj_id)
     with pytest.raises(exc.ReadOnlyObjStorage):
         sto_front.restore(b"")
     with pytest.raises(exc.ReadOnlyObjStorage):

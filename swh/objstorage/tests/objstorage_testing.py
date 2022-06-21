@@ -81,12 +81,6 @@ class ObjStorageTestFixture:
         self.assertEqual(obj_id, r)
         self.assertContentMatch(obj_id, content)
 
-    def test_add_get_wo_id(self):
-        content, obj_id = self.hash_content(b"add_get_wo_id")
-        r = self.storage.add(content)
-        self.assertEqual(obj_id, r)
-        self.assertContentMatch(obj_id, content)
-
     def test_add_get_batch(self):
         content1, obj_id1 = self.hash_content(b"add_get_batch_1")
         content2, obj_id2 = self.hash_content(b"add_get_batch_2")

@@ -205,12 +205,8 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content, obj_id, check_presence=True):
         """Add an obj in storage if it's not there already."""
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
         if check_presence and obj_id in self:
             return obj_id
 
