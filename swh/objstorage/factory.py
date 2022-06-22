@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import importlib
-import warnings
 
 from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
@@ -30,7 +29,7 @@ OBJSTORAGE_IMPLEMENTATIONS = {
 }
 
 
-def get_objstorage(cls: str, args=None, **kwargs) -> ObjStorageInterface:
+def get_objstorage(cls: str, **kwargs) -> ObjStorageInterface:
     """Create an ObjStorage using the given implementation class.
 
     Args:
@@ -45,16 +44,6 @@ def get_objstorage(cls: str, args=None, **kwargs) -> ObjStorageInterface:
         ValueError: if the given storage class is not a valid objstorage
             key.
     """
-    if args is not None:
-        warnings.warn(
-            'Explicit "args" key is deprecated for objstorage initialization, '
-            "use class arguments keys directly instead.",
-            DeprecationWarning,
-        )
-        # TODO: when removing this, drop the "args" backwards compatibility
-        # from swh.objstorage.api.server configuration checker
-        kwargs = args
-
     class_path = OBJSTORAGE_IMPLEMENTATIONS.get(cls)
     if class_path is None:
         raise ValueError(

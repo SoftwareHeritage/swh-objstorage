@@ -156,11 +156,8 @@ def validate_config(cfg):
 
     cls = vcfg["cls"]
     if cls == "pathslicing":
-        # Backwards-compatibility: either get the deprecated `args` from the
-        # objstorage config, or use the full config itself to check for keys
-        args = vcfg.get("args", vcfg)
         for key in ("root", "slicing"):
-            v = args.get(key)
+            v = vcfg.get(key)
             if v is None:
                 missing_keys.append(key)
 
