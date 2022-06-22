@@ -7,7 +7,7 @@ import abc
 import bz2
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterable, Iterator, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional
 import zlib
 
 from swh.model import hashutil
@@ -120,9 +120,6 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def delete(self, obj_id: ObjId):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
-
-    def get_random(self, batch_size: int) -> Iterable[ObjId]:
-        pass
 
     def list_content(
         self: ObjStorageInterface,

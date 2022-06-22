@@ -6,9 +6,8 @@
 from contextlib import contextmanager
 from itertools import islice
 import os
-import random
 import tempfile
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterator, List, Optional
 
 from swh.model import hashutil
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
@@ -287,36 +286,6 @@ class PathSlicingObjStorage(ObjStorage):
         except FileNotFoundError:
             raise ObjNotFoundError(obj_id)
         return True
-
-    # Management methods
-
-    def get_random(self, batch_size: int) -> Iterable[ObjId]:
-        def get_random_content(self, batch_size):
-            """Get a batch of content inside a single directory.
-
-            Returns:
-                a tuple (batch size, batch).
-            """
-            dirs = []
-            for level in range(len(self.slicer)):
-                path = os.path.join(self.root, *dirs)
-                dir_list = next(os.walk(path))[1]
-                if "tmp" in dir_list:
-                    dir_list.remove("tmp")
-                dirs.append(random.choice(dir_list))
-
-            path = os.path.join(self.root, *dirs)
-            content_list = next(os.walk(path))[2]
-            length = min(batch_size, len(content_list))
-            return (
-                length,
-                map(hashutil.hash_to_bytes, random.sample(content_list, length)),
-            )
-
-        while batch_size:
-            length, it = get_random_content(self, batch_size)
-            batch_size = batch_size - length
-            yield from it
 
     # Streaming methods
 

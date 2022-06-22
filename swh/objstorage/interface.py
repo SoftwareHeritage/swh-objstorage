@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterable, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -27,11 +27,6 @@ class ObjStorageInterface(Protocol):
     - get()           retrieve the content of an object, by object id
     - check()         check the integrity of an object, by object id
     - delete()        remove an object
-
-    And some management methods:
-
-    - get_random()    get random object id of existing contents (used for the
-                      content integrity checker).
 
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
@@ -173,24 +168,6 @@ class ObjStorageInterface(Protocol):
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
-
-        """
-        ...
-
-    # Management methods
-
-    @remote_api_endpoint("content/get/random")
-    def get_random(self, batch_size: int) -> Iterable[ObjId]:
-        """Get random ids of existing contents.
-
-        This method is used in order to get random ids to perform
-        content integrity verifications on random contents.
-
-        Args:
-            batch_size: Number of ids that will be given
-
-        Yields:
-            ids of contents that are in the current object storage.
 
         """
         ...

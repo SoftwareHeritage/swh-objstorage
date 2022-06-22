@@ -4,9 +4,8 @@
 # See top-level LICENSE file for more information
 
 import queue
-import random
 import threading
-from typing import Dict, Iterable
+from typing import Dict
 
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
@@ -307,20 +306,3 @@ class MultiplexerObjStorage(ObjStorage):
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         return all(self.wrap_call(self.get_write_threads(obj_id), "delete", obj_id))
-
-    def get_random(self, batch_size: int) -> Iterable[ObjId]:
-        storages_set = [storage for storage in self.storages if len(storage) > 0]
-        if len(storages_set) <= 0:
-            return []
-
-        while storages_set:
-            storage = random.choice(storages_set)
-            try:
-                return storage.get_random(batch_size)
-            except NotImplementedError:
-                storages_set.remove(storage)
-        # There is no storage that allow the get_random operation
-        raise NotImplementedError(
-            "There is no storage implementation into the multiplexer that "
-            "support the 'get_random' operation"
-        )

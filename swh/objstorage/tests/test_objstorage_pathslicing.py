@@ -69,13 +69,6 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             error.exception.args,
         )
 
-    def test_get_random_contents(self):
-        content, obj_id = self.hash_content(b"get_random_content")
-        self.storage.add(content, obj_id=obj_id)
-        random_contents = list(self.storage.get_random(1))
-        self.assertEqual(1, len(random_contents))
-        self.assertIn(obj_id, random_contents)
-
     def test_iterate_from(self):
         all_ids = []
         for i in range(100):

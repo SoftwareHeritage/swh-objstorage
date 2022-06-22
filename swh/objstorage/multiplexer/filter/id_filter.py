@@ -54,11 +54,6 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
             return self.storage.check(*args, obj_id=obj_id, **kwargs)
         raise ObjNotFoundError(obj_id)
 
-    def get_random(self, *args, **kwargs):
-        yield from filter(
-            lambda id: self.is_valid(id), self.storage.get_random(*args, **kwargs)
-        )
-
 
 class RegexIdObjStorageFilter(IdObjStorageFilter):
     """Filter that allow operations if the content's id as hex match a regex."""

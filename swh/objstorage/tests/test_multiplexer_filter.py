@@ -75,12 +75,6 @@ class MixinTestReadFilter(unittest.TestCase):
             self.storage.check(self.invalid_id)
         self.storage.check(self.valid_id)
 
-    def test_can_get_random(self):
-        self.assertEqual(1, len(list(self.storage.get_random(1))))
-        self.assertEqual(
-            len(list(self.storage)), len(set(self.storage.get_random(1000)))
-        )
-
     def test_cannot_add(self):
         new_id = self.storage.add(b"New content")
         result = self.storage.add(self.valid_content, self.valid_id)
@@ -255,19 +249,6 @@ class MixinTestIdFilter:
             self.storage.check(self.missing_corrupted_valid_id)
         with self.assertRaises(ObjNotFoundError):
             self.storage.check(self.missing_corrupted_invalid_id)
-
-    def test_get_random(self):
-        self.assertEqual(0, len(list(self.storage.get_random(0))))
-
-        random_content = list(self.storage.get_random(1000))
-        self.assertIn(self.present_valid_id, random_content)
-        self.assertNotIn(self.present_invalid_id, random_content)
-        self.assertNotIn(self.missing_valid_id, random_content)
-        self.assertNotIn(self.missing_invalid_id, random_content)
-        self.assertIn(self.present_corrupted_valid_id, random_content)
-        self.assertNotIn(self.present_corrupted_invalid_id, random_content)
-        self.assertNotIn(self.missing_corrupted_valid_id, random_content)
-        self.assertNotIn(self.missing_corrupted_invalid_id, random_content)
 
     def test_add(self):
         # Add valid and invalid contents to the storage and check their
