@@ -11,7 +11,7 @@ import requests
 
 from swh.model import hashutil
 from swh.objstorage import exc
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
@@ -45,11 +45,11 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         """Check the configuration for this object storage"""
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         raise exc.NonIterableObjStorage("__iter__")
 
     def __len__(self):
@@ -68,7 +68,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: int = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         raise exc.NonIterableObjStorage("__len__")
 
     def get(self, obj_id: ObjId) -> bytes:

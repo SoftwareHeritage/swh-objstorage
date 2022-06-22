@@ -21,7 +21,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
@@ -180,7 +180,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
         client = self.get_blob_client(hex_obj_id)
@@ -191,7 +191,7 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             return True
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():

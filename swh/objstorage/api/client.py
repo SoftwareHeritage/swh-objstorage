@@ -5,12 +5,13 @@
 
 from typing import Iterator, Optional
 
+import msgpack
+
 from swh.core.api import RPCClient
-from swh.core.utils import iter_chunks
 from swh.model import hashutil
-from swh.objstorage.constants import DEFAULT_LIMIT, ID_DIGEST_LENGTH
+from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
-from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 
 
 class RemoteObjStorage(RPCClient):
@@ -33,17 +34,22 @@ class RemoteObjStorage(RPCClient):
     def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         yield from self.list_content()
 
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: int = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         params = {"limit": limit}
         if last_obj_id:
             params["last_obj_id"] = hashutil.hash_to_hex(last_obj_id)
-        yield from iter_chunks(
-            self._get_stream("content", params=params), chunk_size=ID_DIGEST_LENGTH
+        response = self.raw_verb(
+            "get",
+            "content",
+            headers={"accept": "application/x-msgpack"},
+            params=params,
+            stream=True,
         )
+        yield from msgpack.Unpacker(response.raw, raw=True)

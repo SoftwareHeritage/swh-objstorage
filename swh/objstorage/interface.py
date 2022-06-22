@@ -3,15 +3,24 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Union
 
-from typing_extensions import Protocol, runtime_checkable
+from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.objstorage.constants import DEFAULT_LIMIT
 
-ObjId = bytes
-"""Type of object ids, which should be a sha1 hash."""
+
+class CompositeObjId(TypedDict, total=False):
+    sha1: bytes
+    sha1_git: bytes
+    sha256: bytes
+    blake2s256: bytes
+
+
+ObjId = Union[bytes, CompositeObjId]
+"""Type of object ids, which should be ``{hash: value for hash in SUPPORTED_HASHES}``;
+but single sha1 hashes are supported for legacy clients"""
 
 
 @runtime_checkable
@@ -172,12 +181,12 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def __iter__(self) -> Iterator[ObjId]:
+    def __iter__(self) -> Iterator[CompositeObjId]:
         ...
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         """Generates known object ids.
 
         Args:

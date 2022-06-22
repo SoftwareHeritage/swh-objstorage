@@ -1,9 +1,10 @@
 from itertools import count, islice, repeat
 import logging
 import random
-from typing import Iterator, Optional
+from typing import Generator, Iterator, Optional, cast
 
-from swh.objstorage.interface import ObjId
+from swh.objstorage.constants import ID_HASH_ALGO
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage
 
 logger = logging.getLogger(__name__)
@@ -189,10 +190,10 @@ class RandomGeneratorObjStorage(ObjStorage):
     def __contains__(self, obj_id, *args, **kwargs):
         return False
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         i = 1
         while True:
-            j = yield (b"%d" % i)
+            j = yield {ID_HASH_ALGO: b"%d" % i}
             if self.total and i >= self.total:
                 logger.debug("DONE")
                 break
@@ -217,8 +218,10 @@ class RandomGeneratorObjStorage(ObjStorage):
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: int = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
-        it = iter(self)
+    ) -> Iterator[CompositeObjId]:
+        if isinstance(last_obj_id, dict):
+            last_obj_id = last_obj_id[ID_HASH_ALGO]
+        it = cast(Generator[CompositeObjId, int, None], iter(self))
         if last_obj_id:
             next(it)
             it.send(int(last_obj_id))

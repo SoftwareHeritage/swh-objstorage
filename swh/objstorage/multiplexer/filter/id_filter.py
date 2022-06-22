@@ -5,9 +5,11 @@
 
 import abc
 import re
+from typing import Iterator
 
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId
 from swh.objstorage.multiplexer.filter.filter import ObjStorageFilter
 
 
@@ -33,7 +35,7 @@ class IdObjStorageFilter(ObjStorageFilter, metaclass=abc.ABCMeta):
     def __len__(self):
         return sum(1 for i in [id for id in self.storage if self.is_valid(id)])
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         yield from filter(lambda id: self.is_valid(id), iter(self.storage))
 
     def add(self, content, obj_id, check_presence=True, *args, **kwargs):

@@ -5,8 +5,7 @@
 
 import abc
 from collections import OrderedDict
-from collections.abc import Iterator
-from typing import Optional
+from typing import Iterator, Optional
 from urllib.parse import urlencode
 
 from libcloud.storage import providers
@@ -15,7 +14,7 @@ from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
@@ -116,7 +115,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         # FIXME: hopefully this blew up during instantiation
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         try:
             self._get_object(obj_id)
         except ObjNotFoundError:
@@ -124,7 +123,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         else:
             return True
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage

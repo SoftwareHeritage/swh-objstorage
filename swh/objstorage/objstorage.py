@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,7 +14,18 @@ from swh.model import hashutil
 
 from .constants import DEFAULT_LIMIT, ID_HASH_ALGO
 from .exc import ObjNotFoundError
-from .interface import ObjId, ObjStorageInterface
+from .interface import CompositeObjId, ObjId, ObjStorageInterface
+
+
+def objid_to_default_hex(obj_id: ObjId) -> str:
+    """Converts SHA1 hashes and multi-hashes to the hexadecimal representation
+    of the SHA1."""
+    if isinstance(obj_id, bytes):
+        return hashutil.hash_to_hex(obj_id)
+    elif isinstance(obj_id, str):
+        return obj_id
+    else:
+        return hashutil.hash_to_hex(obj_id[ID_HASH_ALGO])
 
 
 def compute_hash(content, algo=ID_HASH_ALGO):
@@ -125,8 +136,9 @@ class ObjStorage(metaclass=abc.ABCMeta):
         self: ObjStorageInterface,
         last_obj_id: Optional[ObjId] = None,
         limit: int = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         it = iter(self)
-        if last_obj_id is not None:
-            it = dropwhile(last_obj_id.__ge__, it)
+        if last_obj_id:
+            last_obj_id_hex = objid_to_default_hex(last_obj_id)
+            it = dropwhile(lambda x: objid_to_default_hex(x) <= last_obj_id_hex, it)
         return islice(it, limit)

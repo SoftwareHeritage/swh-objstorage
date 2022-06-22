@@ -3,6 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Iterator
+
+from swh.objstorage.interface import CompositeObjId
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -39,7 +42,7 @@ class ObjStorageFilter(ObjStorage):
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterates over the content of each storages
 
         Warning: The `__iter__` methods frequently have bad performance. You

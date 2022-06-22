@@ -7,8 +7,10 @@ import contextlib
 import functools
 import logging
 import os
+from typing import Iterator
 
 from flask import request
+import msgpack
 
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
@@ -98,9 +100,11 @@ def list_content():
         last_obj_id = bytes.fromhex(last_obj_id)
     limit = int(request.args.get("limit", DEFAULT_LIMIT))
 
-    def generate():
+    def generate() -> Iterator[bytes]:
         with timed_context("list_content"):
-            yield from get_objstorage().list_content(last_obj_id, limit=limit)
+            packer = msgpack.Packer(use_bin_type=True)
+            for obj in get_objstorage().list_content(last_obj_id, limit=limit):
+                yield packer.pack(obj)
 
     return app.response_class(generate())
 

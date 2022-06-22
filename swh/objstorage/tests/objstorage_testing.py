@@ -23,7 +23,10 @@ class ObjStorageTestFixture:
         missing_methods = []
 
         for meth_name in dir(interface):
-            if meth_name.startswith("_"):
+            if meth_name.startswith("_") and meth_name not in (
+                "__iter__",
+                "__contains__",
+            ):
                 continue
             interface_meth = getattr(interface, meth_name)
             concrete_meth = getattr(self.storage, meth_name)

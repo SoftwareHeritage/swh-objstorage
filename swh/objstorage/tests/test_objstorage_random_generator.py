@@ -21,10 +21,12 @@ def test_random_generator_objstorage_list_content():
     sto = get_objstorage("random", total=100)
     assert isinstance(sto.list_content(), Iterator)
 
-    assert list(sto.list_content()) == [b"%d" % i for i in range(1, 101)]
-    assert list(sto.list_content(limit=10)) == [b"%d" % i for i in range(1, 11)]
+    assert list(sto.list_content()) == [{"sha1": b"%d" % i} for i in range(1, 101)]
+    assert list(sto.list_content(limit=10)) == [
+        {"sha1": b"%d" % i} for i in range(1, 11)
+    ]
     assert list(sto.list_content(last_obj_id=b"10", limit=10)) == [
-        b"%d" % i for i in range(11, 21)
+        {"sha1": b"%d" % i} for i in range(11, 21)
     ]
 
 

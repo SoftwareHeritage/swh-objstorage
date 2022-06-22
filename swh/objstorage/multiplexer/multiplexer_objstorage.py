@@ -5,10 +5,10 @@
 
 import queue
 import threading
-from typing import Dict
+from typing import Dict, Iterator
 
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -199,7 +199,7 @@ class MultiplexerObjStorage(ObjStorage):
             )
         )
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:
@@ -215,7 +215,7 @@ class MultiplexerObjStorage(ObjStorage):
                 return True
         return False
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         def obj_iterator():
             for storage in self.storages:
                 yield from storage

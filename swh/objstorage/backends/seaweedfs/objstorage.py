@@ -11,13 +11,14 @@ from typing import Iterator, Optional
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
     compressors,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 from .http import HttpFiler
@@ -41,10 +42,10 @@ class SeaweedFilerObjStorage(ObjStorage):
         # FIXME: hopefully this blew up during instantiation
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         return self.wf.exists(self._path(obj_id))
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
@@ -123,9 +124,9 @@ class SeaweedFilerObjStorage(ObjStorage):
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: int = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         if last_obj_id:
-            objid = hashutil.hash_to_hex(last_obj_id)
+            objid = objid_to_default_hex(last_obj_id)
             lastfilename = objid
         else:
             lastfilename = None

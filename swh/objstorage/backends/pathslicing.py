@@ -12,8 +12,13 @@ from typing import Iterator, List, Optional
 from swh.model import hashutil
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.objstorage.interface import ObjId
-from swh.objstorage.objstorage import ObjStorage, compressors, decompressors
+from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.objstorage import (
+    ObjStorage,
+    compressors,
+    decompressors,
+    objid_to_default_hex,
+)
 
 BUFSIZ = 1048576
 
@@ -182,10 +187,10 @@ class PathSlicingObjStorage(ObjStorage):
         return True
 
     def __contains__(self, obj_id: ObjId) -> bool:
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
-    def __iter__(self) -> Iterator[bytes]:
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterate over the object identifiers currently available in the
         storage.
 
@@ -231,7 +236,7 @@ class PathSlicingObjStorage(ObjStorage):
             # If the object is already present, return immediately.
             return
 
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
             f.write(compressor.compress(content))
@@ -242,7 +247,7 @@ class PathSlicingObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
         # Open the file and return its content as bytes
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         d = decompressors[self.compression]()
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             out = d.decompress(f.read())
@@ -257,7 +262,7 @@ class PathSlicingObjStorage(ObjStorage):
         try:
             data = self.get(obj_id)
         except OSError:
-            hex_obj_id = hashutil.hash_to_hex(obj_id)
+            hex_obj_id = objid_to_default_hex(obj_id)
             raise Error(
                 "Corrupt object %s: not a proper compressed file" % hex_obj_id,
             )
@@ -266,13 +271,13 @@ class PathSlicingObjStorage(ObjStorage):
             data, hash_names=[ID_HASH_ALGO]
         ).digest()
 
-        actual_obj_id = checksums[ID_HASH_ALGO]
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        actual_obj_sha1 = checksums[ID_HASH_ALGO]
+        hex_obj_id = objid_to_default_hex(obj_id)
 
-        if hex_obj_id != hashutil.hash_to_hex(actual_obj_id):
+        if hex_obj_id != hashutil.hash_to_hex(actual_obj_sha1):
             raise Error(
                 "Corrupt object %s should have id %s"
-                % (hashutil.hash_to_hex(obj_id), hashutil.hash_to_hex(actual_obj_id))
+                % (objid_to_default_hex(obj_id), hashutil.hash_to_hex(actual_obj_sha1))
             )
 
     def delete(self, obj_id: ObjId):
@@ -280,7 +285,7 @@ class PathSlicingObjStorage(ObjStorage):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         try:
             os.remove(self.slicer.get_path(hex_obj_id))
         except FileNotFoundError:
@@ -291,7 +296,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     @contextmanager
     def chunk_writer(self, obj_id):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
             yield lambda c: f.write(compressor.compress(c))
@@ -299,7 +304,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
-    ) -> Iterator[ObjId]:
+    ) -> Iterator[CompositeObjId]:
         if last_obj_id:
             it = self.iter_from(last_obj_id)
         else:
@@ -307,7 +312,7 @@ class PathSlicingObjStorage(ObjStorage):
         return islice(it, limit)
 
     def iter_from(self, obj_id, n_leaf=False):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         slices = self.slicer.get_slices(hex_obj_id)
         rlen = len(self.root.split("/"))
 
