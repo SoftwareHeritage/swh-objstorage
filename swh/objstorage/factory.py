@@ -6,6 +6,7 @@
 import importlib
 import warnings
 
+from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.objstorage import ObjStorage
@@ -29,7 +30,7 @@ OBJSTORAGE_IMPLEMENTATIONS = {
 }
 
 
-def get_objstorage(cls: str, args=None, **kwargs):
+def get_objstorage(cls: str, args=None, **kwargs) -> ObjStorageInterface:
     """Create an ObjStorage using the given implementation class.
 
     Args:
