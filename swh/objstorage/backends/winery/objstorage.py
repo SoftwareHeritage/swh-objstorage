@@ -141,22 +141,20 @@ class WineryWriter(WineryReader):
         self.shard.uninit()
         super().uninit()
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         shard = self.base.add_phase_1(obj_id)
         if shard != self.base.id:
             #  this object is the responsibility of another shard
-            return obj_id
+            return
 
         self.shard.add(obj_id, content)
         self.base.add_phase_2(obj_id)
 
         if self.shard.is_full():
             self.pack()
-
-        return obj_id
 
     def check(self, obj_id: ObjId) -> None:
         # load all shards packing == True and not locked (i.e. packer
