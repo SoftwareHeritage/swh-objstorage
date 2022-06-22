@@ -142,10 +142,8 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
         self.storage = get_objstorage(
             "azure",
-            {
-                "container_url": "https://bogus-container-url.example",
-                "compression": self.compression,
-            },
+            container_url="https://bogus-container-url.example",
+            compression=self.compression,
         )
 
     def test_compression(self):
@@ -217,20 +215,20 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
         for prefix in "0123456789abcdef":
             self.accounts[prefix] = "https://bogus-container-url.example/" + prefix
 
-        self.storage = get_objstorage("azure-prefixed", {"accounts": self.accounts})
+        self.storage = get_objstorage("azure-prefixed", accounts=self.accounts)
 
     def test_prefixedazure_instantiation_missing_prefixes(self):
         del self.accounts["d"]
         del self.accounts["e"]
 
         with self.assertRaisesRegex(ValueError, "Missing prefixes"):
-            get_objstorage("azure-prefixed", {"accounts": self.accounts})
+            get_objstorage("azure-prefixed", accounts=self.accounts)
 
     def test_prefixedazure_instantiation_inconsistent_prefixes(self):
         self.accounts["00"] = self.accounts["0"]
 
         with self.assertRaisesRegex(ValueError, "Inconsistent prefixes"):
-            get_objstorage("azure-prefixed", {"accounts": self.accounts})
+            get_objstorage("azure-prefixed", accounts=self.accounts)
 
     def test_prefixedazure_sharding_behavior(self):
         for i in range(100):
@@ -285,11 +283,9 @@ def test_bwcompat_args(monkeypatch):
     with pytest.deprecated_call():
         objs = get_objstorage(
             "azure",
-            {
-                "account_name": "account_name",
-                "api_secret_key": base64.b64encode(b"account_key"),
-                "container_name": "container_name",
-            },
+            account_name="account_name",
+            api_secret_key=base64.b64encode(b"account_key"),
+            container_name="container_name",
         )
 
     assert objs is not None
@@ -312,6 +308,6 @@ def test_bwcompat_args_prefixed(monkeypatch):
     }
 
     with pytest.deprecated_call():
-        objs = get_objstorage("azure-prefixed", {"accounts": accounts})
+        objs = get_objstorage("azure-prefixed", accounts=accounts)
 
     assert objs is not None

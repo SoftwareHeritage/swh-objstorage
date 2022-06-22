@@ -108,7 +108,8 @@ class MixinTestIdFilter:
         # Make the storage filtered
         self.sconf = {
             "cls": "pathslicing",
-            "args": {"root": self.tmpdir, "slicing": "0:5"},
+            "root": self.tmpdir,
+            "slicing": "0:5",
         }
         storage = get_objstorage(**self.sconf)
         self.base_storage = storage
@@ -315,7 +316,8 @@ class TestPrefixFilter(MixinTestIdFilter, unittest.TestCase):
     def filter_storage(self, sconf):
         return get_objstorage(
             "filtered",
-            {"storage_conf": sconf, "filters_conf": [id_prefix(self.prefix)]},
+            storage_conf=sconf,
+            filters_conf=[id_prefix(self.prefix)],
         )
 
 
@@ -326,5 +328,5 @@ class TestRegexFilter(MixinTestIdFilter, unittest.TestCase):
 
     def filter_storage(self, sconf):
         return get_objstorage(
-            "filtered", {"storage_conf": sconf, "filters_conf": [id_regex(self.regex)]}
+            "filtered", storage_conf=sconf, filters_conf=[id_regex(self.regex)]
         )

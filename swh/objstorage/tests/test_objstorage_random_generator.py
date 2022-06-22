@@ -9,7 +9,7 @@ from swh.objstorage.factory import get_objstorage
 
 
 def test_random_generator_objstorage():
-    sto = get_objstorage("random", {})
+    sto = get_objstorage("random")
     assert sto
 
     blobs = [sto.get(None) for i in range(100)]
@@ -18,7 +18,7 @@ def test_random_generator_objstorage():
 
 
 def test_random_generator_objstorage_list_content():
-    sto = get_objstorage("random", {"total": 100})
+    sto = get_objstorage("random", total=100)
     assert isinstance(sto.list_content(), Iterator)
 
     assert list(sto.list_content()) == [b"%d" % i for i in range(1, 101)]
@@ -29,11 +29,11 @@ def test_random_generator_objstorage_list_content():
 
 
 def test_random_generator_objstorage_total():
-    sto = get_objstorage("random", {"total": 5})
+    sto = get_objstorage("random", total=5)
     assert len([x for x in sto]) == 5
 
 
 def test_random_generator_objstorage_size():
-    sto = get_objstorage("random", {"filesize": 10})
+    sto = get_objstorage("random", filesize=10)
     for i in range(10):
         assert len(sto.get(None)) == 10

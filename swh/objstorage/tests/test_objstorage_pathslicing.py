@@ -25,11 +25,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.storage = get_objstorage(
             "pathslicing",
-            {
-                "root": self.tmpdir,
-                "slicing": self.slicing,
-                "compression": self.compression,
-            },
+            root=self.tmpdir,
+            slicing=self.slicing,
+            compression=self.compression,
         )
 
     def tearDown(self):

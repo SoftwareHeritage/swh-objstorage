@@ -30,11 +30,11 @@ class TestObjStorageInitialization(unittest.TestCase):
         shutil.rmtree(self.path2)
 
     def test_pathslicing_objstorage(self):
-        conf = {"cls": "pathslicing", "args": {"root": self.path, "slicing": "0:2/0:5"}}
+        conf = {"cls": "pathslicing", "root": self.path, "slicing": "0:2/0:5"}
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, PathSlicingObjStorage))
 
     def test_remote_objstorage(self):
-        conf = {"cls": "remote", "args": {"url": "http://127.0.0.1:4242/"}}
+        conf = {"cls": "remote", "url": "http://127.0.0.1:4242/"}
         st = get_objstorage(**conf)
         self.assertTrue(isinstance(st, RemoteObjStorage))

@@ -21,26 +21,20 @@ class TestStripingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         os.mkdir(os.path.join(self.base_dir, "root2"))
         storage_config = {
             "cls": "striping",
-            "args": {
-                "objstorages": [
-                    {
-                        "cls": "pathslicing",
-                        "args": {
-                            "root": os.path.join(self.base_dir, "root1"),
-                            "slicing": "0:2",
-                            "allow_delete": True,
-                        },
-                    },
-                    {
-                        "cls": "pathslicing",
-                        "args": {
-                            "root": os.path.join(self.base_dir, "root2"),
-                            "slicing": "0:2",
-                            "allow_delete": True,
-                        },
-                    },
-                ]
-            },
+            "objstorages": [
+                {
+                    "cls": "pathslicing",
+                    "root": os.path.join(self.base_dir, "root1"),
+                    "slicing": "0:2",
+                    "allow_delete": True,
+                },
+                {
+                    "cls": "pathslicing",
+                    "root": os.path.join(self.base_dir, "root2"),
+                    "slicing": "0:2",
+                    "allow_delete": True,
+                },
+            ],
         }
         self.storage = get_objstorage(**storage_config)
 

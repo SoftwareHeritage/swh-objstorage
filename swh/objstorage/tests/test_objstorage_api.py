@@ -32,7 +32,7 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.Te
 
         self.app = app
         super().setUp()
-        self.storage = get_objstorage("remote", {"url": self.url()})
+        self.storage = get_objstorage("remote", url=self.url())
 
     def tearDown(self):
         super().tearDown()
