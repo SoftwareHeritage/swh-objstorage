@@ -30,7 +30,7 @@ class RemoteObjStorage(RPCClient):
     reraise_exceptions = [ObjNotFoundError, Error]
     backend_class = ObjStorageInterface
 
-    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId):
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
     def __iter__(self):

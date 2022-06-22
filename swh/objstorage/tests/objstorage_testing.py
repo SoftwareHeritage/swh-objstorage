@@ -62,23 +62,19 @@ class ObjStorageTestFixture:
 
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
     def test_add_twice(self):
         content, obj_id = self.hash_content(b"add_twice")
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
-        r = self.storage.add(content, obj_id=obj_id, check_presence=False)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id, check_presence=False)
         self.assertContentMatch(obj_id, content)
 
     def test_add_big(self):
         content, obj_id = self.hash_content(b"add_big" * 1024 * 1024)
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
     def test_add_get_batch(self):
@@ -101,12 +97,10 @@ class ObjStorageTestFixture:
 
         valid_content, valid_obj_id = self.hash_content(b"restore_content")
         invalid_content = b"unexpected content"
-        id_adding = self.storage.add(invalid_content, valid_obj_id)
-        self.assertEqual(id_adding, valid_obj_id)
+        self.storage.add(invalid_content, valid_obj_id)
         with self.assertRaises(exc.Error):
-            self.storage.check(id_adding)
-        id_restore = self.storage.restore(valid_content, valid_obj_id)
-        self.assertEqual(id_restore, valid_obj_id)
+            self.storage.check(valid_obj_id)
+        self.storage.restore(valid_content, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
     def test_get_missing(self):

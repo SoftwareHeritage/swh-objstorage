@@ -28,13 +28,11 @@ class InMemoryObjStorage(ObjStorage):
     def __iter__(self):
         return iter(sorted(self.state))
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         self.state[obj_id] = content
-
-        return obj_id
 
     def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:

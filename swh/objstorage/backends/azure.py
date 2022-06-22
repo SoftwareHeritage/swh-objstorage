@@ -206,10 +206,10 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add an obj in storage if it's not there already."""
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         hex_obj_id = self._internal_id(obj_id)
 
@@ -228,9 +228,7 @@ class AzureCloudObjStorage(ObjStorage):
             # removes the blob, it should be safe to just ignore the error.
             pass
 
-        return obj_id
-
-    def restore(self, content: bytes, obj_id: ObjId):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         """Restore a content."""
         if obj_id in self:
             self.delete(obj_id)

@@ -38,8 +38,8 @@ class WineryObjStorage(ObjStorage):
     def __contains__(self, obj_id):
         return obj_id in self.winery
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
-        return self.winery.add(content, obj_id, check_presence)
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+        self.winery.add(content, obj_id, check_presence)
 
     def check(self, obj_id: ObjId) -> None:
         return self.winery.check(obj_id)

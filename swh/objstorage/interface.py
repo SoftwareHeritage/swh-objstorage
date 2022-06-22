@@ -65,7 +65,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add a new object to the object storage.
 
         Args:
@@ -95,7 +95,7 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def restore(self, content: bytes, obj_id: ObjId):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         """Restore a content that have been corrupted.
 
         This function is identical to add but does not check if

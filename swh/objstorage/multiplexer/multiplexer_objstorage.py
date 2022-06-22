@@ -223,7 +223,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         return obj_iterator()
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add a new object to the object storage.
 
         If the adding step works in all the storages that accept this content,
@@ -243,20 +243,13 @@ class MultiplexerObjStorage(ObjStorage):
             always readable as well, any id will be valid to retrieve a
             content.
         """
-        results = self.wrap_call(
+        self.wrap_call(
             self.get_write_threads(obj_id),
             "add",
             content,
             obj_id=obj_id,
             check_presence=check_presence,
         )
-
-        for result in results:
-            if not result:
-                continue
-            return result
-
-        assert False, "No backend objstorage configured"
 
     def add_batch(self, contents, check_presence=True) -> Dict:
         """Add a batch of new objects to the object storage."""
@@ -278,7 +271,7 @@ class MultiplexerObjStorage(ObjStorage):
             "object:add:bytes": summed["object:add:bytes"] // len(results),
         }
 
-    def restore(self, content: bytes, obj_id: ObjId):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.wrap_call(
             self.get_write_threads(obj_id),
             "restore",

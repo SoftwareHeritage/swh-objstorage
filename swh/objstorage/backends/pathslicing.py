@@ -227,18 +227,16 @@ class PathSlicingObjStorage(ObjStorage):
         content: bytes,
         obj_id: ObjId,
         check_presence: bool = True,
-    ) -> ObjId:
+    ) -> None:
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
-            return obj_id
+            return
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
             f.write(compressor.compress(content))
             f.write(compressor.flush())
-
-        return obj_id
 
     def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:

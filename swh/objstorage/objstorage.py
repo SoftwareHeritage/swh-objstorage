@@ -103,9 +103,9 @@ class ObjStorage(metaclass=abc.ABCMeta):
             summary["object:add:bytes"] += len(content)
         return summary
 
-    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId):
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         # check_presence to false will erase the potential previous content.
-        return self.add(content, obj_id, check_presence=False)
+        self.add(content, obj_id, check_presence=False)
 
     def get_batch(
         self: ObjStorageInterface, obj_ids: List[ObjId]

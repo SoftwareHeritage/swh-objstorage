@@ -157,14 +157,13 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         return sum(1 for i in self)
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> ObjId:
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         self._put_object(content, obj_id)
-        return obj_id
 
-    def restore(self, content: bytes, obj_id: ObjId):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
     def get(self, obj_id: ObjId) -> bytes:
