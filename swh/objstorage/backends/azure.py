@@ -18,6 +18,7 @@ from azure.storage.blob import (
     generate_container_sas,
 )
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
+from typing_extensions import Literal
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
@@ -96,6 +97,8 @@ class AzureCloudObjStorage(ObjStorage):
       such a URL from the account's access keys. The ``account_name``,
       ``api_secret_key`` and ``container_name`` arguments are deprecated.
     """
+
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
 
     def __init__(
         self,
@@ -195,7 +198,7 @@ class AzureCloudObjStorage(ObjStorage):
         """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():
-                yield hashutil.hash_to_bytes(obj.name)
+                yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(obj.name)}
 
     def __len__(self):
         """Compute the number of objects in the current object storage.

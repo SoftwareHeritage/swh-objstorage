@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from libcloud.storage import providers
 import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
+from typing_extensions import Literal
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
@@ -20,6 +21,7 @@ from swh.objstorage.objstorage import (
     compressors,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 
@@ -57,6 +59,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       compression: compression algorithm to use for objects
       kwargs: extra arguments are passed through to the LibCloud driver
     """
+
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
 
     def __init__(
         self,
@@ -142,7 +146,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             if self.path_prefix:
                 name = name[len(self.path_prefix) :]
 
-            yield hashutil.hash_to_bytes(name)
+            yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(name)}
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -170,7 +174,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         d = decompressors[self.compression]()
         ret = d.decompress(obj)
         if d.unused_data:
-            hex_obj_id = hashutil.hash_to_hex(obj_id)
+            hex_obj_id = objid_to_default_hex(obj_id)
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 

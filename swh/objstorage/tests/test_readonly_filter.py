@@ -57,8 +57,8 @@ class ReadOnlyFilterTestCase(unittest.TestCase):
         self.assertFalse(self.absent_id in self.storage)
 
     def test_can_iter(self):
-        self.assertIn(self.valid_id, iter(self.storage))
-        self.assertIn(self.invalid_id, iter(self.storage))
+        self.assertIn({"sha1": self.valid_id}, iter(self.storage))
+        self.assertIn({"sha1": self.invalid_id}, iter(self.storage))
 
     def test_can_len(self):
         self.assertEqual(2, len(self.storage))

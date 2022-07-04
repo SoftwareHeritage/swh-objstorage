@@ -181,14 +181,14 @@ class ObjStorageTestFixture:
         sto_obj_ids = list(sto_obj_ids)
         self.assertFalse(sto_obj_ids)
 
-        obj_ids = set()
+        obj_ids = []
         for i in range(100):
             content, obj_id = self.hash_content(b"content %d" % i)
             self.storage.add(content, obj_id=obj_id)
-            obj_ids.add(obj_id)
+            obj_ids.append({"sha1": obj_id})
 
-        sto_obj_ids = set(self.storage)
-        self.assertEqual(sto_obj_ids, obj_ids)
+        sto_obj_ids = list(self.storage)
+        self.assertCountEqual(sto_obj_ids, obj_ids)
 
     def test_list_content(self):
         all_ids = []
@@ -196,8 +196,8 @@ class ObjStorageTestFixture:
             content = b"example %d" % i
             obj_id = compute_hash(content)
             self.storage.add(content, obj_id)
-            all_ids.append(obj_id)
-        all_ids.sort()
+            all_ids.append({"sha1": obj_id})
+        all_ids.sort(key=lambda d: d["sha1"])
 
         ids = list(self.storage.list_content())
         self.assertEqual(len(ids), 1200)

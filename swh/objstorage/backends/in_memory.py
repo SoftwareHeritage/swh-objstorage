@@ -5,6 +5,8 @@
 
 from typing import Iterator
 
+from typing_extensions import Literal
+
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, compute_hash, objid_to_default_hex
@@ -17,6 +19,8 @@ class InMemoryObjStorage(ObjStorage):
 
     """
 
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
+
     def __init__(self, **args):
         super().__init__()
         self.state = {}
@@ -28,7 +32,8 @@ class InMemoryObjStorage(ObjStorage):
         return obj_id in self.state
 
     def __iter__(self) -> Iterator[CompositeObjId]:
-        return iter(sorted(self.state))
+        for id_ in sorted(self.state):
+            yield {self.PRIMARY_HASH: id_}
 
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
