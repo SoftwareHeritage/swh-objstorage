@@ -3,17 +3,29 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict
+from typing import Dict, Iterator, List, Optional, Union
 
-from typing_extensions import Protocol, runtime_checkable
+from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT
+from swh.objstorage.constants import DEFAULT_LIMIT
+
+
+class CompositeObjId(TypedDict, total=False):
+    sha1: bytes
+    sha1_git: bytes
+    sha256: bytes
+    blake2s256: bytes
+
+
+ObjId = Union[bytes, CompositeObjId]
+"""Type of object ids, which should be ``{hash: value for hash in SUPPORTED_HASHES}``;
+but single sha1 hashes are supported for legacy clients"""
 
 
 @runtime_checkable
 class ObjStorageInterface(Protocol):
-    """ High-level API to manipulate the Software Heritage object storage.
+    """High-level API to manipulate the Software Heritage object storage.
 
     Conceptually, the object storage offers the following methods:
 
@@ -24,15 +36,6 @@ class ObjStorageInterface(Protocol):
     - get()           retrieve the content of an object, by object id
     - check()         check the integrity of an object, by object id
     - delete()        remove an object
-
-    And some management methods:
-
-    - get_random()    get random object id of existing contents (used for the
-                      content integrity checker).
-
-    Some of the methods have available streaming equivalents:
-
-    - get_stream()     same as get() but returns a chunked iterator
 
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
@@ -52,11 +55,11 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/contains")
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:
-            obj_id (bytes): object identifier.
+            obj_id: object identifier.
 
         Returns:
             True if and only if the object is present in the current object
@@ -66,15 +69,13 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add a new object to the object storage.
 
         Args:
-            content (bytes): object's raw content to add in storage.
-            obj_id (bytes): checksum of [bytes] using [ID_HASH_ALGO]
-                algorithm. When given, obj_id will be trusted to match
-                the bytes. If missing, obj_id will be computed on the
-                fly.
+            content: object's raw content to add in storage.
+            obj_id: checksum of [bytes] using [ID_HASH_ALGO]
+                algorithm. It is trusted to match the bytes.
             check_presence (bool): indicate if the presence of the
                 content should be verified before adding the file.
 
@@ -98,7 +99,7 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         """Restore a content that have been corrupted.
 
         This function is identical to add but does not check if
@@ -107,21 +108,17 @@ class ObjStorageInterface(Protocol):
         suitable for most cases.
 
         Args:
-            content (bytes): object's raw content to add in storage
-            obj_id (bytes): checksum of `bytes` as computed by
-                ID_HASH_ALGO. When given, obj_id will be trusted to
-                match bytes. If missing, obj_id will be computed on
-                the fly.
-
+            content: object's raw content to add in storage
+            obj_id: dict of hashes of the content (or only the sha1, for legacy clients)
         """
         ...
 
     @remote_api_endpoint("content/get")
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         """Retrieve the content of a given object.
 
         Args:
-            obj_id (bytes): object id.
+            obj_id: object id.
 
         Returns:
             the content of the requested object as bytes.
@@ -133,7 +130,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get/batch")
-    def get_batch(self, obj_ids):
+    def get_batch(self, obj_ids: List[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage.
 
         Note: This function does have a default implementation in
@@ -144,7 +141,7 @@ class ObjStorageInterface(Protocol):
         can be overridden to perform a more efficient operation.
 
         Args:
-            obj_ids ([bytes]: list of object ids.
+            obj_ids: list of object ids.
 
         Returns:
             list of resulting contents, or None if the content could
@@ -155,14 +152,14 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/check")
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         """Perform an integrity check for a given object.
 
         Verify that the file object is in place and that the content matches
         the object id.
 
         Args:
-            obj_id (bytes): object identifier.
+            obj_id: object identifier.
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
@@ -172,11 +169,11 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/delete")
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         """Delete an object.
 
         Args:
-            obj_id (bytes): object identifier.
+            obj_id: object identifier.
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
@@ -184,54 +181,20 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    # Management methods
-
-    @remote_api_endpoint("content/get/random")
-    def get_random(self, batch_size):
-        """Get random ids of existing contents.
-
-        This method is used in order to get random ids to perform
-        content integrity verifications on random contents.
-
-        Args:
-            batch_size (int): Number of ids that will be given
-
-        Yields:
-            An iterable of ids (bytes) of contents that are in the
-            current object storage.
-
-        """
+    def __iter__(self) -> Iterator[CompositeObjId]:
         ...
 
-    # Streaming methods
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        """Retrieve the content of a given object as a chunked iterator.
-
-        Args:
-            obj_id (bytes): object id.
-
-        Returns:
-            the content of the requested object as bytes.
-
-        Raises:
-            ObjNotFoundError: if the requested object is missing.
-
-        """
-        ...
-
-    def __iter__(self):
-        ...
-
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+    ) -> Iterator[CompositeObjId]:
         """Generates known object ids.
 
         Args:
-            last_obj_id (bytes): object id from which to iterate from
+            last_obj_id: object id from which to iterate from
                  (excluded).
             limit (int): max number of object ids to generate.
 
         Generates:
-            obj_id (bytes): object ids.
+            obj_id: object ids.
         """
         ...

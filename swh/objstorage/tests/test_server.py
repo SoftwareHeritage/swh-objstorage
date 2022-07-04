@@ -65,13 +65,14 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
     config = {
         "objstorage": {
             "cls": "pathslicing",
-            "args": {"root": "root", "slicing": "slicing",},
+            "root": "root",
+            "slicing": "slicing",
             "client_max_size": "10",
         }
     }
     for key in ("root", "slicing"):
         c = copy.deepcopy(config)
-        c["objstorage"]["args"].pop(key)
+        c["objstorage"].pop(key)
         config_path = prepare_config_file(tmpdir, c)
         with pytest.raises(KeyError, match=f"missing {key} config entry"):
             load_and_check_config(config_path)
@@ -84,7 +85,8 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
             {
                 "objstorage": {
                     "cls": "pathslicing",
-                    "args": {"root": "root", "slicing": "slicing"},
+                    "root": "root",
+                    "slicing": "slicing",
                 }
             },
             id="pathslicing-bw-compat",
@@ -100,13 +102,20 @@ def test_load_and_check_config_invalid_configuration_level2(tmpdir):
             id="pathslicing",
         ),
         pytest.param(
-            {"client_max_size": "10", "objstorage": {"cls": "memory", "args": {}}},
+            {"client_max_size": "10", "objstorage": {"cls": "memory"}},
             id="empty-args-bw-compat",
         ),
         pytest.param(
             {"client_max_size": "10", "objstorage": {"cls": "memory"}}, id="empty-args"
         ),
-        pytest.param({"objstorage": {"cls": "noop",}}, id="noop",),
+        pytest.param(
+            {
+                "objstorage": {
+                    "cls": "noop",
+                }
+            },
+            id="noop",
+        ),
     ],
 )
 def test_load_and_check_config(tmpdir, config):

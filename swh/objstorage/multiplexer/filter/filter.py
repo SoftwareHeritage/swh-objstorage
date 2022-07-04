@@ -3,6 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Iterator
+
+from swh.objstorage.interface import CompositeObjId
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -39,8 +42,8 @@ class ObjStorageFilter(ObjStorage):
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
 
-    def __iter__(self):
-        """ Iterates over the content of each storages
+    def __iter__(self) -> Iterator[CompositeObjId]:
+        """Iterates over the content of each storages
 
         Warning: The `__iter__` methods frequently have bad performance. You
         almost certainly don't want to use this method in production as the
@@ -49,7 +52,7 @@ class ObjStorageFilter(ObjStorage):
         return self.storage.__iter__()
 
     def __len__(self):
-        """ Compute the number of objects in the current object storage.
+        """Compute the number of objects in the current object storage.
 
         Warning: performance issue in `__iter__` also applies here.
 
@@ -58,10 +61,10 @@ class ObjStorageFilter(ObjStorage):
         """
         return self.storage.__len__()
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         return self.storage.add(content, obj_id, check_presence, *args, **kwargs)
 
-    def restore(self, content, obj_id=None, *args, **kwargs):
+    def restore(self, content, obj_id, *args, **kwargs):
         return self.storage.restore(content, obj_id, *args, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
@@ -72,6 +75,3 @@ class ObjStorageFilter(ObjStorage):
 
     def delete(self, obj_id, *args, **kwargs):
         return self.storage.delete(obj_id, *args, **kwargs)
-
-    def get_random(self, batch_size, *args, **kwargs):
-        return self.storage.get_random(batch_size, *args, **kwargs)

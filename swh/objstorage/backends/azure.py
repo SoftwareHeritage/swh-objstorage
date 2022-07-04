@@ -8,7 +8,7 @@ import contextlib
 import datetime
 from itertools import product
 import string
-from typing import Dict, Optional, Union
+from typing import Dict, Iterator, List, Optional, Union
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -21,6 +21,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
@@ -165,9 +166,7 @@ class AzureCloudObjStorage(ObjStorage):
         yield self.get_container_client("")
 
     def _internal_id(self, obj_id):
-        """Internal id is the hex version in objstorage.
-
-        """
+        """Internal id is the hex version in objstorage."""
         return hashutil.hash_to_hex(obj_id)
 
     def check_config(self, *, check_write):
@@ -181,10 +180,8 @@ class AzureCloudObjStorage(ObjStorage):
 
         return True
 
-    def __contains__(self, obj_id):
-        """Does the storage contains the obj_id.
-
-        """
+    def __contains__(self, obj_id: ObjId) -> bool:
+        """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
         client = self.get_blob_client(hex_obj_id)
         try:
@@ -194,10 +191,8 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             return True
 
-    def __iter__(self):
-        """Iterate over the objects present in the storage.
-
-        """
+    def __iter__(self) -> Iterator[CompositeObjId]:
+        """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():
                 yield hashutil.hash_to_bytes(obj.name)
@@ -211,16 +206,10 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        """Add an obj in storage if it's not there already.
-
-        """
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+        """Add an obj in storage if it's not there already."""
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         hex_obj_id = self._internal_id(obj_id)
 
@@ -239,25 +228,15 @@ class AzureCloudObjStorage(ObjStorage):
             # removes the blob, it should be safe to just ignore the error.
             pass
 
-        return obj_id
-
-    def restore(self, content, obj_id=None):
-        """Restore a content.
-
-        """
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
+        """Restore a content."""
         if obj_id in self:
             self.delete(obj_id)
 
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
-        """retrieve blob's content if found.
-
-        """
+    def get(self, obj_id: ObjId) -> bytes:
+        """retrieve blob's content if found."""
         return call_async(self._get_async, obj_id)
 
     async def _get_async(self, obj_id, container_clients=None):
@@ -306,20 +285,18 @@ class AzureCloudObjStorage(ObjStorage):
                 ]
             )
 
-    def get_batch(self, obj_ids):
+    def get_batch(self, obj_ids: List[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return call_async(self._get_batch_async, obj_ids)
 
-    def check(self, obj_id):
-        """Check the content integrity.
-
-        """
+    def check(self, obj_id: ObjId) -> None:
+        """Check the content integrity."""
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         """Delete an object."""
         super().delete(obj_id)  # Check delete permission
         hex_obj_id = self._internal_id(obj_id)

@@ -7,15 +7,18 @@ import io
 from itertools import islice
 import logging
 import os
+from typing import Iterator, Optional
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
     compressors,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 from .http import HttpFiler
@@ -39,11 +42,11 @@ class SeaweedFilerObjStorage(ObjStorage):
         # FIXME: hopefully this blew up during instantiation
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         return self.wf.exists(self._path(obj_id))
 
-    def __iter__(self):
-        """ Iterate over the objects present in the storage
+    def __iter__(self) -> Iterator[CompositeObjId]:
+        """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
         may have bad efficiency: due to the very high amount of objects in it
@@ -72,31 +75,25 @@ class SeaweedFilerObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         def compressor(data):
             comp = compressors[self.compression]()
-            for chunk in data:
-                yield comp.compress(chunk)
+            yield comp.compress(data)
             yield comp.flush()
 
-        if isinstance(content, bytes):
-            content = [content]
+        assert isinstance(
+            content, bytes
+        ), "list of content chunks is not supported anymore"
 
-        # XXX should handle streaming correctly...
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
-        return obj_id
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         try:
             obj = self.wf.get(self._path(obj_id))
         except Exception:
@@ -109,23 +106,27 @@ class SeaweedFilerObjStorage(ObjStorage):
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
         self.wf.delete(self._path(obj_id))
         return True
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[CompositeObjId]:
         if last_obj_id:
-            objid = hashutil.hash_to_hex(last_obj_id)
+            objid = objid_to_default_hex(last_obj_id)
             lastfilename = objid
         else:
             lastfilename = None
