@@ -1,3 +1,19 @@
+swh-objstorage (2.0.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.0.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-07-04 14:07:43 +0200)
+  * Upstream changes:     - v2.0.0     - * Start introducing composite
+    ObjId in the interface     - * Remove get_random(), add_stream and
+    get_stream     - * Remove deprecated 'args' argument of
+    get_objstorage     - * Remove deprecated alias 'weed' of
+    'seaweedfs'.     - * Make add() and restore() return None instead of
+    ObjId     - * libcloud: Default to gzip compression     - * Make
+    obj_id argument of ObjStorage.restore() and ObjStorage.add()
+    required     - * api/server: Fix streaming responses implementation
+    - * test maintenance
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 04 Jul 2022 12:14:25 +0000
+
 swh-objstorage (1.0.5-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.0.5     - (tagged by Nicolas Dandrimont
