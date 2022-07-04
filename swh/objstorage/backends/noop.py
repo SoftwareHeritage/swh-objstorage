@@ -22,7 +22,7 @@ class NoopObjStorage(ObjStorage):
     def __contains__(self, obj_id, *args, **kwargs):
         return False
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         pass
 
     def get(self, obj_id, *args, **kwargs):

@@ -1,72 +1,36 @@
-# Copyright (C) 2016-2021  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Callable, Dict, Union
-import warnings
+import importlib
 
-from swh.objstorage.api.client import RemoteObjStorage
-from swh.objstorage.backends.generator import RandomGeneratorObjStorage
-from swh.objstorage.backends.http import HTTPReadOnlyObjStorage
-from swh.objstorage.backends.in_memory import InMemoryObjStorage
-from swh.objstorage.backends.noop import NoopObjStorage
-from swh.objstorage.backends.pathslicing import PathSlicingObjStorage
-from swh.objstorage.backends.seaweedfs import SeaweedFilerObjStorage
+from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
-from swh.objstorage.objstorage import ID_HEXDIGEST_LENGTH, ObjStorage  # noqa
+from swh.objstorage.objstorage import ObjStorage
 
 __all__ = ["get_objstorage", "ObjStorage"]
 
 
-_STORAGE_CLASSES: Dict[str, Union[type, Callable[..., type]]] = {
-    "pathslicing": PathSlicingObjStorage,
-    "remote": RemoteObjStorage,
-    "memory": InMemoryObjStorage,
-    "seaweedfs": SeaweedFilerObjStorage,
-    "random": RandomGeneratorObjStorage,
-    "http": HTTPReadOnlyObjStorage,
-    "noop": NoopObjStorage,
+OBJSTORAGE_IMPLEMENTATIONS = {
+    "pathslicing": ".backends.pathslicing.PathSlicingObjStorage",
+    "remote": ".api.client.RemoteObjStorage",
+    "memory": ".backends.in_memory.InMemoryObjStorage",
+    "seaweedfs": ".backends.seaweedfs.SeaweedFilerObjStorage",
+    "random": ".backends.generator.RandomGeneratorObjStorage",
+    "http": ".backends.http.HTTPReadOnlyObjStorage",
+    "noop": ".backends.noop.NoopObjStorage",
+    "azure": ".backends.azure.AzureCloudObjStorage",
+    "azure-prefixed": ".backends.azure.PrefixedAzureCloudObjStorage",
+    "s3": ".backends.libcloud.AwsCloudObjStorage",
+    "swift": ".backends.libcloud.OpenStackCloudObjStorage",
+    "winery": ".backends.winery.WineryObjStorage",
 }
 
-_STORAGE_CLASSES_MISSING = {}
-_STORAGE_CLASSES_DEPRECATED = {"weed": "seaweedfs"}
 
-try:
-    from swh.objstorage.backends.azure import (
-        AzureCloudObjStorage,
-        PrefixedAzureCloudObjStorage,
-    )
-
-    _STORAGE_CLASSES["azure"] = AzureCloudObjStorage
-    _STORAGE_CLASSES["azure-prefixed"] = PrefixedAzureCloudObjStorage
-except ImportError as e:
-    _STORAGE_CLASSES_MISSING["azure"] = e.args[0]
-    _STORAGE_CLASSES_MISSING["azure-prefixed"] = e.args[0]
-
-try:
-    from swh.objstorage.backends.libcloud import (
-        AwsCloudObjStorage,
-        OpenStackCloudObjStorage,
-    )
-
-    _STORAGE_CLASSES["s3"] = AwsCloudObjStorage
-    _STORAGE_CLASSES["swift"] = OpenStackCloudObjStorage
-except ImportError as e:
-    _STORAGE_CLASSES_MISSING["s3"] = e.args[0]
-    _STORAGE_CLASSES_MISSING["swift"] = e.args[0]
-
-try:
-    from swh.objstorage.backends.winery import WineryObjStorage
-
-    _STORAGE_CLASSES["winery"] = WineryObjStorage
-except ImportError as e:
-    _STORAGE_CLASSES_MISSING["winery"] = e.args[0]
-
-
-def get_objstorage(cls: str, args=None, **kwargs):
-    """ Create an ObjStorage using the given implementation class.
+def get_objstorage(cls: str, **kwargs) -> ObjStorageInterface:
+    """Create an ObjStorage using the given implementation class.
 
     Args:
         cls: objstorage class unique key contained in the
@@ -80,37 +44,31 @@ def get_objstorage(cls: str, args=None, **kwargs):
         ValueError: if the given storage class is not a valid objstorage
             key.
     """
-    if cls in _STORAGE_CLASSES_DEPRECATED:
-        warnings.warn(
-            f"{cls} objstorage class is deprecated, "
-            f"use {_STORAGE_CLASSES_DEPRECATED[cls]} class instead.",
-            DeprecationWarning,
-        )
-        cls = _STORAGE_CLASSES_DEPRECATED[cls]
-    if cls in _STORAGE_CLASSES:
-        if args is not None:
-            warnings.warn(
-                'Explicit "args" key is deprecated for objstorage initialization, '
-                "use class arguments keys directly instead.",
-                DeprecationWarning,
-            )
-            # TODO: when removing this, drop the "args" backwards compatibility
-            # from swh.objstorage.api.server configuration checker
-            kwargs = args
-        return _STORAGE_CLASSES[cls](**kwargs)
-    else:
+    class_path = OBJSTORAGE_IMPLEMENTATIONS.get(cls)
+    if class_path is None:
         raise ValueError(
-            "Storage class {} is not available: {}".format(
-                cls, _STORAGE_CLASSES_MISSING.get(cls, "unknown name")
-            )
+            "Unknown storage class `%s`. Supported: %s"
+            % (cls, ", ".join(OBJSTORAGE_IMPLEMENTATIONS))
         )
+
+    if "." in class_path:
+        (module_path, class_name) = class_path.rsplit(".", 1)
+        try:
+            module = importlib.import_module(module_path, package=__package__)
+        except ImportError as e:
+            raise ValueError(f"Storage class {cls} is not available: {e.args[0]}")
+        ObjStorage = getattr(module, class_name)
+    else:
+        ObjStorage = globals()[class_path]
+
+    return ObjStorage(**kwargs)
 
 
 def _construct_filtered_objstorage(storage_conf, filters_conf):
     return add_filters(get_objstorage(**storage_conf), filters_conf)
 
 
-_STORAGE_CLASSES["filtered"] = _construct_filtered_objstorage
+OBJSTORAGE_IMPLEMENTATIONS["filtered"] = "_construct_filtered_objstorage"
 
 
 def _construct_multiplexer_objstorage(objstorages):
@@ -118,7 +76,7 @@ def _construct_multiplexer_objstorage(objstorages):
     return MultiplexerObjStorage(storages)
 
 
-_STORAGE_CLASSES["multiplexer"] = _construct_multiplexer_objstorage
+OBJSTORAGE_IMPLEMENTATIONS["multiplexer"] = "_construct_multiplexer_objstorage"
 
 
 def _construct_striping_objstorage(objstorages):
@@ -126,4 +84,4 @@ def _construct_striping_objstorage(objstorages):
     return StripingObjStorage(storages)
 
 
-_STORAGE_CLASSES["striping"] = _construct_striping_objstorage
+OBJSTORAGE_IMPLEMENTATIONS["striping"] = "_construct_striping_objstorage"

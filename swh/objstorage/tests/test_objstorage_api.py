@@ -16,8 +16,7 @@ from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 
 class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.TestCase):
-    """ Test the remote archive API.
-    """
+    """Test the remote archive API."""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
@@ -33,7 +32,7 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.Te
 
         self.app = app
         super().setUp()
-        self.storage = get_objstorage("remote", {"url": self.url()})
+        self.storage = get_objstorage("remote", url=self.url())
 
     def tearDown(self):
         super().tearDown()

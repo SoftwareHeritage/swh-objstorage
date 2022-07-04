@@ -10,8 +10,8 @@ from unittest.mock import DEFAULT, patch
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.constants import ID_DIGEST_LENGTH
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import ID_DIGEST_LENGTH
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -25,11 +25,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.storage = get_objstorage(
             "pathslicing",
-            {
-                "root": self.tmpdir,
-                "slicing": self.slicing,
-                "compression": self.compression,
-            },
+            root=self.tmpdir,
+            slicing=self.slicing,
+            compression=self.compression,
         )
 
     def tearDown(self):
@@ -70,13 +68,6 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             ),
             error.exception.args,
         )
-
-    def test_get_random_contents(self):
-        content, obj_id = self.hash_content(b"get_random_content")
-        self.storage.add(content, obj_id=obj_id)
-        random_contents = list(self.storage.get_random(1))
-        self.assertEqual(1, len(random_contents))
-        self.assertIn(obj_id, random_contents)
 
     def test_iterate_from(self):
         all_ids = []

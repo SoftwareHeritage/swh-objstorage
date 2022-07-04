@@ -9,6 +9,7 @@ from requests_mock.contrib import fixture
 
 from swh.objstorage import exc
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import compute_hash
 
 
 def build_objstorage():
@@ -24,7 +25,10 @@ def build_objstorage():
     sto_back = get_objstorage(cls="memory")
     objids = []
     for i in range(100):
-        objids.append(sto_back.add(f"some content {i}".encode()))
+        content = f"some content {i}".encode()
+        obj_id = compute_hash(content)
+        objids.append(obj_id)
+        sto_back.add(content, obj_id=obj_id)
 
     url = "http://127.0.0.1/content/"
     sto_front = get_objstorage(cls="http", url=url)
@@ -82,21 +86,22 @@ def test_http_objstorage_check():
     # create an invalid object in the in-memory objstorage
     invalid_content = b"p0wn3d content"
     fake_objid = "\x01" * 20
-    id_added = sto_back.add(invalid_content, fake_objid)
-    assert id_added == fake_objid
+    sto_back.add(invalid_content, fake_objid)
 
     # the http objstorage should report it as invalid
     with pytest.raises(exc.Error):
-        sto_front.check(id_added)
+        sto_front.check(fake_objid)
 
 
 def test_http_objstorage_read_only():
     sto_front, sto_back, objids = build_objstorage()
 
+    content = b""
+    obj_id = compute_hash(content)
     with pytest.raises(exc.ReadOnlyObjStorage):
-        sto_front.add(b"")
+        sto_front.add(content, obj_id=obj_id)
     with pytest.raises(exc.ReadOnlyObjStorage):
-        sto_front.restore(b"")
+        sto_front.restore(b"", obj_id=compute_hash(b""))
     with pytest.raises(exc.ReadOnlyObjStorage):
         sto_front.delete(b"\x00" * 20)
 

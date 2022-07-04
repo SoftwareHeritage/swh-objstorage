@@ -21,7 +21,7 @@ CONTAINER_NAME = "test_container"
 
 
 class MockLibcloudObject:
-    """ Libcloud object mock that replicates its API """
+    """Libcloud object mock that replicates its API"""
 
     def __init__(self, name, content):
         self.name = name
@@ -32,7 +32,7 @@ class MockLibcloudObject:
 
 
 class MockLibcloudDriver:
-    """ Mock driver that replicates the used LibCloud API """
+    """Mock driver that replicates the used LibCloud API"""
 
     def __init__(self, api_key, api_secret_key):
         self.containers = {CONTAINER_NAME: {}}  # Storage is initialized
@@ -82,7 +82,7 @@ class MockLibcloudDriver:
 
 
 class MockCloudObjStorage(CloudObjStorage):
-    """ Cloud object storage that uses a mocked driver """
+    """Cloud object storage that uses a mocked driver"""
 
     def _get_driver(self, **kwargs):
         return MockLibcloudDriver(**kwargs)

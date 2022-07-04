@@ -1,3 +1,4 @@
+.git-blame-ignore-revs
 .gitignore
 .pre-commit-config.yaml
 AUTHORS
@@ -37,6 +38,7 @@ swh.objstorage.egg-info/requires.txt
 swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
 swh/objstorage/cli.py
+swh/objstorage/constants.py
 swh/objstorage/exc.py
 swh/objstorage/factory.py
 swh/objstorage/interface.py
