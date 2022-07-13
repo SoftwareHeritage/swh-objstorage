@@ -184,6 +184,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
@@ -192,15 +194,18 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         obj = self._get_object(obj_id)
         return self.driver.delete_object(obj)
 
-    def _object_path(self, obj_id):
+    def _object_path(self, obj_id: ObjId) -> str:
         """Get the full path to an object"""
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
+
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         if self.path_prefix:
             return self.path_prefix + hex_obj_id
         else:
             return hex_obj_id
 
-    def _get_object(self, obj_id):
+    def _get_object(self, obj_id: ObjId):
         """Get a Libcloud wrapper for an object pointer.
 
         This wrapper does not retrieve the content of the object

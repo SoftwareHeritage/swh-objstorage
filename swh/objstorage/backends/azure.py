@@ -168,8 +168,10 @@ class AzureCloudObjStorage(ObjStorage):
         """Get all active block_blob_services"""
         yield self.get_container_client("")
 
-    def _internal_id(self, obj_id):
+    def _internal_id(self, obj_id: ObjId) -> str:
         """Internal id is the hex version in objstorage."""
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         return hashutil.hash_to_hex(obj_id)
 
     def check_config(self, *, check_write):
@@ -296,6 +298,8 @@ class AzureCloudObjStorage(ObjStorage):
         """Check the content integrity."""
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         if content_obj_id != obj_id:
             raise Error(obj_id)
 

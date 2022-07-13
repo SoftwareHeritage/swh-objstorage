@@ -114,6 +114,8 @@ class SeaweedFilerObjStorage(ObjStorage):
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
