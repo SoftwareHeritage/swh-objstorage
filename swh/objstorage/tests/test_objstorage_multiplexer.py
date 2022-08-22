@@ -48,10 +48,20 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage_v2.allow_delete = True
         super().test_delete_missing()
 
+    def test_delete_missing_composite(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().test_delete_missing_composite()
+
     def test_delete_present(self):
         self.storage_v1.allow_delete = True
         self.storage_v2.allow_delete = True
         super().test_delete_present()
+
+    def test_delete_present_composite(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().test_delete_present_composite()
 
     def test_access_readonly(self):
         # Add a content to the readonly storage

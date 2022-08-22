@@ -42,7 +42,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         content, obj_id = self.hash_content(b"iter")
         self.assertEqual(list(iter(self.storage)), [])
         self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(list(iter(self.storage)), [obj_id])
+        self.assertEqual(
+            list(iter(self.storage)), [{self.storage.PRIMARY_HASH: obj_id}]
+        )
 
     def test_len(self):
         content, obj_id = self.hash_content(b"len")
@@ -74,8 +76,8 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         for i in range(100):
             content, obj_id = self.hash_content(b"content %d" % i)
             self.storage.add(content, obj_id=obj_id)
-            all_ids.append(obj_id)
-        all_ids.sort()
+            all_ids.append({self.storage.PRIMARY_HASH: obj_id})
+        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
 
         ids = list(self.storage.iter_from(b"\x00" * ID_DIGEST_LENGTH))
         self.assertEqual(len(ids), len(all_ids))
