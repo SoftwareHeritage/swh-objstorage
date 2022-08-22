@@ -9,6 +9,8 @@ import logging
 import os
 from typing import Iterator, Optional
 
+from typing_extensions import Literal
+
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
@@ -31,6 +33,8 @@ class SeaweedFilerObjStorage(ObjStorage):
 
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
+
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
 
     def __init__(self, url, compression=None, **kwargs):
         super().__init__(**kwargs)
@@ -102,7 +106,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         d = decompressors[self.compression]()
         ret = d.decompress(obj)
         if d.unused_data:
-            hex_obj_id = hashutil.hash_to_hex(obj_id)
+            hex_obj_id = objid_to_default_hex(obj_id)
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
@@ -110,6 +114,8 @@ class SeaweedFilerObjStorage(ObjStorage):
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
@@ -132,7 +138,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             lastfilename = None
         for fname in islice(self.wf.iterfiles(last_file_name=lastfilename), limit):
             bytehex = fname.rsplit("/", 1)[-1]
-            yield hashutil.bytehex_to_hash(bytehex.encode())
+            yield {self.PRIMARY_HASH: hashutil.bytehex_to_hash(bytehex.encode())}
 
     # internal methods
     def _put_object(self, content, obj_id):
@@ -153,5 +159,5 @@ class SeaweedFilerObjStorage(ObjStorage):
             content = [content]
         self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
 
-    def _path(self, obj_id):
-        return os.path.join(self.wf.basepath, hashutil.hash_to_hex(obj_id))
+    def _path(self, obj_id: ObjId):
+        return os.path.join(self.wf.basepath, objid_to_default_hex(obj_id))

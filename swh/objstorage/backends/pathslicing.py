@@ -9,6 +9,8 @@ import os
 import tempfile
 from typing import Iterator, List, Optional
 
+from typing_extensions import Literal
+
 from swh.model import hashutil
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
 from swh.objstorage.exc import Error, ObjNotFoundError
@@ -152,6 +154,8 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
+
     def __init__(self, root, slicing, compression="gzip", **kwargs):
         super().__init__(**kwargs)
         self.root = root
@@ -205,15 +209,12 @@ class PathSlicingObjStorage(ObjStorage):
 
         """
 
-        def obj_iterator():
-            # XXX hackish: it does not verify that the depth of found files
-            # matches the slicing depth of the storage
-            for root, _dirs, files in os.walk(self.root):
-                _dirs.sort()
-                for f in sorted(files):
-                    yield bytes.fromhex(f)
-
-        return obj_iterator()
+        # XXX hackish: it does not verify that the depth of found files
+        # matches the slicing depth of the storage
+        for root, _dirs, files in os.walk(self.root):
+            _dirs.sort()
+            for f in sorted(files):
+                yield {self.PRIMARY_HASH: bytes.fromhex(f)}
 
     def __len__(self) -> int:
         """Compute the number of objects available in the storage.
@@ -329,7 +330,7 @@ class PathSlicingObjStorage(ObjStorage):
                         dirs.remove(d)
             for f in sorted(files):
                 if f > hex_obj_id:
-                    yield bytes.fromhex(f)
+                    yield {self.PRIMARY_HASH: bytes.fromhex(f)}
         if n_leaf:
             yield i
 

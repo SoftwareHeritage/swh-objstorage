@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,6 +7,9 @@ from collections import defaultdict
 import queue
 from typing import Dict
 
+from typing_extensions import Literal
+
+from swh.objstorage.interface import ObjId
 from swh.objstorage.multiplexer.multiplexer_objstorage import (
     MultiplexerObjStorage,
     ObjStorageThread,
@@ -26,14 +29,17 @@ class StripingObjStorage(MultiplexerObjStorage):
     """
 
     MOD_BYTES = 8
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
 
     def __init__(self, storages, **kwargs):
         super().__init__(storages, **kwargs)
         self.num_storages = len(storages)
 
-    def get_storage_index(self, obj_id):
+    def get_storage_index(self, obj_id: ObjId):
         if obj_id is None:
             raise ValueError("StripingObjStorage always needs obj_id to be set")
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
 
         index = int.from_bytes(obj_id[: -self.MOD_BYTES], "big")
         return index % self.num_storages

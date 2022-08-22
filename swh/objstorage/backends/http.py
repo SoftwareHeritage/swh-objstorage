@@ -17,6 +17,7 @@ from swh.objstorage.objstorage import (
     ObjStorage,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             d = decompressors[self.compression]()
             ret = d.decompress(ret)
             if d.unused_data:
-                hex_obj_id = hashutil.hash_to_hex(obj_id)
+                hex_obj_id = objid_to_default_hex(obj_id)
                 raise exc.Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
