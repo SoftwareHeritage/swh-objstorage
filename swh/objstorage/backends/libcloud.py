@@ -1,25 +1,27 @@
-# Copyright (C) 2016-2017  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import abc
 from collections import OrderedDict
-from collections.abc import Iterator
-from typing import Optional
+from typing import Iterator, Optional
 from urllib.parse import urlencode
 
 from libcloud.storage import providers
 import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
+from typing_extensions import Literal
 
 from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 
@@ -58,10 +60,12 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       kwargs: extra arguments are passed through to the LibCloud driver
     """
 
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
+
     def __init__(
         self,
         container_name: str,
-        compression: Optional[str] = None,
+        compression: str = "gzip",
         path_prefix: Optional[str] = None,
         **kwargs,
     ):
@@ -115,7 +119,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         # FIXME: hopefully this blew up during instantiation
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         try:
             self._get_object(obj_id)
         except ObjNotFoundError:
@@ -123,8 +127,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         else:
             return True
 
-    def __iter__(self):
-        """ Iterate over the objects present in the storage
+    def __iter__(self) -> Iterator[CompositeObjId]:
+        """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
         may have bad efficiency: due to the very high amount of objects in it
@@ -142,7 +146,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             if self.path_prefix:
                 name = name[len(self.path_prefix) :]
 
-            yield hashutil.hash_to_bytes(name)
+            yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(name)}
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -156,52 +160,52 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            # Checksum is missing, compute it on the fly.
-            obj_id = compute_hash(content)
-
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
-            return obj_id
+            return
 
         self._put_object(content, obj_id)
-        return obj_id
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
         d = decompressors[self.compression]()
         ret = d.decompress(obj)
         if d.unused_data:
-            hex_obj_id = hashutil.hash_to_hex(obj_id)
+            hex_obj_id = objid_to_default_hex(obj_id)
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check that the file exists, as _get_object raises ObjNotFoundError
         self._get_object(obj_id)
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
         if content_obj_id != obj_id:
             raise Error(obj_id)
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         obj = self._get_object(obj_id)
         return self.driver.delete_object(obj)
 
-    def _object_path(self, obj_id):
+    def _object_path(self, obj_id: ObjId) -> str:
         """Get the full path to an object"""
+        if isinstance(obj_id, dict):
+            obj_id = obj_id[self.PRIMARY_HASH]
+
         hex_obj_id = hashutil.hash_to_hex(obj_id)
         if self.path_prefix:
             return self.path_prefix + hex_obj_id
         else:
             return hex_obj_id
 
-    def _get_object(self, obj_id):
+    def _get_object(self, obj_id: ObjId):
         """Get a Libcloud wrapper for an object pointer.
 
         This wrapper does not retrieve the content of the object
@@ -242,18 +246,14 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
 
 class AwsCloudObjStorage(CloudObjStorage):
-    """ Amazon's S3 Cloud-based object storage
-
-    """
+    """Amazon's S3 Cloud-based object storage"""
 
     def _get_provider(self):
         return Provider.S3
 
 
 class OpenStackCloudObjStorage(CloudObjStorage):
-    """ OpenStack Swift Cloud based object storage
-
-    """
+    """OpenStack Swift Cloud based object storage"""
 
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT

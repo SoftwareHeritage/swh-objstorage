@@ -3,16 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Any, Dict, Iterator, Optional
+
+import msgpack
+
 from swh.core.api import RPCClient
-from swh.core.utils import iter_chunks
-from swh.model import hashutil
+from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
-from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import (
-    DEFAULT_CHUNK_SIZE,
-    DEFAULT_LIMIT,
-    ID_DIGEST_LENGTH,
-)
+from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
+from swh.objstorage.objstorage import objid_to_default_hex
 
 
 class RemoteObjStorage(RPCClient):
@@ -32,25 +31,25 @@ class RemoteObjStorage(RPCClient):
     reraise_exceptions = [ObjNotFoundError, Error]
     backend_class = ObjStorageInterface
 
-    def restore(self, content, obj_id=None):
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
-    def add_stream(self, content_iter, obj_id, check_presence=True):
-        raise NotImplementedError
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        obj_id = hashutil.hash_to_hex(obj_id)
-        return self._get_stream(
-            "content/get_stream/{}".format(obj_id), chunk_size=chunk_size
-        )
-
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         yield from self.list_content()
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
-        params = {"limit": limit}
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[CompositeObjId]:
+        params: Dict[str, Any] = {"limit": limit}
         if last_obj_id:
-            params["last_obj_id"] = hashutil.hash_to_hex(last_obj_id)
-        yield from iter_chunks(
-            self._get_stream("content", params=params), chunk_size=ID_DIGEST_LENGTH
+            params["last_obj_id"] = objid_to_default_hex(last_obj_id)
+        response = self.raw_verb(
+            "get",
+            "content",
+            headers={"accept": "application/x-msgpack"},
+            params=params,
+            stream=True,
         )
+        yield from msgpack.Unpacker(response.raw, raw=False)

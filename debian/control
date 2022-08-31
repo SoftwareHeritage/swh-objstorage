@@ -10,7 +10,7 @@ Build-Depends:
  python3-click,
  python3-libcloud,
  python3-psycopg2,
- python3-pytest (<< 7.0.0),
+ python3-pytest,
  python3-pytest-mock,
  python3-pytest-postgresql,
  python3-requests,

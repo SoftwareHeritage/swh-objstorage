@@ -1,26 +1,15 @@
-from .id_filter import PrefixIdObjStorageFilter, RegexIdObjStorageFilter
 from .read_write_filter import ReadObjStorageFilter
 
 _FILTERS_CLASSES = {
     "readonly": ReadObjStorageFilter,
-    "regex": RegexIdObjStorageFilter,
-    "prefix": PrefixIdObjStorageFilter,
 }
 
 
-_FILTERS_PRIORITY = {"readonly": 0, "prefix": 1, "regex": 2}
+_FILTERS_PRIORITY = {"readonly": 0}
 
 
 def read_only():
     return {"type": "readonly"}
-
-
-def id_prefix(prefix):
-    return {"type": "prefix", "prefix": prefix}
-
-
-def id_regex(regex):
-    return {"type": "regex", "regex": regex}
 
 
 def _filter_priority(filter_type):
@@ -66,7 +55,7 @@ def add_filter(storage, filter_conf):
 
 
 def add_filters(storage, filter_confs):
-    """ Add multiple filters to the given storage.
+    """Add multiple filters to the given storage.
 
     (See filter.add_filter)
 

@@ -1,10 +1,11 @@
-import functools
-import io
 from itertools import count, islice, repeat
 import logging
 import random
+from typing import Generator, Iterator, Optional, cast
 
-from swh.objstorage.objstorage import DEFAULT_CHUNK_SIZE, DEFAULT_LIMIT, ObjStorage
+from swh.objstorage.constants import ID_HASH_ALGO
+from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage
 
 logger = logging.getLogger(__name__)
 
@@ -165,8 +166,7 @@ def gen_random_content(total=None, filesize=None):
 
 
 class RandomGeneratorObjStorage(ObjStorage):
-    """A stupid read-only storage that generates blobs for testing purpose.
-    """
+    """A stupid read-only storage that generates blobs for testing purpose."""
 
     def __init__(self, filesize=None, total=None, **kwargs):
         super().__init__()
@@ -190,10 +190,10 @@ class RandomGeneratorObjStorage(ObjStorage):
     def __contains__(self, obj_id, *args, **kwargs):
         return False
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         i = 1
         while True:
-            j = yield (b"%d" % i)
+            j = yield {ID_HASH_ALGO: b"%d" % i}
             if self.total and i >= self.total:
                 logger.debug("DONE")
                 break
@@ -205,7 +205,7 @@ class RandomGeneratorObjStorage(ObjStorage):
     def get(self, obj_id, *args, **kwargs):
         return next(self.content_generator)
 
-    def add(self, content, obj_id=None, check_presence=True, *args, **kwargs):
+    def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         pass
 
     def check(self, obj_id, *args, **kwargs):
@@ -214,13 +214,14 @@ class RandomGeneratorObjStorage(ObjStorage):
     def delete(self, obj_id, *args, **kwargs):
         return True
 
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        data = io.BytesIO(next(self.content_generator))
-        reader = functools.partial(data.read, chunk_size)
-        yield from iter(reader, b"")
-
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
-        it = iter(self)
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[CompositeObjId]:
+        if isinstance(last_obj_id, dict):
+            last_obj_id = last_obj_id[ID_HASH_ALGO]
+        it = cast(Generator[CompositeObjId, int, None], iter(self))
         if last_obj_id:
             next(it)
             it.send(int(last_obj_id))

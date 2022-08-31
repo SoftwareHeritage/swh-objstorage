@@ -3,12 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections.abc import Iterator
 import inspect
-import time
+from typing import Tuple
 
 from swh.objstorage import exc
-from swh.objstorage.interface import ObjStorageInterface
+from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash
 
 
@@ -25,7 +24,10 @@ class ObjStorageTestFixture:
         missing_methods = []
 
         for meth_name in dir(interface):
-            if meth_name.startswith("_"):
+            if meth_name.startswith("_") and meth_name not in (
+                "__iter__",
+                "__contains__",
+            ):
                 continue
             interface_meth = getattr(interface, meth_name)
             concrete_meth = getattr(self.storage, meth_name)
@@ -47,6 +49,10 @@ class ObjStorageTestFixture:
         obj_id = compute_hash(content)
         return content, obj_id
 
+    def compositehash_content(self, content) -> Tuple[bytes, CompositeObjId]:
+        obj_id = compute_hash(content)
+        return content, {"sha1": obj_id}
+
     def assertContentMatch(self, obj_id, expected_content):  # noqa
         content = self.storage.get(obj_id)
         self.assertEqual(content, expected_content)
@@ -62,36 +68,47 @@ class ObjStorageTestFixture:
         self.assertIn(obj_id_p, self.storage)
         self.assertNotIn(obj_id_m, self.storage)
 
+    def test_contains_composite(self):
+        content_p, obj_id_p = self.compositehash_content(b"contains_present")
+        content_m, obj_id_m = self.compositehash_content(b"contains_missing")
+        self.storage.add(content_p, obj_id=obj_id_p)
+        self.assertIn(obj_id_p, self.storage)
+        self.assertNotIn(obj_id_m, self.storage)
+
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
+        self.assertContentMatch(obj_id, content)
+
+    def test_add_get_w_composite_id(self):
+        content, obj_id = self.compositehash_content(b"add_get_w_id")
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
     def test_add_twice(self):
         content, obj_id = self.hash_content(b"add_twice")
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
-        r = self.storage.add(content, obj_id=obj_id, check_presence=False)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id, check_presence=False)
         self.assertContentMatch(obj_id, content)
 
     def test_add_big(self):
         content, obj_id = self.hash_content(b"add_big" * 1024 * 1024)
-        r = self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(obj_id, r)
-        self.assertContentMatch(obj_id, content)
-
-    def test_add_get_wo_id(self):
-        content, obj_id = self.hash_content(b"add_get_wo_id")
-        r = self.storage.add(content)
-        self.assertEqual(obj_id, r)
+        self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
     def test_add_get_batch(self):
         content1, obj_id1 = self.hash_content(b"add_get_batch_1")
         content2, obj_id2 = self.hash_content(b"add_get_batch_2")
+        self.storage.add(content1, obj_id1)
+        self.storage.add(content2, obj_id2)
+        cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
+        self.assertEqual(cr1, content1)
+        self.assertEqual(cr2, content2)
+
+    def test_add_get_batch_composite(self):
+        content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
+        content2, obj_id2 = self.compositehash_content(b"add_get_batch_2")
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
         cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
@@ -109,16 +126,21 @@ class ObjStorageTestFixture:
 
         valid_content, valid_obj_id = self.hash_content(b"restore_content")
         invalid_content = b"unexpected content"
-        id_adding = self.storage.add(invalid_content, valid_obj_id)
-        self.assertEqual(id_adding, valid_obj_id)
+        self.storage.add(invalid_content, valid_obj_id)
         with self.assertRaises(exc.Error):
-            self.storage.check(id_adding)
-        id_restore = self.storage.restore(valid_content, valid_obj_id)
-        self.assertEqual(id_restore, valid_obj_id)
+            self.storage.check(valid_obj_id)
+        self.storage.restore(valid_content, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
     def test_get_missing(self):
         content, obj_id = self.hash_content(b"get_missing")
+        with self.assertRaises(exc.ObjNotFoundError) as e:
+            self.storage.get(obj_id)
+
+        self.assertIn(obj_id, e.exception.args)
+
+    def test_get_missing_composite(self):
+        content, obj_id = self.compositehash_content(b"get_missing")
         with self.assertRaises(exc.ObjNotFoundError) as e:
             self.storage.get(obj_id)
 
@@ -129,8 +151,21 @@ class ObjStorageTestFixture:
         with self.assertRaises(exc.Error):
             self.storage.check(obj_id)
 
+    def test_check_missing_composite(self):
+        content, obj_id = self.compositehash_content(b"check_missing")
+        with self.assertRaises(exc.Error):
+            self.storage.check(obj_id)
+
     def test_check_present(self):
         content, obj_id = self.hash_content(b"check_present")
+        self.storage.add(content, obj_id)
+        try:
+            self.storage.check(obj_id)
+        except exc.Error:
+            self.fail("Integrity check failed")
+
+    def test_check_present_composite(self):
+        content, obj_id = self.compositehash_content(b"check_present")
         self.storage.add(content, obj_id)
         try:
             self.storage.check(obj_id)
@@ -143,9 +178,23 @@ class ObjStorageTestFixture:
         with self.assertRaises(exc.Error):
             self.storage.delete(obj_id)
 
+    def test_delete_missing_composite(self):
+        self.storage.allow_delete = True
+        content, obj_id = self.compositehash_content(b"missing_content_to_delete")
+        with self.assertRaises(exc.Error):
+            self.storage.delete(obj_id)
+
     def test_delete_present(self):
         self.storage.allow_delete = True
         content, obj_id = self.hash_content(b"content_to_delete")
+        self.storage.add(content, obj_id=obj_id)
+        self.assertTrue(self.storage.delete(obj_id))
+        with self.assertRaises(exc.Error):
+            self.storage.get(obj_id)
+
+    def test_delete_present_composite(self):
+        self.storage.allow_delete = True
+        content, obj_id = self.compositehash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         self.assertTrue(self.storage.delete(obj_id))
         with self.assertRaises(exc.Error):
@@ -163,43 +212,6 @@ class ObjStorageTestFixture:
         self.storage.add(content, obj_id=obj_id)
         with self.assertRaises(PermissionError):
             self.assertTrue(self.storage.delete(obj_id))
-
-    def test_add_stream(self):
-        content = [b"chunk1", b"chunk2"]
-        _, obj_id = self.hash_content(b"".join(content))
-        try:
-            self.storage.add_stream(iter(content), obj_id=obj_id)
-        except NotImplementedError:
-            return
-        self.assertContentMatch(obj_id, b"".join(content))
-
-    def test_add_stream_sleep(self):
-        def gen_content():
-            yield b"chunk1"
-            time.sleep(0.5)
-            yield b"chunk42"
-
-        _, obj_id = self.hash_content(b"placeholder_id")
-        try:
-            self.storage.add_stream(gen_content(), obj_id=obj_id)
-        except NotImplementedError:
-            return
-        self.assertContentMatch(obj_id, b"chunk1chunk42")
-
-    def test_get_stream(self):
-        content = b"123456789"
-        _, obj_id = self.hash_content(content)
-        self.storage.add(content, obj_id=obj_id)
-        r = self.storage.get(obj_id)
-        self.assertEqual(r, content)
-
-        try:
-            r = self.storage.get_stream(obj_id, chunk_size=1)
-        except NotImplementedError:
-            return
-        self.assertTrue(isinstance(r, Iterator))
-        r = list(r)
-        self.assertEqual(b"".join(r), content)
 
     def test_add_batch(self):
         contents = {}
@@ -229,14 +241,14 @@ class ObjStorageTestFixture:
         sto_obj_ids = list(sto_obj_ids)
         self.assertFalse(sto_obj_ids)
 
-        obj_ids = set()
+        obj_ids = []
         for i in range(100):
             content, obj_id = self.hash_content(b"content %d" % i)
             self.storage.add(content, obj_id=obj_id)
-            obj_ids.add(obj_id)
+            obj_ids.append({"sha1": obj_id})
 
-        sto_obj_ids = set(self.storage)
-        self.assertEqual(sto_obj_ids, obj_ids)
+        sto_obj_ids = list(self.storage)
+        self.assertCountEqual(sto_obj_ids, obj_ids)
 
     def test_list_content(self):
         all_ids = []
@@ -244,8 +256,8 @@ class ObjStorageTestFixture:
             content = b"example %d" % i
             obj_id = compute_hash(content)
             self.storage.add(content, obj_id)
-            all_ids.append(obj_id)
-        all_ids.sort()
+            all_ids.append({"sha1": obj_id})
+        all_ids.sort(key=lambda d: d["sha1"])
 
         ids = list(self.storage.list_content())
         self.assertEqual(len(ids), 1200)

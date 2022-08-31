@@ -15,8 +15,7 @@ class ObjNotFoundError(Error):
 
 
 class ObjStorageAPIError(Exception):
-    """ Specific internal exception of an object storage (mainly connection).
-    """
+    """Specific internal exception of an object storage (mainly connection)."""
 
     def __str__(self):
         args = self.args

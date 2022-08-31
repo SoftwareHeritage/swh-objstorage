@@ -20,6 +20,7 @@ from swh.objstorage.backends.winery.throttler import (
     Throttler,
 )
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
 
 from .winery_benchmark import Bench, work
@@ -96,13 +97,14 @@ def test_winery_sharedbase(winery):
 def test_winery_add_get(winery):
     shard = winery.base.whoami
     content = b"SOMETHING"
-    obj_id = winery.add(content=content)
+    obj_id = compute_hash(content, "sha256")
     assert (
         obj_id.hex()
         == "866878b165607851782d8d233edf0c261172ff67926330d3bbd10c705b92d24f"
     )
-    assert winery.add(content=content, obj_id=obj_id) == obj_id
-    assert winery.add(content=content, obj_id=obj_id, check_presence=False) == obj_id
+    winery.add(content=content, obj_id=obj_id)
+    winery.add(content=content, obj_id=obj_id)
+    winery.add(content=content, obj_id=obj_id, check_presence=False)
     assert winery.base.whoami == shard
     assert winery.get(obj_id) == content
     with pytest.raises(exc.ObjNotFoundError):
@@ -115,11 +117,7 @@ def test_winery_add_and_pack(winery, mocker):
     mocker.patch("swh.objstorage.backends.winery.objstorage.pack", return_value=True)
     shard = winery.base.whoami
     content = b"SOMETHING"
-    obj_id = winery.add(content=content)
-    assert (
-        obj_id.hex()
-        == "866878b165607851782d8d233edf0c261172ff67926330d3bbd10c705b92d24f"
-    )
+    winery.add(content=content, obj_id=compute_hash(content, "sha256"))
     assert winery.base.whoami != shard
     assert len(winery.packers) == 1
     packer = winery.packers[0]

@@ -10,8 +10,8 @@ from unittest.mock import DEFAULT, patch
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.constants import ID_DIGEST_LENGTH
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import ID_DIGEST_LENGTH
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -25,11 +25,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.storage = get_objstorage(
             "pathslicing",
-            {
-                "root": self.tmpdir,
-                "slicing": self.slicing,
-                "compression": self.compression,
-            },
+            root=self.tmpdir,
+            slicing=self.slicing,
+            compression=self.compression,
         )
 
     def tearDown(self):
@@ -44,7 +42,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         content, obj_id = self.hash_content(b"iter")
         self.assertEqual(list(iter(self.storage)), [])
         self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(list(iter(self.storage)), [obj_id])
+        self.assertEqual(
+            list(iter(self.storage)), [{self.storage.PRIMARY_HASH: obj_id}]
+        )
 
     def test_len(self):
         content, obj_id = self.hash_content(b"len")
@@ -71,20 +71,13 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             error.exception.args,
         )
 
-    def test_get_random_contents(self):
-        content, obj_id = self.hash_content(b"get_random_content")
-        self.storage.add(content, obj_id=obj_id)
-        random_contents = list(self.storage.get_random(1))
-        self.assertEqual(1, len(random_contents))
-        self.assertIn(obj_id, random_contents)
-
     def test_iterate_from(self):
         all_ids = []
         for i in range(100):
             content, obj_id = self.hash_content(b"content %d" % i)
             self.storage.add(content, obj_id=obj_id)
-            all_ids.append(obj_id)
-        all_ids.sort()
+            all_ids.append({self.storage.PRIMARY_HASH: obj_id})
+        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
 
         ids = list(self.storage.iter_from(b"\x00" * ID_DIGEST_LENGTH))
         self.assertEqual(len(ids), len(all_ids))

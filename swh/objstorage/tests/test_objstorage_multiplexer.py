@@ -48,21 +48,24 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage_v2.allow_delete = True
         super().test_delete_missing()
 
+    def test_delete_missing_composite(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().test_delete_missing_composite()
+
     def test_delete_present(self):
         self.storage_v1.allow_delete = True
         self.storage_v2.allow_delete = True
         super().test_delete_present()
 
-    def test_get_random_contents(self):
-        content, obj_id = self.hash_content(b"get_random_content")
-        self.storage.add(content)
-        random_contents = list(self.storage.get_random(1))
-        self.assertEqual(1, len(random_contents))
-        self.assertIn(obj_id, random_contents)
+    def test_delete_present_composite(self):
+        self.storage_v1.allow_delete = True
+        self.storage_v2.allow_delete = True
+        super().test_delete_present_composite()
 
     def test_access_readonly(self):
         # Add a content to the readonly storage
         content, obj_id = self.hash_content(b"content in read-only")
-        self.storage_v1.add(content)
+        self.storage_v1.add(content, obj_id=obj_id)
         # Try to retrieve it on the main storage
         self.assertIn(obj_id, self.storage)

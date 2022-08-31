@@ -1,8 +1,36 @@
-swh-objstorage (1.0.5-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (2.0.1-1~swh2) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Fix dependency constraint and bump new release
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 03 Mar 2022 19:04:45 +0000
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Wed, 31 Aug 2022 14:38:57 +0200
+
+swh-objstorage (2.0.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.0.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-08-22 11:28:42 +0200)
+  * Upstream changes:     - v2.0.1     - Fixes for major bugs introduced
+    in v2.0.0:     - * Make __iter__ actually return composite objids
+    - * Fix crash when calling __contains__/get/check/delete with
+    composite obj ids     - * Remove ID-based filters (which were
+    unused, and made buggy by 2.0.0)
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 22 Aug 2022 09:33:13 +0000
+
+swh-objstorage (2.0.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.0.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-07-04 14:07:43 +0200)
+  * Upstream changes:     - v2.0.0     - * Start introducing composite
+    ObjId in the interface     - * Remove get_random(), add_stream and
+    get_stream     - * Remove deprecated 'args' argument of
+    get_objstorage     - * Remove deprecated alias 'weed' of
+    'seaweedfs'.     - * Make add() and restore() return None instead of
+    ObjId     - * libcloud: Default to gzip compression     - * Make
+    obj_id argument of ObjStorage.restore() and ObjStorage.add()
+    required     - * api/server: Fix streaming responses implementation
+    - * test maintenance
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 04 Jul 2022 12:14:25 +0000
 
 swh-objstorage (1.0.5-1~swh1) unstable-swh; urgency=medium
 

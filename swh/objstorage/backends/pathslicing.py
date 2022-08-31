@@ -1,27 +1,25 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections.abc import Iterator
 from contextlib import contextmanager
 from itertools import islice
 import os
-import random
 import tempfile
-from typing import List
+from typing import Iterator, List, Optional
+
+from typing_extensions import Literal
 
 from swh.model import hashutil
+from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
-    DEFAULT_CHUNK_SIZE,
-    DEFAULT_LIMIT,
-    ID_HASH_ALGO,
-    ID_HEXDIGEST_LENGTH,
     ObjStorage,
     compressors,
-    compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 BUFSIZ = 1048576
@@ -81,7 +79,7 @@ class PathSlicer:
                 )
 
     def get_directory(self, hex_obj_id: str) -> str:
-        """ Compute the storage directory of an object.
+        """Compute the storage directory of an object.
 
         See also: PathSlicer::get_path
 
@@ -95,7 +93,7 @@ class PathSlicer:
         return os.path.join(self.root, *self.get_slices(hex_obj_id))
 
     def get_path(self, hex_obj_id: str) -> str:
-        """ Compute the full path to an object into the current storage.
+        """Compute the full path to an object into the current storage.
 
         See also: PathSlicer::get_directory
 
@@ -156,6 +154,8 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
+
     def __init__(self, root, slicing, compression="gzip", **kwargs):
         super().__init__(**kwargs)
         self.root = root
@@ -190,11 +190,11 @@ class PathSlicingObjStorage(ObjStorage):
 
         return True
 
-    def __contains__(self, obj_id):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+    def __contains__(self, obj_id: ObjId) -> bool:
+        hex_obj_id = objid_to_default_hex(obj_id)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         """Iterate over the object identifiers currently available in the
         storage.
 
@@ -209,17 +209,14 @@ class PathSlicingObjStorage(ObjStorage):
 
         """
 
-        def obj_iterator():
-            # XXX hackish: it does not verify that the depth of found files
-            # matches the slicing depth of the storage
-            for root, _dirs, files in os.walk(self.root):
-                _dirs.sort()
-                for f in sorted(files):
-                    yield bytes.fromhex(f)
+        # XXX hackish: it does not verify that the depth of found files
+        # matches the slicing depth of the storage
+        for root, _dirs, files in os.walk(self.root):
+            _dirs.sort()
+            for f in sorted(files):
+                yield {self.PRIMARY_HASH: bytes.fromhex(f)}
 
-        return obj_iterator()
-
-    def __len__(self):
+    def __len__(self) -> int:
         """Compute the number of objects available in the storage.
 
         Warning: this currently uses `__iter__`, its warning about bad
@@ -230,153 +227,85 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
-    def add(self, content, obj_id=None, check_presence=True):
-        if obj_id is None:
-            obj_id = compute_hash(content)
+    def add(
+        self,
+        content: bytes,
+        obj_id: ObjId,
+        check_presence: bool = True,
+    ) -> None:
         if check_presence and obj_id in self:
             # If the object is already present, return immediately.
-            return obj_id
+            return
 
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
-        if not isinstance(content, Iterator):
-            content = [content]
+        hex_obj_id = objid_to_default_hex(obj_id)
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
-            for chunk in content:
-                f.write(compressor.compress(chunk))
+            f.write(compressor.compress(content))
             f.write(compressor.flush())
 
-        return obj_id
-
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         # Open the file and return its content as bytes
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         d = decompressors[self.compression]()
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             out = d.decompress(f.read())
         if d.unused_data:
-            raise Error("Corrupt object %s: trailing data found" % hex_obj_id,)
+            raise Error(
+                "Corrupt object %s: trailing data found" % hex_obj_id,
+            )
 
         return out
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         try:
             data = self.get(obj_id)
         except OSError:
-            hex_obj_id = hashutil.hash_to_hex(obj_id)
-            raise Error("Corrupt object %s: not a proper compressed file" % hex_obj_id,)
+            hex_obj_id = objid_to_default_hex(obj_id)
+            raise Error(
+                "Corrupt object %s: not a proper compressed file" % hex_obj_id,
+            )
 
         checksums = hashutil.MultiHash.from_data(
             data, hash_names=[ID_HASH_ALGO]
         ).digest()
 
-        actual_obj_id = checksums[ID_HASH_ALGO]
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        actual_obj_sha1 = checksums[ID_HASH_ALGO]
+        hex_obj_id = objid_to_default_hex(obj_id)
 
-        if hex_obj_id != hashutil.hash_to_hex(actual_obj_id):
+        if hex_obj_id != hashutil.hash_to_hex(actual_obj_sha1):
             raise Error(
                 "Corrupt object %s should have id %s"
-                % (hashutil.hash_to_hex(obj_id), hashutil.hash_to_hex(actual_obj_id))
+                % (objid_to_default_hex(obj_id), hashutil.hash_to_hex(actual_obj_sha1))
             )
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         try:
             os.remove(self.slicer.get_path(hex_obj_id))
         except FileNotFoundError:
             raise ObjNotFoundError(obj_id)
         return True
 
-    # Management methods
-
-    def get_random(self, batch_size):
-        def get_random_content(self, batch_size):
-            """ Get a batch of content inside a single directory.
-
-            Returns:
-                a tuple (batch size, batch).
-            """
-            dirs = []
-            for level in range(len(self.slicer)):
-                path = os.path.join(self.root, *dirs)
-                dir_list = next(os.walk(path))[1]
-                if "tmp" in dir_list:
-                    dir_list.remove("tmp")
-                dirs.append(random.choice(dir_list))
-
-            path = os.path.join(self.root, *dirs)
-            content_list = next(os.walk(path))[2]
-            length = min(batch_size, len(content_list))
-            return (
-                length,
-                map(hashutil.hash_to_bytes, random.sample(content_list, length)),
-            )
-
-        while batch_size:
-            length, it = get_random_content(self, batch_size)
-            batch_size = batch_size - length
-            yield from it
-
     # Streaming methods
 
     @contextmanager
     def chunk_writer(self, obj_id):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
             yield lambda c: f.write(compressor.compress(c))
             f.write(compressor.flush())
 
-    def add_stream(self, content_iter, obj_id, check_presence=True):
-        """Add a new object to the object storage using streaming.
-
-        This function is identical to add() except it takes a generator that
-        yields the chunked content instead of the whole content at once.
-
-        Args:
-            content (bytes): chunked generator that yields the object's raw
-                content to add in storage.
-            obj_id (bytes): object identifier
-            check_presence (bool): indicate if the presence of the
-                content should be verified before adding the file.
-
-        Returns:
-            the id (bytes) of the object into the storage.
-
-        """
-        if check_presence and obj_id in self:
-            return obj_id
-
-        with self.chunk_writer(obj_id) as writer:
-            for chunk in content_iter:
-                writer(chunk)
-
-        return obj_id
-
-    def get_stream(self, obj_id, chunk_size=DEFAULT_CHUNK_SIZE):
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
-        decompressor = decompressors[self.compression]()
-        with open(self.slicer.get_path(hex_obj_id), "rb") as f:
-            while True:
-                raw = f.read(chunk_size)
-                if not raw:
-                    break
-                r = decompressor.decompress(raw)
-                if not r:
-                    continue
-                yield r
-
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+    ) -> Iterator[CompositeObjId]:
         if last_obj_id:
             it = self.iter_from(last_obj_id)
         else:
@@ -384,7 +313,7 @@ class PathSlicingObjStorage(ObjStorage):
         return islice(it, limit)
 
     def iter_from(self, obj_id, n_leaf=False):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         slices = self.slicer.get_slices(hex_obj_id)
         rlen = len(self.root.split("/"))
 
@@ -401,13 +330,13 @@ class PathSlicingObjStorage(ObjStorage):
                         dirs.remove(d)
             for f in sorted(files):
                 if f > hex_obj_id:
-                    yield bytes.fromhex(f)
+                    yield {self.PRIMARY_HASH: bytes.fromhex(f)}
         if n_leaf:
             yield i
 
     @contextmanager
     def _write_obj_file(self, hex_obj_id):
-        """ Context manager for writing object files to the object storage.
+        """Context manager for writing object files to the object storage.
 
         During writing, data are written to a temporary file, which is atomically
         renamed to the right file name after closing.

@@ -7,15 +7,16 @@ import contextlib
 import functools
 import logging
 import os
+from typing import Iterator
 
 from flask import request
+import msgpack
 
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
-from swh.model import hashutil
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -69,7 +70,9 @@ class ObjStorageServerApp(RPCServerApp):
 
 
 app = ObjStorageServerApp(
-    __name__, backend_class=ObjStorageInterface, backend_factory=get_objstorage,
+    __name__,
+    backend_class=ObjStorageInterface,
+    backend_factory=get_objstorage,
 )
 objstorage = None
 
@@ -90,20 +93,6 @@ def index():
     return "SWH Objstorage API server"
 
 
-# Streaming methods
-
-
-@app.route("/content/get_stream/<hex_id>")
-def get_stream(hex_id):
-    obj_id = hashutil.hash_to_bytes(hex_id)
-
-    def generate():
-        with timed_context("get_stream"):
-            yield from objstorage.get_stream(obj_id, 2 << 20)
-
-    return app.response_class(generate())
-
-
 @app.route("/content")
 def list_content():
     last_obj_id = request.args.get("last_obj_id")
@@ -111,10 +100,11 @@ def list_content():
         last_obj_id = bytes.fromhex(last_obj_id)
     limit = int(request.args.get("limit", DEFAULT_LIMIT))
 
-    def generate():
-        yield b""
-        with timed_context("get_stream"):
-            yield from objstorage.list_content(last_obj_id, limit=limit)
+    def generate() -> Iterator[bytes]:
+        with timed_context("list_content"):
+            packer = msgpack.Packer(use_bin_type=True)
+            for obj in get_objstorage().list_content(last_obj_id, limit=limit):
+                yield packer.pack(obj)
 
     return app.response_class(generate())
 
@@ -170,11 +160,8 @@ def validate_config(cfg):
 
     cls = vcfg["cls"]
     if cls == "pathslicing":
-        # Backwards-compatibility: either get the deprecated `args` from the
-        # objstorage config, or use the full config itself to check for keys
-        args = vcfg.get("args", vcfg)
         for key in ("root", "slicing"):
-            v = args.get(key)
+            v = vcfg.get(key)
             if v is None:
                 missing_keys.append(key)
 
@@ -188,9 +175,7 @@ def validate_config(cfg):
 
 
 def make_app_from_configfile():
-    """Load configuration and then build application to run
-
-    """
+    """Load configuration and then build application to run"""
     global api_cfg
     if not api_cfg:
         config_path = os.environ.get("SWH_CONFIG_FILENAME")

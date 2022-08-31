@@ -4,17 +4,20 @@
 # See top-level LICENSE file for more information
 
 import logging
+from typing import Iterator, Optional
 from urllib.parse import urljoin
 
 import requests
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
     compute_hash,
     decompressors,
+    objid_to_default_hex,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -43,29 +46,33 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         """Check the configuration for this object storage"""
         return True
 
-    def __contains__(self, obj_id):
+    def __contains__(self, obj_id: ObjId) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[CompositeObjId]:
         raise exc.NonIterableObjStorage("__iter__")
 
     def __len__(self):
         raise exc.NonIterableObjStorage("__len__")
 
-    def add(self, content, obj_id=None, check_presence=True):
+    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         raise exc.ReadOnlyObjStorage("add")
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: ObjId):
         raise exc.ReadOnlyObjStorage("delete")
 
-    def restore(self, content, obj_id=None):
+    def restore(self, content: bytes, obj_id: ObjId) -> None:
         raise exc.ReadOnlyObjStorage("restore")
 
-    def list_content(self, last_obj_id=None, limit=DEFAULT_LIMIT):
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Iterator[CompositeObjId]:
         raise exc.NonIterableObjStorage("__len__")
 
-    def get(self, obj_id):
+    def get(self, obj_id: ObjId) -> bytes:
         try:
             resp = self.session.get(self._path(obj_id))
             resp.raise_for_status()
@@ -77,11 +84,11 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             d = decompressors[self.compression]()
             ret = d.decompress(ret)
             if d.unused_data:
-                hex_obj_id = hashutil.hash_to_hex(obj_id)
+                hex_obj_id = objid_to_default_hex(obj_id)
                 raise exc.Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
 
-    def check(self, obj_id):
+    def check(self, obj_id: ObjId) -> None:
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)

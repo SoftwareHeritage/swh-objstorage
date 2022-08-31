@@ -84,7 +84,10 @@ class FilerRequestsMock:
                 items = islice(items, limit + 1)
 
             entries = [
-                {"FullPath": os.path.join(request.path, fname), "Mode": self.MODE_FILE,}
+                {
+                    "FullPath": os.path.join(request.path, fname),
+                    "Mode": self.MODE_FILE,
+                }
                 for fname, obj in items
             ]
 

@@ -1,3 +1,4 @@
+.git-blame-ignore-revs
 .gitignore
 .pre-commit-config.yaml
 AUTHORS
@@ -37,6 +38,7 @@ swh.objstorage.egg-info/requires.txt
 swh.objstorage.egg-info/top_level.txt
 swh/objstorage/__init__.py
 swh/objstorage/cli.py
+swh/objstorage/constants.py
 swh/objstorage/exc.py
 swh/objstorage/factory.py
 swh/objstorage/interface.py
@@ -70,12 +72,10 @@ swh/objstorage/multiplexer/multiplexer_objstorage.py
 swh/objstorage/multiplexer/striping_objstorage.py
 swh/objstorage/multiplexer/filter/__init__.py
 swh/objstorage/multiplexer/filter/filter.py
-swh/objstorage/multiplexer/filter/id_filter.py
 swh/objstorage/multiplexer/filter/read_write_filter.py
 swh/objstorage/tests/__init__.py
 swh/objstorage/tests/conftest.py
 swh/objstorage/tests/objstorage_testing.py
-swh/objstorage/tests/test_multiplexer_filter.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
 swh/objstorage/tests/test_objstorage_cloud.py
@@ -90,6 +90,7 @@ swh/objstorage/tests/test_objstorage_seaweedfs.py
 swh/objstorage/tests/test_objstorage_striping.py
 swh/objstorage/tests/test_objstorage_winery.py
 swh/objstorage/tests/test_pathslicer.py
+swh/objstorage/tests/test_readonly_filter.py
 swh/objstorage/tests/test_server.py
 swh/objstorage/tests/winery_benchmark.py
 swh/objstorage/tests/winery_testing_helpers.py
