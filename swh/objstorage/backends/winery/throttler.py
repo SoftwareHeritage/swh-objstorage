@@ -128,7 +128,7 @@ class IOThrottler(Database):
 
     @property
     def lock(self):
-        return 9485433  # an abitrary unique number
+        return 9485433  # an arbitrary unique number
 
     @property
     def database_tables(self):

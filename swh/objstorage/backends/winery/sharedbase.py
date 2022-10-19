@@ -24,7 +24,7 @@ class SharedBase(Database):
 
     @property
     def lock(self):
-        return 314116  # an abitrary unique number
+        return 314116  # an arbitrary unique number
 
     @property
     def database_tables(self):

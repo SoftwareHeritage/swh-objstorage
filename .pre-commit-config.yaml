@@ -18,6 +18,7 @@ repos:
     hooks:
       - id: codespell
         name: Check source code spelling
+        args: [-L inflight]
         stages: [commit]
 
   - repo: local
