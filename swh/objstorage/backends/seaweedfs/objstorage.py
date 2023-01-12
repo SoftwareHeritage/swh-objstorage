@@ -138,7 +138,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             lastfilename = None
         for fname in islice(self.wf.iterfiles(last_file_name=lastfilename), limit):
             bytehex = fname.rsplit("/", 1)[-1]
-            yield {self.PRIMARY_HASH: hashutil.bytehex_to_hash(bytehex.encode())}
+            yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(bytehex)}
 
     # internal methods
     def _put_object(self, content, obj_id):
