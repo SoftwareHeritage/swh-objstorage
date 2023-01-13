@@ -6,7 +6,7 @@
 import importlib
 
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.multiplexer import MultiplexerObjStorage, StripingObjStorage
+from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.multiplexer.filter import add_filters
 from swh.objstorage.objstorage import ObjStorage
 
@@ -77,11 +77,3 @@ def _construct_multiplexer_objstorage(objstorages):
 
 
 OBJSTORAGE_IMPLEMENTATIONS["multiplexer"] = "_construct_multiplexer_objstorage"
-
-
-def _construct_striping_objstorage(objstorages):
-    storages = [get_objstorage(**conf) for conf in objstorages]
-    return StripingObjStorage(storages)
-
-
-OBJSTORAGE_IMPLEMENTATIONS["striping"] = "_construct_striping_objstorage"
