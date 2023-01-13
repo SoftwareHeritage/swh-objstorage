@@ -135,7 +135,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def list_content(
         self: ObjStorageInterface,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
         it = iter(self)
         if last_obj_id:

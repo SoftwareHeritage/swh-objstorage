@@ -68,7 +68,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
         raise exc.NonIterableObjStorage("__len__")
 

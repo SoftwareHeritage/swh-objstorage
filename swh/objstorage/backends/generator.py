@@ -217,7 +217,7 @@ class RandomGeneratorObjStorage(ObjStorage):
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
         if isinstance(last_obj_id, dict):
             last_obj_id = last_obj_id[ID_HASH_ALGO]

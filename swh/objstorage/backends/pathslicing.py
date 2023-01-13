@@ -304,7 +304,7 @@ class PathSlicingObjStorage(ObjStorage):
             f.write(compressor.flush())
 
     def list_content(
-        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+        self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
     ) -> Iterator[CompositeObjId]:
         if last_obj_id:
             it = self.iter_from(last_obj_id)

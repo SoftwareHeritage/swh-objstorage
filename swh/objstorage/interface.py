@@ -185,16 +185,19 @@ class ObjStorageInterface(Protocol):
         ...
 
     def list_content(
-        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+        self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
     ) -> Iterator[CompositeObjId]:
         """Generates known object ids.
 
         Args:
             last_obj_id: object id from which to iterate from
                  (excluded).
-            limit (int): max number of object ids to generate.
+            limit (int): max number of object ids to generate. If unset (None),
+                 generate all objects (behavior might not be guaranteed for all
+                 backends).
 
         Generates:
             obj_id: object ids.
+
         """
         ...
