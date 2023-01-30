@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021  The Software Heritage developers
+# Copyright (C) 2016-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,11 +7,17 @@ import asyncio
 import base64
 import collections
 from dataclasses import dataclass
+import os
+import secrets
+import shutil
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
+from azure.storage.blob import BlobServiceClient
 import pytest
 
 from swh.model.hashutil import hash_to_hex
@@ -21,6 +27,10 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
+
+AZURITE_EXE = shutil.which(
+    "azurite-blob", path=os.environ.get("AZURITE_PATH", os.environ.get("PATH"))
+)
 
 
 @dataclass
@@ -83,6 +93,78 @@ class MockBlobClient:
         del self.container.blobs[self.blob]
 
 
+@pytest.mark.skipif(not AZURITE_EXE, reason="azurite not found in AZURITE_PATH or PATH")
+class TestAzuriteCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+    compression = "none"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        host = "127.0.0.1"
+
+        cls._azurite_path = tempfile.mkdtemp()
+
+        cls._azurite_proc = subprocess.Popen(
+            [
+                AZURITE_EXE,
+                "--blobHost",
+                host,
+                "--blobPort",
+                "0",
+            ],
+            stdout=subprocess.PIPE,
+            cwd=cls._azurite_path,
+        )
+
+        prefix = b"Azurite Blob service successfully listens on "
+        for line in cls._azurite_proc.stdout:
+            if line.startswith(prefix):
+                base_url = line[len(prefix) :].decode().strip()
+                break
+        else:
+            assert False, "Did not get Azurite Blob service port."
+
+        # https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite#well-known-storage-account-and-key
+        account_name = "devstoreaccount1"
+        account_key = (
+            "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq"
+            "/K1SZFPTOtr/KBHBeksoGMGw=="
+        )
+
+        container_url = f"{base_url}/{account_name}"
+        cls._connection_string = (
+            f"DefaultEndpointsProtocol=https;"
+            f"AccountName={account_name};"
+            f"AccountKey={account_key};"
+            f"BlobEndpoint={container_url};"
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._azurite_proc.kill()
+        cls._azurite_proc.wait(2)
+        shutil.rmtree(cls._azurite_path)
+
+    def setUp(self):
+        super().setUp()
+        self._container_name = secrets.token_hex(10)
+        client = BlobServiceClient.from_connection_string(self._connection_string)
+        client.create_container(self._container_name)
+
+        self.storage = get_objstorage(
+            "azure",
+            connection_string=self._connection_string,
+            container_name=self._container_name,
+            compression=self.compression,
+        )
+
+
+class TestAzuriteCloudObjStorageGzip(TestAzuriteCloudObjStorage):
+    compression = "gzip"
+
+
 def get_MockContainerClient():
     blobs = collections.defaultdict(dict)  # {container_url: {blob_id: blob}}
 
@@ -122,7 +204,7 @@ def get_MockContainerClient():
     return MockContainerClient
 
 
-class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestMockedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
     compression = "none"
 
     def setUp(self):
@@ -179,19 +261,19 @@ class TestAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             assert "trailing data" in e.exception.args[0]
 
 
-class TestAzureCloudObjStorageGzip(TestAzureCloudObjStorage):
+class TestMockedAzureCloudObjStorageGzip(TestMockedAzureCloudObjStorage):
     compression = "gzip"
 
 
-class TestAzureCloudObjStorageZlib(TestAzureCloudObjStorage):
+class TestMockedAzureCloudObjStorageZlib(TestMockedAzureCloudObjStorage):
     compression = "zlib"
 
 
-class TestAzureCloudObjStorageLzma(TestAzureCloudObjStorage):
+class TestMockedAzureCloudObjStorageLzma(TestMockedAzureCloudObjStorage):
     compression = "lzma"
 
 
-class TestAzureCloudObjStorageBz2(TestAzureCloudObjStorage):
+class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
     compression = "bz2"
 
 

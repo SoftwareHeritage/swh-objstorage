@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -17,7 +17,6 @@ LOGGER = logging.getLogger(__name__)
 class HttpFiler:
     """Simple class that encapsulates access to a seaweedfs filer service.
 
-    Objects are expected to be in a single directory.
     TODO: handle errors
     """
 
@@ -59,10 +58,12 @@ class HttpFiler:
         LOGGER.debug("Delete file %s", url)
         return self.session.delete(url)
 
-    def iterfiles(self, last_file_name: str = "") -> Iterator[str]:
-        """yield absolute file names
+    def iterfiles(self, dir: str, last_file_name: str = "") -> Iterator[str]:
+        """Recursively yield absolute file names
 
         Args:
+            dir: retrieve file names starting from this directory; must
+                be an absolute path.
             last_file_name: if given, starts from the file just after; must
                 be basename.
 
@@ -70,22 +71,36 @@ class HttpFiler:
             absolute file names
 
         """
-        for entry in self._iter_dir(last_file_name):
+        if not dir.endswith("/"):
+            dir = dir + "/"
+        # first, generates files going "down" the tree from current position
+        # (last_file_name)
+        yield from self._iter_files(dir, last_file_name)
+
+        # then, continue iterate going up the tree
+        while dir != self.basepath:
+            dir, last = dir[:-1].rsplit("/", 1)
+            dir += "/"
+            yield from self._iter_files(dir, last_file_name=last)
+
+    def _iter_files(self, dir: str, last_file_name: str = "") -> Iterator[str]:
+        for entry in self._iter_one_dir(dir, last_file_name):
             fullpath = entry["FullPath"]
             if entry["Mode"] & 1 << 31:  # it's a directory, recurse
                 # see https://pkg.go.dev/io/fs#FileMode
-                yield from self.iterfiles(fullpath)
+                yield from self._iter_files(fullpath)
             else:
                 yield fullpath
 
-    def _iter_dir(self, last_file_name: str = ""):
+    def _iter_one_dir(self, remote_path: str, last_file_name: str = ""):
+        url = self.build_url(remote_path)
         params = {"limit": self.batchsize}
         if last_file_name:
             params["lastFileName"] = last_file_name
 
-        LOGGER.debug("List directory %s", self.url)
+        LOGGER.debug("List directory %s", url)
         while True:
-            rsp = self.session.get(self.url, params=params)
+            rsp = self.session.get(url, params=params)
             if rsp.ok:
                 dircontent = rsp.json()
                 if dircontent["Entries"]:
@@ -95,5 +110,5 @@ class HttpFiler:
                 params["lastFileName"] = dircontent["LastFileName"]
 
             else:
-                LOGGER.error('Error listing "%s". [HTTP %d]', self.url, rsp.status_code)
+                LOGGER.error('Error listing "%s". [HTTP %d]', url, rsp.status_code)
                 break
