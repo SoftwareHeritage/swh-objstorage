@@ -1,12 +1,13 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import queue
 import threading
-from typing import Dict, Iterator
+from typing import Dict, Iterator, List, Tuple, Union
 
+from swh.model.model import Sha1
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage
@@ -250,7 +251,11 @@ class MultiplexerObjStorage(ObjStorage):
             check_presence=check_presence,
         )
 
-    def add_batch(self, contents, check_presence=True) -> Dict:
+    def add_batch(
+        self,
+        contents: Union[Dict[Sha1, bytes], List[Tuple[ObjId, bytes]]],
+        check_presence: bool = True,
+    ) -> Dict:
         """Add a batch of new objects to the object storage."""
         write_threads = list(self.get_write_threads())
         results = self.wrap_call(

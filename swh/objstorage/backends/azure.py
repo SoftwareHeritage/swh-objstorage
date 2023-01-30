@@ -38,6 +38,9 @@ def get_container_url(
     container_name: str,
     access_policy: str = "read_only",
     expiry: datetime.timedelta = datetime.timedelta(days=365),
+    container_url_template: str = (
+        "https://{account_name}.blob.core.windows.net/{container_name}?{signature}"
+    ),
     **kwargs,
 ) -> str:
     """Get the full url, for the given container on the given account, with a
@@ -76,7 +79,11 @@ def get_container_url(
         expiry=current_time + expiry,
     )
 
-    return f"https://{account_name}.blob.core.windows.net/{container_name}?{signature}"
+    return container_url_template.format(
+        account_name=account_name,
+        container_name=container_name,
+        signature=signature,
+    )
 
 
 class AzureCloudObjStorage(ObjStorage):
@@ -106,14 +113,15 @@ class AzureCloudObjStorage(ObjStorage):
         account_name: Optional[str] = None,
         api_secret_key: Optional[str] = None,
         container_name: Optional[str] = None,
+        connection_string: Optional[str] = None,
         compression="gzip",
         **kwargs,
     ):
-        if container_url is None:
+        if container_url is None and connection_string is None:
             if account_name is None or api_secret_key is None or container_name is None:
                 raise ValueError(
-                    "AzureCloudObjStorage must have a container_url or all three "
-                    "account_name, api_secret_key and container_name"
+                    "AzureCloudObjStorage must have a container_url, a connection_string,"
+                    "or all three account_name, api_secret_key and container_name"
                 )
             else:
                 warnings.warn(
@@ -127,9 +135,16 @@ class AzureCloudObjStorage(ObjStorage):
                     container_name=container_name,
                     access_policy="full",
                 )
+        elif connection_string:
+            if container_name is None:
+                raise ValueError(
+                    "container_name is required when using connection_string."
+                )
+            self.container_name = container_name
 
         super().__init__(**kwargs)
         self.container_url = container_url
+        self.connection_string = connection_string
         self.compression = compression
 
     def get_container_client(self, hex_obj_id):
@@ -140,7 +155,12 @@ class AzureCloudObjStorage(ObjStorage):
         client according to the prefix of the object id.
 
         """
-        return ContainerClient.from_container_url(self.container_url)
+        if self.connection_string:
+            return ContainerClient.from_connection_string(
+                self.connection_string, self.container_name
+            )
+        else:
+            return ContainerClient.from_container_url(self.container_url)
 
     @contextlib.asynccontextmanager
     async def get_async_container_clients(self):
@@ -148,7 +168,12 @@ class AzureCloudObjStorage(ObjStorage):
         ``get_async_blob_client``.
 
         Each container may not be used in more than one asyncio loop."""
-        client = AsyncContainerClient.from_container_url(self.container_url)
+        if self.connection_string:
+            client = AsyncContainerClient.from_connection_string(
+                self.connection_string, self.container_name
+            )
+        else:
+            client = AsyncContainerClient.from_container_url(self.container_url)
         async with client:
             yield {"": client}
 

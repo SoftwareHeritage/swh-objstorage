@@ -69,7 +69,6 @@ swh/objstorage/backends/winery/stats.py
 swh/objstorage/backends/winery/throttler.py
 swh/objstorage/multiplexer/__init__.py
 swh/objstorage/multiplexer/multiplexer_objstorage.py
-swh/objstorage/multiplexer/striping_objstorage.py
 swh/objstorage/multiplexer/filter/__init__.py
 swh/objstorage/multiplexer/filter/filter.py
 swh/objstorage/multiplexer/filter/read_write_filter.py
@@ -87,7 +86,6 @@ swh/objstorage/tests/test_objstorage_noop.py
 swh/objstorage/tests/test_objstorage_pathslicing.py
 swh/objstorage/tests/test_objstorage_random_generator.py
 swh/objstorage/tests/test_objstorage_seaweedfs.py
-swh/objstorage/tests/test_objstorage_striping.py
 swh/objstorage/tests/test_objstorage_winery.py
 swh/objstorage/tests/test_pathslicer.py
 swh/objstorage/tests/test_readonly_filter.py
