@@ -1,3 +1,17 @@
+swh-objstorage (2.1.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.1.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2023-01-30 14:58:24 +0100)
+  * Upstream changes:     - v2.1.0     - * add_batch: Add support for
+    list of (obj_id, content) in addition to dicts     - * Add support
+    for pathslicing in seaweedfs backend     - * Make the limit argument
+    of ObjStorage.list_content() method optional     - * Remove now
+    unused StripingObjStorage backend     - * Properly use hash_to_bytes
+    to convert a bytehex in seaweedfs backend     - * Update URLs to
+    gitlab.softwareheritage.org in setup and tox
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 30 Jan 2023 14:45:44 +0000
+
 swh-objstorage (2.0.1-1~swh2) unstable-swh; urgency=medium
 
   * Fix dependency constraint and bump new release
