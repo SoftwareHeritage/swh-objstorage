@@ -40,9 +40,11 @@ class RemoteObjStorage(RPCClient):
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
-        params: Dict[str, Any] = {"limit": limit}
+        params: Dict[str, Any] = {}
+        if limit:
+            params["limit"] = limit
         if last_obj_id:
             params["last_obj_id"] = objid_to_default_hex(last_obj_id)
         response = self.raw_verb(

@@ -1,13 +1,14 @@
-# Copyright (C) 2015-2022 The Software Heritage developers
+# Copyright (C) 2015-2023 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterator, List, Optional, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
+from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT
 
 
@@ -74,8 +75,9 @@ class ObjStorageInterface(Protocol):
 
         Args:
             content: object's raw content to add in storage.
-            obj_id: checksum of [bytes] using [ID_HASH_ALGO]
-                algorithm. It is trusted to match the bytes.
+            obj_id: either dict of checksums, or single checksum of
+                [bytes] using [ID_HASH_ALGO] algorithm.
+                It is trusted to match the bytes.
             check_presence (bool): indicate if the presence of the
                 content should be verified before adding the file.
 
@@ -86,11 +88,16 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add/batch")
-    def add_batch(self, contents, check_presence=True) -> Dict:
+    def add_batch(
+        self,
+        contents: Union[Dict[Sha1, bytes], List[Tuple[ObjId, bytes]]],
+        check_presence: bool = True,
+    ) -> Dict:
         """Add a batch of new objects to the object storage.
 
         Args:
-            contents: mapping from obj_id to object contents
+            contents: either mapping from [ID_HASH_ALGO] checksums to object contents,
+                or list of pairs of dict hashes and object contents
 
         Returns:
             the summary of objects added to the storage (count of object,
@@ -185,16 +192,19 @@ class ObjStorageInterface(Protocol):
         ...
 
     def list_content(
-        self, last_obj_id: Optional[ObjId] = None, limit: int = DEFAULT_LIMIT
+        self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
     ) -> Iterator[CompositeObjId]:
         """Generates known object ids.
 
         Args:
             last_obj_id: object id from which to iterate from
                  (excluded).
-            limit (int): max number of object ids to generate.
+            limit (int): max number of object ids to generate. If unset (None),
+                 generate all objects (behavior might not be guaranteed for all
+                 backends).
 
         Generates:
             obj_id: object ids.
+
         """
         ...

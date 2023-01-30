@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -43,7 +43,7 @@ setup(
     python_requires=">=3.7",
     author="Software Heritage developers",
     author_email="swh-devel@inria.fr",
-    url="https://forge.softwareheritage.org/diffusion/DOBJS",
+    url="https://gitlab.softwareheritage.org/swh/devel/swh-objstorage",
     packages=find_packages(),
     install_requires=parse_requirements() + parse_requirements("swh"),
     setup_requires=["setuptools-scm"],
@@ -70,9 +70,9 @@ setup(
         "Development Status :: 5 - Production/Stable",
     ],
     project_urls={
-        "Bug Reports": "https://forge.softwareheritage.org/maniphest",
+        "Bug Reports": "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues",
         "Funding": "https://www.softwareheritage.org/donate",
-        "Source": "https://forge.softwareheritage.org/source/swh-objstorage",
+        "Source": "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git",
         "Documentation": "https://docs.softwareheritage.org/devel/swh-objstorage/",
     },
 )

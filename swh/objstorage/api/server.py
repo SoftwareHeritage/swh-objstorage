@@ -7,7 +7,7 @@ import contextlib
 import functools
 import logging
 import os
-from typing import Iterator
+from typing import Iterator, Optional
 
 from flask import request
 import msgpack
@@ -20,7 +20,6 @@ from swh.core.statsd import statsd
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import DEFAULT_LIMIT
 
 
 def timed(f):
@@ -98,7 +97,9 @@ def list_content():
     last_obj_id = request.args.get("last_obj_id")
     if last_obj_id:
         last_obj_id = bytes.fromhex(last_obj_id)
-    limit = int(request.args.get("limit", DEFAULT_LIMIT))
+    limit: Optional[str] = request.args.get("limit")
+    if limit:
+        limit = int(limit)
 
     def generate() -> Iterator[bytes]:
         with timed_context("list_content"):

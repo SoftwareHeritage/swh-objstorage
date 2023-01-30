@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,10 +7,11 @@ import abc
 import bz2
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterator, List, Optional
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import zlib
 
 from swh.model import hashutil
+from swh.model.model import Sha1
 
 from .constants import DEFAULT_LIMIT, ID_HASH_ALGO
 from .exc import ObjNotFoundError
@@ -104,9 +105,18 @@ class ObjStorage(metaclass=abc.ABCMeta):
         # it becomes needed
         self.allow_delete = allow_delete
 
-    def add_batch(self: ObjStorageInterface, contents, check_presence=True) -> Dict:
+    def add_batch(
+        self: ObjStorageInterface,
+        contents: Union[Dict[Sha1, bytes], List[Tuple[ObjId, bytes]]],
+        check_presence: bool = True,
+    ) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
-        for obj_id, content in contents.items():
+        contents_pairs: Iterable[Tuple[ObjId, bytes]]
+        if isinstance(contents, dict):
+            contents_pairs = contents.items()
+        else:
+            contents_pairs = contents
+        for obj_id, content in contents_pairs:
             if check_presence and obj_id in self:
                 continue
             self.add(content, obj_id, check_presence=False)
@@ -135,7 +145,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
     def list_content(
         self: ObjStorageInterface,
         last_obj_id: Optional[ObjId] = None,
-        limit: int = DEFAULT_LIMIT,
+        limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
         it = iter(self)
         if last_obj_id:

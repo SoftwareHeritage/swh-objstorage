@@ -26,7 +26,7 @@ class RWShard(Database):
 
     @property
     def lock(self):
-        return 452343  # an abitrary unique number
+        return 452343  # an arbitrary unique number
 
     @property
     def name(self):

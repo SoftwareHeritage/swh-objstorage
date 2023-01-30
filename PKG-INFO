@@ -1,13 +1,13 @@
 Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 2.0.1
+Version: 2.1.0
 Summary: Software Heritage Object Storage
-Home-page: https://forge.softwareheritage.org/diffusion/DOBJS
+Home-page: https://gitlab.softwareheritage.org/swh/devel/swh-objstorage
 Author: Software Heritage developers
 Author-email: swh-devel@inria.fr
-Project-URL: Bug Reports, https://forge.softwareheritage.org/maniphest
+Project-URL: Bug Reports, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues
 Project-URL: Funding, https://www.softwareheritage.org/donate
-Project-URL: Source, https://forge.softwareheritage.org/source/swh-objstorage
+Project-URL: Source, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git
 Project-URL: Documentation, https://docs.softwareheritage.org/devel/swh-objstorage/
 Classifier: Programming Language :: Python :: 3
 Classifier: Intended Audience :: Developers
