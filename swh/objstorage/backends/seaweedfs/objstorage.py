@@ -37,9 +37,9 @@ class SeaweedFilerObjStorage(ObjStorage):
 
     PRIMARY_HASH: Literal["sha1"] = "sha1"
 
-    def __init__(self, url, compression=None, slicing="", **kwargs):
+    def __init__(self, url, compression=None, slicing="", pool_maxsize=100, **kwargs):
         super().__init__(**kwargs)
-        self.wf = HttpFiler(url)
+        self.wf = HttpFiler(url, pool_maxsize=pool_maxsize)
         self.root_path = urlparse(url).path
         if not self.root_path.endswith("/"):
             self.root_path += "/"
