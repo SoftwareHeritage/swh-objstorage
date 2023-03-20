@@ -167,9 +167,15 @@ class PathSlicingObjStorage(ObjStorage):
     """
 
     PRIMARY_HASH: Literal["sha1"] = "sha1"
+    name: str = "pathslicing"
 
     def __init__(
-        self, root, slicing, compression: CompressionFormat = "gzip", **kwargs
+        self,
+        *,
+        root: str = "",
+        compression: CompressionFormat = "gzip",
+        slicing: str = "",
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.root = root

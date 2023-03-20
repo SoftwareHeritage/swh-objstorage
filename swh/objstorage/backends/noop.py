@@ -16,6 +16,8 @@ class NoopObjStorage(ObjStorage):
 
     """
 
+    name: str = "noop"
+
     def check_config(self, *, check_write):
         return True
 

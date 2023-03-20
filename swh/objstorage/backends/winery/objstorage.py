@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class WineryObjStorage(ObjStorage):
     PRIMARY_HASH = "sha256"
+    name: str = "winery"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

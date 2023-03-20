@@ -39,6 +39,8 @@ class HTTPReadOnlyObjStorage(ObjStorage):
       url: https://softwareheritage.s3.amazonaws.com/content/
     """
 
+    name: str = "http"
+
     def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
         super().__init__(**kwargs)
         self.session = requests.sessions.Session()

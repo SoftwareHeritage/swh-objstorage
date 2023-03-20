@@ -168,8 +168,10 @@ def gen_random_content(total=None, filesize=None):
 class RandomGeneratorObjStorage(ObjStorage):
     """A stupid read-only storage that generates blobs for testing purpose."""
 
+    name: str = "generator"
+
     def __init__(self, filesize=None, total=None, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         if filesize:
             filesize = int(filesize)
         self.filesize = filesize

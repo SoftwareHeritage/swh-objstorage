@@ -33,22 +33,24 @@ class SeaweedFilerObjStorage(ObjStorage):
     """
 
     PRIMARY_HASH = "sha1"
+    name: str = "seaweedfs"
 
     def __init__(
         self,
-        url,
+        *,
+        url: str = "",
         compression: CompressionFormat = "none",
-        slicing="",
-        pool_maxsize=100,
+        slicing: str = "",
+        pool_maxsize: int = 100,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.compression = compression
         self.wf = HttpFiler(url, pool_maxsize=pool_maxsize)
         self.root_path = urlparse(url).path
         if not self.root_path.endswith("/"):
             self.root_path += "/"
         self.slicer = PathSlicer(self.root_path, slicing)
-        self.compression = compression
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""

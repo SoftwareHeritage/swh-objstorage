@@ -18,9 +18,10 @@ class InMemoryObjStorage(ObjStorage):
     """
 
     PRIMARY_HASH = "sha1"
+    name: str = "memory"
 
-    def __init__(self, **args):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.state: Dict[bytes, bytes] = {}
 
     def check_config(self, *, check_write):

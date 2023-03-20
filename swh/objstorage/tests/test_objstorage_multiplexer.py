@@ -80,6 +80,8 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
     obj_id_p = compute_hashes(content_p)
 
     class CorruptedInMemoryObjStorage(InMemoryObjStorage):
+        name = "corrupted_objstorage"
+
         def get(self, obj_id):
             raise ObjCorruptedError("Always corrupted", obj_id)
 
@@ -104,6 +106,9 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
     ok_get.assert_called_once_with(obj_id_p)
 
     assert len(caplog.records) == 1
-    assert "CorruptedInMemoryObjStorage" in caplog.records[0].message
+    assert (
+        "was reported as corrupted by backend 'corrupted_objstorage'"
+        in caplog.records[0].message
+    )
     for algo, hash in obj_id_p.items():
         assert f"{algo}:{hash.hex()}" in caplog.records[0].message

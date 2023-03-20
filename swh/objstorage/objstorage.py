@@ -132,11 +132,22 @@ CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
 class ObjStorage(metaclass=abc.ABCMeta):
     PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
     compression: CompressionFormat = "none"
+    name: str = "objstorage"
+    """Default objstorage name; can be overloaded at instantiation time giving a
+    'name' argument to the constructor"""
 
-    def __init__(self, *, allow_delete=False, **kwargs):
+    def __init__(
+        self: ObjStorageInterface,
+        *,
+        allow_delete: bool = False,
+        **kwargs,
+    ):
         # A more complete permission system could be used in place of that if
         # it becomes needed
         self.allow_delete = allow_delete
+        # if no name is given in kwargs, default to name defined as class attribute
+        if "name" in kwargs:
+            self.name = kwargs["name"]
 
     def add_batch(
         self: ObjStorageInterface,

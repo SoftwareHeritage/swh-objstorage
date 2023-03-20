@@ -10,7 +10,7 @@ from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
 from swh.model.model import Sha1
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
 from swh.objstorage.utils import format_obj_id
 
@@ -167,10 +167,17 @@ class MultiplexerObjStorage(ObjStorage):
 
     """
 
-    def __init__(self, storages, **kwargs):
+    name: str = "multiplexer"
+
+    def __init__(
+        self,
+        *,
+        storages: Iterable[ObjStorageInterface],
+        **kwargs,
+    ):
         super().__init__(**kwargs)
-        self.storages = storages
-        self.storage_threads = [ObjStorageThread(storage) for storage in storages]
+        self.storages = list(storages)
+        self.storage_threads = [ObjStorageThread(storage) for storage in self.storages]
         for thread in self.storage_threads:
             thread.start()
 
@@ -296,9 +303,9 @@ class MultiplexerObjStorage(ObjStorage):
                 continue
             except ObjCorruptedError as exc:
                 logger.warning(
-                    "Object %s was reported as corrupted by %s: %s",
+                    "Object %s was reported as corrupted by backend '%s': %s",
                     format_obj_id(obj_id),
-                    storage.storage.__class__.__name__,
+                    storage.storage.name,
                     str(exc),
                 )
                 # Hoist exception, mypy doesn't like when we directly use

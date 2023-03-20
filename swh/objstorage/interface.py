@@ -75,9 +75,24 @@ class ObjStorageInterface(Protocol):
     - check()         check the integrity of an object, by object id
     - delete()        remove an object
 
+    and the following attributes:
+
+    - name            name given to the object storage; useful e.g. for logging in
+                      composite object storagges (multiplexer)
+
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
     """
+
+    name: str
+
+    def __init__(
+        self,
+        *,
+        name: str = "",
+        **kwargs,
+    ):
+        ...
 
     @remote_api_endpoint("check_config")
     def check_config(self, *, check_write):

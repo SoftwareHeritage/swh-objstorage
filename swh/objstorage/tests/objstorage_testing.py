@@ -4,14 +4,30 @@
 # See top-level LICENSE file for more information
 
 import inspect
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pytest
 import requests
 
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.factory import OBJSTORAGE_IMPLEMENTATIONS
 from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash, decompressors
+
+
+def get_cls(sto: ObjStorageInterface) -> Optional[str]:
+    """Helper function to find the 'cls' name associated with a given
+    ObjStorage object (mostly a reverse of the OBJSTORAGE_IMPLEMENTATIONS dict
+    defined in factory.py)
+    """
+    for cls, v in OBJSTORAGE_IMPLEMENTATIONS.items():
+        if v == "_construct_multiplexer_objstorage":
+            v = "swh.objstorage.multiplexer.multiplexer_objstorage.MultiplexerObjStorage"
+        if v == "_construct_filtered_objstorage":
+            v = "swh.objstorage.multiplexer.filer.read_write_filer.ReadObjStorageFilter"
+        if f"{sto.__class__.__module__}.{sto.__class__.__name__}" == v:
+            return cls
+    return None
 
 
 class ObjStorageTestFixture:
@@ -63,6 +79,9 @@ class ObjStorageTestFixture:
         # And we could replace the assertions above by this one, but unlike
         # the assertions above, it doesn't explain what is missing.
         assert isinstance(self.storage, ObjStorageInterface)
+
+    def test_name(self):
+        assert self.storage.name == get_cls(self.storage)
 
     def hash_content(self, content):
         obj_id = compute_hash(content)

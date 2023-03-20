@@ -19,6 +19,7 @@ import pytest
 
 from swh.objstorage.backends.libcloud import CloudObjStorage
 from swh.objstorage.exc import ObjCorruptedError
+from swh.objstorage.factory import OBJSTORAGE_IMPLEMENTATIONS
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -26,6 +27,20 @@ from .objstorage_testing import ObjStorageTestFixture
 API_KEY = "API_KEY"
 API_SECRET_KEY = "API SECRET KEY"
 CONTAINER_NAME = "test_container"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cloud_provider_mock():
+    # register the cloud MockCloudObjStorage class defined in this file so the
+    # helper test function get_cls() defined in objstorage_testing works OK and
+    # ObjStorageTestFixture.test_name() is green here
+    OBJSTORAGE_IMPLEMENTATIONS[
+        "cloud"
+    ] = f"{MockCloudObjStorage.__module__}.{MockCloudObjStorage.__name__}"
+    try:
+        yield
+    finally:
+        del OBJSTORAGE_IMPLEMENTATIONS["cloud"]
 
 
 class MockLibcloudObject:

@@ -106,9 +106,11 @@ class AzureCloudObjStorage(ObjStorage):
     """
 
     PRIMARY_HASH = "sha1"
+    name: str = "azure"
 
     def __init__(
         self,
+        *,
         container_url: Optional[str] = None,
         account_name: Optional[str] = None,
         api_secret_key: Optional[str] = None,
@@ -365,11 +367,16 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
     def __init__(
         self,
         accounts: Mapping[str, Union[str, Mapping[str, str]]],
+        name: str = "azure-prefixed",
         compression: CompressionFormat = "gzip",
         **kwargs,
     ):
         # shortcut AzureCloudObjStorage __init__
-        ObjStorage.__init__(self, **kwargs)
+        ObjStorage.__init__(
+            self,
+            name=name,
+            **kwargs,
+        )
 
         self.compression = compression
 

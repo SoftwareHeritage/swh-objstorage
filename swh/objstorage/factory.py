@@ -14,18 +14,18 @@ __all__ = ["get_objstorage", "ObjStorage"]
 
 
 OBJSTORAGE_IMPLEMENTATIONS = {
-    "pathslicing": ".backends.pathslicing.PathSlicingObjStorage",
-    "remote": ".api.client.RemoteObjStorage",
-    "memory": ".backends.in_memory.InMemoryObjStorage",
-    "seaweedfs": ".backends.seaweedfs.SeaweedFilerObjStorage",
-    "random": ".backends.generator.RandomGeneratorObjStorage",
-    "http": ".backends.http.HTTPReadOnlyObjStorage",
-    "noop": ".backends.noop.NoopObjStorage",
-    "azure": ".backends.azure.AzureCloudObjStorage",
-    "azure-prefixed": ".backends.azure.PrefixedAzureCloudObjStorage",
-    "s3": ".backends.libcloud.AwsCloudObjStorage",
-    "swift": ".backends.libcloud.OpenStackCloudObjStorage",
-    "winery": ".backends.winery.WineryObjStorage",
+    "pathslicing": "swh.objstorage.backends.pathslicing.PathSlicingObjStorage",
+    "remote": "swh.objstorage.api.client.RemoteObjStorage",
+    "memory": "swh.objstorage.backends.in_memory.InMemoryObjStorage",
+    "seaweedfs": "swh.objstorage.backends.seaweedfs.objstorage.SeaweedFilerObjStorage",
+    "random": "swh.objstorage.backends.generator.RandomGeneratorObjStorage",
+    "http": "swh.objstorage.backends.http.HTTPReadOnlyObjStorage",
+    "noop": "swh.objstorage.backends.noop.NoopObjStorage",
+    "azure": "swh.objstorage.backends.azure.AzureCloudObjStorage",
+    "azure-prefixed": "swh.objstorage.backends.azure.PrefixedAzureCloudObjStorage",
+    "s3": "swh.objstorage.backends.libcloud.AwsCloudObjStorage",
+    "swift": "swh.objstorage.backends.libcloud.OpenStackCloudObjStorage",
+    "winery": "swh.objstorage.backends.winery.WineryObjStorage",
 }
 
 
@@ -60,20 +60,25 @@ def get_objstorage(cls: str, **kwargs) -> ObjStorageInterface:
         ObjStorage = getattr(module, class_name)
     else:
         ObjStorage = globals()[class_path]
-
     return ObjStorage(**kwargs)
 
 
-def _construct_filtered_objstorage(storage_conf, filters_conf):
+def _construct_filtered_objstorage(
+    storage_conf, filters_conf, name="filtered", **wkargs
+):
     return add_filters(get_objstorage(**storage_conf), filters_conf)
 
 
 OBJSTORAGE_IMPLEMENTATIONS["filtered"] = "_construct_filtered_objstorage"
 
 
-def _construct_multiplexer_objstorage(objstorages):
-    storages = [get_objstorage(**conf) for conf in objstorages]
-    return MultiplexerObjStorage(storages)
+def _construct_multiplexer_objstorage(objstorages=(), name="multiplexer", **kwargs):
+    storages = []
+    for i, conf in enumerate(c.copy() for c in objstorages):
+        if "name" not in conf:
+            conf["name"] = f"{name}.{i}:{conf['cls']}"
+        storages.append(get_objstorage(**conf))
+    return MultiplexerObjStorage(name=name, storages=storages, **kwargs)
 
 
 OBJSTORAGE_IMPLEMENTATIONS["multiplexer"] = "_construct_multiplexer_objstorage"

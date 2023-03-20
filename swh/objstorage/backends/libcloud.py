@@ -60,6 +60,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     """
 
     PRIMARY_HASH = "sha1"
+    name: str = "cloud"
 
     def __init__(
         self,
@@ -228,6 +229,8 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 class AwsCloudObjStorage(CloudObjStorage):
     """Amazon's S3 Cloud-based object storage"""
 
+    name: str = "s3"
+
     def _get_provider(self):
         return Provider.S3
 
@@ -245,6 +248,8 @@ class AwsCloudObjStorage(CloudObjStorage):
 
 class OpenStackCloudObjStorage(CloudObjStorage):
     """OpenStack Swift Cloud based object storage"""
+
+    name: str = "swift"
 
     def _get_provider(self):
         return Provider.OPENSTACK_SWIFT
