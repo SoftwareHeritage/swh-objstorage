@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
 from typing_extensions import Protocol, TypedDict, runtime_checkable
 
@@ -90,7 +90,7 @@ class ObjStorageInterface(Protocol):
     @remote_api_endpoint("content/add/batch")
     def add_batch(
         self,
-        contents: Union[Dict[Sha1, bytes], List[Tuple[ObjId, bytes]]],
+        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage.
@@ -137,7 +137,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get/batch")
-    def get_batch(self, obj_ids: List[ObjId]) -> Iterator[Optional[bytes]]:
+    def get_batch(self, obj_ids: Iterable[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage.
 
         Note: This function does have a default implementation in

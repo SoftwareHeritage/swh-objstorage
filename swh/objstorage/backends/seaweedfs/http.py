@@ -20,7 +20,7 @@ class HttpFiler:
     TODO: handle errors
     """
 
-    def __init__(self, url):
+    def __init__(self, url, pool_maxsize=100):
         if not url.endswith("/"):
             url = url + "/"
         self.url = url
@@ -29,7 +29,10 @@ class HttpFiler:
 
         self.session = requests.Session()
         self.session.headers["Accept"] = "application/json"
-
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=pool_maxsize, pool_maxsize=pool_maxsize
+        )
+        self.session.mount(self.url, adapter)
         self.batchsize = DEFAULT_LIMIT
 
     def build_url(self, path):

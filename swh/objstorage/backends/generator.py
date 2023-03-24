@@ -16,7 +16,7 @@ class Randomizer:
         self.read(1024)  # create a not-so-small initial buffer
 
     def read(self, size):
-        if size > self.size:
+        if size >= self.size:
             with open("/dev/urandom", "rb") as fobj:
                 self.data = fobj.read(2 * size)
                 self.size = len(self.data)

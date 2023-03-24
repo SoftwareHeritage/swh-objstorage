@@ -33,7 +33,7 @@ function run() {
 
     copy_to || return 1
 
-    $SSH -t debian@ceph1 bash -c "'cd swh-objstorage ; ../venv/bin/tox -e py3 -- -k test_winery $*'" || return 1
+    $SSH -t debian@ceph1 bash -c "'cd swh-objstorage ; ../venv/bin/tox run -e py3 -- -k test_winery $*'" || return 1
 
     copy_from || return 1
 
