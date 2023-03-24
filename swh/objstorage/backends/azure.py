@@ -8,7 +8,7 @@ import contextlib
 import datetime
 from itertools import product
 import string
-from typing import Dict, Iterator, List, Optional, Union
+from typing import Dict, Iterable, Iterator, Optional, Union
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -315,7 +315,7 @@ class AzureCloudObjStorage(ObjStorage):
                 ]
             )
 
-    def get_batch(self, obj_ids: List[ObjId]) -> Iterator[Optional[bytes]]:
+    def get_batch(self, obj_ids: Iterable[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return call_async(self._get_batch_async, obj_ids)
 
