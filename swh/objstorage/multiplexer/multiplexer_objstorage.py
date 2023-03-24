@@ -5,7 +5,7 @@
 
 import queue
 import threading
-from typing import Dict, Iterable, Iterator, Tuple, Union
+from typing import Dict, Iterable, Iterator, Mapping, Tuple, Union
 
 from swh.model.model import Sha1
 from swh.objstorage.exc import ObjNotFoundError
@@ -253,7 +253,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     def add_batch(
         self,
-        contents: Union[Dict[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
+        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage."""

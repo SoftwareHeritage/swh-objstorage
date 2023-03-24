@@ -8,7 +8,7 @@ import contextlib
 import datetime
 from itertools import product
 import string
-from typing import Dict, Iterable, Iterator, Optional, Union
+from typing import Iterable, Iterator, Mapping, Optional, Union
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -350,7 +350,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
     def __init__(
         self,
-        accounts: Dict[str, Union[str, Dict[str, str]]],
+        accounts: Mapping[str, Union[str, Mapping[str, str]]],
         compression="gzip",
         **kwargs,
     ):

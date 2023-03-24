@@ -5,9 +5,10 @@
 
 import abc
 import bz2
+import collections
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterable, Iterator, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 import zlib
 
 from typing_extensions import Protocol
@@ -109,12 +110,12 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     def add_batch(
         self: ObjStorageInterface,
-        contents: Union[Dict[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
+        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
         check_presence: bool = True,
     ) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
         contents_pairs: Iterable[Tuple[ObjId, bytes]]
-        if isinstance(contents, dict):
+        if isinstance(contents, collections.abc.Mapping):
             contents_pairs = contents.items()
         else:
             contents_pairs = contents
