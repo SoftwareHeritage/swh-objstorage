@@ -5,6 +5,7 @@
 
 from collections.abc import Iterator
 
+from swh.objstorage.backends.generator import Randomizer
 from swh.objstorage.factory import get_objstorage
 
 
@@ -39,3 +40,13 @@ def test_random_generator_objstorage_size():
     sto = get_objstorage("random", filesize=10)
     for i in range(10):
         assert len(sto.get(None)) == 10
+
+
+def test_randomizer_read_size():
+    r = Randomizer()
+    for i in range(-2, 3):
+        size = r.size + i
+        assert len(r.read(size)) == size
+        if i >= 0:
+            # Randomizer buffer should have been increased
+            assert r.size > size

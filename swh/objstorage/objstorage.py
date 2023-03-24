@@ -5,10 +5,13 @@
 
 import abc
 import bz2
+import collections
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 import zlib
+
+from typing_extensions import Protocol
 
 from swh.model import hashutil
 from swh.model.model import Sha1
@@ -67,7 +70,7 @@ class NullDecompressor:
         return b""
 
 
-class _CompressorProtocol:
+class _CompressorProtocol(Protocol):
     def compress(self, data: bytes) -> bytes:
         ...
 
@@ -75,7 +78,7 @@ class _CompressorProtocol:
         ...
 
 
-class _DecompressorProtocol:
+class _DecompressorProtocol(Protocol):
     def decompress(self, data: bytes) -> bytes:
         ...
 
@@ -85,17 +88,17 @@ class _DecompressorProtocol:
 decompressors: Dict[str, Callable[[], _DecompressorProtocol]] = {
     "bz2": bz2.BZ2Decompressor,  # type: ignore
     "lzma": lzma.LZMADecompressor,  # type: ignore
-    "gzip": lambda: zlib.decompressobj(wbits=31),  # type: ignore
-    "zlib": zlib.decompressobj,  # type: ignore
+    "gzip": lambda: zlib.decompressobj(wbits=31),
+    "zlib": zlib.decompressobj,
     "none": NullDecompressor,  # type: ignore
 }
 
 compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
-    "bz2": bz2.BZ2Compressor,  # type: ignore
-    "lzma": lzma.LZMACompressor,  # type: ignore
-    "gzip": lambda: zlib.compressobj(wbits=31),  # type: ignore
-    "zlib": zlib.compressobj,  # type: ignore
-    "none": NullCompressor,  # type: ignore
+    "bz2": bz2.BZ2Compressor,
+    "lzma": lzma.LZMACompressor,
+    "gzip": lambda: zlib.compressobj(wbits=31),
+    "zlib": zlib.compressobj,
+    "none": NullCompressor,
 }
 
 
@@ -107,12 +110,12 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     def add_batch(
         self: ObjStorageInterface,
-        contents: Union[Dict[Sha1, bytes], List[Tuple[ObjId, bytes]]],
+        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
         check_presence: bool = True,
     ) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
         contents_pairs: Iterable[Tuple[ObjId, bytes]]
-        if isinstance(contents, dict):
+        if isinstance(contents, collections.abc.Mapping):
             contents_pairs = contents.items()
         else:
             contents_pairs = contents
@@ -129,7 +132,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         self.add(content, obj_id, check_presence=False)
 
     def get_batch(
-        self: ObjStorageInterface, obj_ids: List[ObjId]
+        self: ObjStorageInterface, obj_ids: Iterable[ObjId]
     ) -> Iterator[Optional[bytes]]:
         for obj_id in obj_ids:
             try:

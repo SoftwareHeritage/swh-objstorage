@@ -1,4 +1,4 @@
-This purpose of these instructions is to run `tox -e py3` in an
+This purpose of these instructions is to run `tox run -e py3` in an
 environment that has access to a ceph cluster. It enables tests that
 would be otherwise be skipped and increases code coverage.
 
@@ -55,9 +55,9 @@ because they require downloading large docker images.
 
 # Run the tests
 
-It copies the content of the repository and "ssh ceph1 tox -e py3"
+It copies the content of the repository and "ssh ceph1 tox run -e py3"
 
-* tox -e winery
+* tox run -e winery
 
 # Login into a machine
 
@@ -67,17 +67,17 @@ For each host found in context/ssh-config
 
 # Run the benchmarks
 
-The `tox -e winery` command is used to run the benchmarks with the desired parameters. Upon completion the raw data can be found in the `winery-test-environment/context/stats` directory and is displayed on the standard output as well as rendered in a graph, if a display is available (see the `winery-test-environment/render-stats.py` for the details).
+The `tox run -e winery` command is used to run the benchmarks with the desired parameters. Upon completion the raw data can be found in the `winery-test-environment/context/stats` directory and is displayed on the standard output as well as rendered in a graph, if a display is available (see the `winery-test-environment/render-stats.py` for the details).
 
 ### Example
 
-* tox -e winery -- -s --log-cli-level=INFO -vvv -k test_winery_bench_real --winery-bench-duration 30  --winery-shard-max-size $((10 * 1024 * 1024)) --winery-bench-ro-worker-max-request 2000
+* tox run -e winery -- -s --log-cli-level=INFO -vvv -k test_winery_bench_real --winery-bench-duration 30  --winery-shard-max-size $((10 * 1024 * 1024)) --winery-bench-ro-worker-max-request 2000
 
 ### Get all benchmark flags
 
 Run the following command and look for flags that start with `--winery-bench-`
 
-* tox -e winery -- --help
+* tox run -e winery -- --help
 
 # Destroy
 
