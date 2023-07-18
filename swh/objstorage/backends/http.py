@@ -1,8 +1,9 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 import logging
 from typing import Iterator, Optional
 from urllib.parse import urljoin
@@ -88,6 +89,14 @@ class HTTPReadOnlyObjStorage(ObjStorage):
                 hex_obj_id = objid_to_default_hex(obj_id)
                 raise exc.Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
+
+    def download_url(
+        self,
+        obj_id: ObjId,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        return self._path(obj_id)
 
     def check(self, obj_id: ObjId) -> None:
         # Check the content integrity

@@ -143,6 +143,10 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
                 self.storage.get(obj_id)
             assert "trailing data" in e.exception.args[0]
 
+    @pytest.mark.skip("makes no sense to test this for the mocked libcloud")
+    def test_download_url(self):
+        pass
+
 
 class TestCloudObjStorageBz2(TestCloudObjStorage):
     compression = "bz2"

@@ -6,6 +6,7 @@
 import abc
 import bz2
 import collections
+from datetime import timedelta
 from itertools import dropwhile, islice
 import lzma
 from typing import Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
@@ -155,3 +156,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
             last_obj_id_hex = objid_to_default_hex(last_obj_id)
             it = dropwhile(lambda x: objid_to_default_hex(x) <= last_obj_id_hex, it)
         return islice(it, limit)
+
+    def download_url(
+        self,
+        obj_id: ObjId,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        return None

@@ -1,9 +1,10 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import pytest
+import requests
 import requests_mock
 from requests_mock.contrib import fixture
 
@@ -125,3 +126,13 @@ def test_http_cannonical_url():
     url = "http://127.0.0.1/content"
     sto = get_objstorage(cls="http", url=url)
     assert sto.root_path == url + "/"
+
+
+@pytest.mark.parametrize("multi_hash", [False, True])
+def test_http_objstorage_download_url(multi_hash):
+    sto_front, sto_back, objids = build_objstorage(multi_hash)
+
+    for objid in objids:
+        assert objid in sto_front
+        response = requests.get(sto_front.download_url(objid))
+        assert response.text.startswith("some content ")

@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 import io
 from itertools import islice
 import logging
@@ -111,6 +112,17 @@ class SeaweedFilerObjStorage(ObjStorage):
             hex_obj_id = objid_to_default_hex(obj_id)
             raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
         return ret
+
+    def download_url(
+        self,
+        obj_id: ObjId,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        path = self._path(obj_id)
+        if not self.wf.exists(path):
+            raise ObjNotFoundError(obj_id)
+        return self.wf.build_url(path)
 
     def check(self, obj_id: ObjId) -> None:
         # Check the content integrity
