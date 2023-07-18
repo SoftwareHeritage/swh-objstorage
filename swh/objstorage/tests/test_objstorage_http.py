@@ -7,12 +7,13 @@ import pytest
 import requests_mock
 from requests_mock.contrib import fixture
 
+from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 
 
-def build_objstorage():
+def build_objstorage(multi_hash=False):
     """Build an HTTPReadOnlyObjStorage suitable for tests
 
     this instancaite 2 ObjStorage, one HTTPReadOnlyObjStorage (the "front" one
@@ -26,7 +27,10 @@ def build_objstorage():
     objids = []
     for i in range(100):
         content = f"some content {i}".encode()
-        obj_id = compute_hash(content)
+        if multi_hash:
+            obj_id = hashutil.MultiHash.from_data(content).digest()
+        else:
+            obj_id = compute_hash(content)
         objids.append(obj_id)
         sto_back.add(content, obj_id=obj_id)
 
@@ -56,8 +60,9 @@ def build_objstorage():
     return sto_front, sto_back, objids
 
 
-def test_http_objstorage():
-    sto_front, sto_back, objids = build_objstorage()
+@pytest.mark.parametrize("multi_hash", [False, True])
+def test_http_objstorage(multi_hash):
+    sto_front, sto_back, objids = build_objstorage(multi_hash)
 
     for objid in objids:
         assert objid in sto_front
@@ -78,8 +83,9 @@ def test_http_objstorage_get_missing():
         sto_front.get(b"\x00" * 20)
 
 
-def test_http_objstorage_check():
-    sto_front, sto_back, objids = build_objstorage()
+@pytest.mark.parametrize("multi_hash", [False, True])
+def test_http_objstorage_check(multi_hash):
+    sto_front, sto_back, objids = build_objstorage(multi_hash)
     for objid in objids:
         assert sto_front.check(objid) is None  # no Exception means OK
 

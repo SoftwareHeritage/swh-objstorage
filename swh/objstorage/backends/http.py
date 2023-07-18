@@ -11,6 +11,7 @@ import requests
 
 from swh.model import hashutil
 from swh.objstorage import exc
+from swh.objstorage.constants import ID_HASH_ALGO
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
@@ -92,8 +93,14 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         # Check the content integrity
         obj_content = self.get(obj_id)
         content_obj_id = compute_hash(obj_content)
-        if content_obj_id != obj_id:
+        if content_obj_id != self._hash(obj_id):
             raise exc.Error(obj_id)
 
+    def _hash(self, obj_id: ObjId) -> bytes:
+        if isinstance(obj_id, dict):
+            return obj_id[ID_HASH_ALGO]
+        else:
+            return obj_id
+
     def _path(self, obj_id):
-        return urljoin(self.root_path, hashutil.hash_to_hex(obj_id))
+        return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))
