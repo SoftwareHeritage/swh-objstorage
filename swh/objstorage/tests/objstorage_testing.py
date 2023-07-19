@@ -6,9 +6,12 @@
 import inspect
 from typing import Tuple
 
+import pytest
+import requests
+
 from swh.objstorage import exc
 from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
-from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.objstorage import compute_hash, decompressors
 
 
 class ObjStorageTestFixture:
@@ -342,3 +345,15 @@ class ObjStorageTestFixture:
             self.storage.list_content(last_obj_id={"sha1": b"\xff" * 20}, limit=100)
         )
         assert not ids
+
+    def test_download_url(self):
+        content = b"foo"
+        obj_id = compute_hash(content)
+        self.storage.add(content, obj_id)
+        url = self.storage.download_url(obj_id)
+        if url is not None:
+            decompress = decompressors[self.storage.compression]().decompress
+            assert decompress(requests.get(url).content) == content
+
+            with pytest.raises(exc.ObjNotFoundError):
+                self.storage.download_url(b"\xff" * 20)

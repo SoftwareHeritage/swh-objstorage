@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
 from typing_extensions import Protocol, TypedDict, runtime_checkable
@@ -156,6 +157,33 @@ class ObjStorageInterface(Protocol):
             one content will not cancel the whole request.
 
         """
+        ...
+
+    @remote_api_endpoint("content/download_url")
+    def download_url(
+        self,
+        obj_id: ObjId,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        """Get a direct download link for the object if the obstorage backend supports
+        such feature.
+
+        Some objstorage backends, typically cloud based ones like azure or s3, can provide
+        a direct download link for a stored object.
+
+        Args:
+            obj_id: object identifier
+            content_disposition: set Content-Disposition header for the generated URL
+                response if the objstorage backend supports it
+            expiry: the duration after which the URL expires if the objstorage backend
+                supports it, if not provided the URL expires 24 hours after its creation
+
+        Returns:
+            Direct download URL for the object or :const:`None` if the objstorage backend does
+                not support such feature.
+        """
+
         ...
 
     @remote_api_endpoint("content/check")

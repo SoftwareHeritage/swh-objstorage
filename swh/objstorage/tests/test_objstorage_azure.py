@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2022  The Software Heritage developers
+# Copyright (C) 2016-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -260,6 +260,10 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
                 self.storage.get(obj_id)
             assert "trailing data" in e.exception.args[0]
 
+    @pytest.mark.skip("makes no sense to test this for the mocked azure")
+    def test_download_url(self):
+        pass
+
 
 class TestMockedAzureCloudObjStorageGzip(TestMockedAzureCloudObjStorage):
     compression = "gzip"
@@ -323,6 +327,10 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
                 .get_blob_client(hex_obj_id)
                 .get_blob_properties()
             )
+
+    @pytest.mark.skip("makes no sense to test this for the mocked azure")
+    def test_download_url(self):
+        pass
 
 
 def test_get_container_url():
