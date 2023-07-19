@@ -13,10 +13,12 @@ azure-storage-blob!=12.9.0,>=12.0
 apache-libcloud
 
 [testing]
+moto[s3,server]
 pytest
 pytest-mock
 requests_mock[fixture]>=1.9
 requests_toolbelt
+swh.core[testing]
 types-pyyaml
 types-requests
 pytest-postgresql<4.0.0
