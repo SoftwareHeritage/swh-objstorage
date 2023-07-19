@@ -1,11 +1,11 @@
-# Copyright (C) 2016-2021  The Software Heritage developers
+# Copyright (C) 2016-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import asyncio
 import contextlib
-import datetime
+from datetime import datetime, timedelta
 from itertools import product
 import string
 from typing import Iterable, Iterator, Mapping, Optional, Union
@@ -13,8 +13,10 @@ import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import (
+    BlobSasPermissions,
     ContainerClient,
     ContainerSasPermissions,
+    generate_blob_sas,
     generate_container_sas,
 )
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
@@ -37,7 +39,7 @@ def get_container_url(
     account_key: str,
     container_name: str,
     access_policy: str = "read_only",
-    expiry: datetime.timedelta = datetime.timedelta(days=365),
+    expiry: timedelta = timedelta(days=365),
     container_url_template: str = (
         "https://{account_name}.blob.core.windows.net/{container_name}?{signature}"
     ),
@@ -68,14 +70,14 @@ def get_container_url(
         "full": ContainerSasPermissions(read=True, list=True, delete=True, write=True),
     }
 
-    current_time = datetime.datetime.utcnow()
+    current_time = datetime.utcnow()
 
     signature = generate_container_sas(
         account_name,
         container_name,
         account_key=account_key,
         permission=access_policies[access_policy],
-        start=current_time + datetime.timedelta(minutes=-1),
+        start=current_time + timedelta(minutes=-1),
         expiry=current_time + expiry,
     )
 
@@ -339,6 +341,30 @@ class AzureCloudObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id) from None
 
         return True
+
+    def download_url(
+        self,
+        obj_id: ObjId,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        hex_obj_id = self._internal_id(obj_id)
+        client = self.get_blob_client(hex_obj_id)
+        try:
+            client.get_blob_properties()
+        except ResourceNotFoundError:
+            raise ObjNotFoundError(obj_id)
+        else:
+            signature = generate_blob_sas(
+                client.account_name,
+                client.container_name,
+                hex_obj_id,
+                account_key=client.credential.account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.now() + (expiry or timedelta(hours=24)),
+                content_disposition=content_disposition,
+            )
+            return f"{client.primary_endpoint}?{signature}"
 
 
 class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
