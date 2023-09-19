@@ -1,10 +1,12 @@
-# Copyright (C) 2022  The Software Heritage developers
+# Copyright (C) 2022-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import logging
 from multiprocessing import Process
+
+from typing_extensions import Literal
 
 from swh.objstorage import exc
 from swh.objstorage.interface import ObjId
@@ -19,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
+
+    PRIMARY_HASH: Literal["sha256"] = "sha256"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if kwargs.get("readonly"):
@@ -30,22 +35,28 @@ class WineryObjStorage(ObjStorage):
         self.winery.uninit()
 
     def get(self, obj_id: ObjId) -> bytes:
-        return self.winery.get(obj_id)
+        return self.winery.get(self._hash(obj_id))
 
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         return True
 
-    def __contains__(self, obj_id):
-        return obj_id in self.winery
+    def __contains__(self, obj_id: ObjId) -> bool:
+        return self._hash(obj_id) in self.winery
 
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
-        self.winery.add(content, obj_id, check_presence)
+        self.winery.add(content, self._hash(obj_id), check_presence)
 
     def check(self, obj_id: ObjId) -> None:
-        return self.winery.check(obj_id)
+        return self.winery.check(self._hash(obj_id))
 
     def delete(self, obj_id: ObjId):
         raise PermissionError("Delete is not allowed.")
+
+    def _hash(self, obj_id: ObjId) -> bytes:
+        if isinstance(obj_id, dict):
+            return obj_id[self.PRIMARY_HASH]
+        else:
+            return obj_id
 
 
 class WineryBase:
