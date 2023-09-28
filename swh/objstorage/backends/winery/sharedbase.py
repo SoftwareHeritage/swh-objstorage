@@ -3,11 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+from typing import Optional, Tuple
 import uuid
 
 import psycopg2
 
 from .database import Database, DatabaseAdmin
+
+WRITER_UUID = uuid.uuid4()
+
+logger = logging.getLogger(__name__)
 
 
 class SharedBase(Database):
@@ -16,7 +22,8 @@ class SharedBase(Database):
         super().__init__(kwargs["base_dsn"], "sharedbase")
         self.create_tables()
         self.db = self.connect_database()
-        self._whoami = None
+        self._whoami: str = None
+        self._whoami_id: int = None
 
     def uninit(self):
         self.db.close()
@@ -34,6 +41,8 @@ class SharedBase(Database):
             id SERIAL PRIMARY KEY,
             readonly BOOLEAN NOT NULL,
             packing BOOLEAN NOT NULL,
+            active_writer_ts TIMESTAMPTZ,
+            active_writer UUID,
             name CHAR(32) NOT NULL UNIQUE
         )
         """,
@@ -60,40 +69,66 @@ class SharedBase(Database):
         if self._whoami is not None:
             return
 
-        while True:
-            self._whoami, self._whoami_id = self.lock_a_shard()
-            if self._whoami is not None:
-                return self._whoami
-            self.create_shard()
+        locked = self.lock_shard()
+        if locked:
+            self._whoami, self._whoami_id = locked
+        else:
+            self._whoami, self._whoami_id = self.create_shard()
 
-    def lock_a_shard(self):
-        with self.db.cursor() as c:
-            c.execute(
-                "SELECT name FROM shards WHERE readonly = FALSE and packing = FALSE "
-                "LIMIT 1 FOR UPDATE SKIP LOCKED"
-            )
-            if c.rowcount == 0:
-                return None, None
-            name = c.fetchone()[0]
-        return self.lock_shard(name)
+        return self._whoami
 
-    def lock_shard(self, name):
-        self.whoami_lock = self.db.cursor()
-        try:
-            self.whoami_lock.execute(
-                "SELECT name, id FROM shards "
-                "WHERE readonly = FALSE AND packing = FALSE AND name = %s "
-                "FOR UPDATE NOWAIT",
-                (name,),
-            )
-            return self.whoami_lock.fetchone()
-        except psycopg2.Error:
-            return None
+    def lock_shard(self) -> Optional[Tuple[str, int]]:
+        with self.db:
+            # run the next two statements in a transaction
+            with self.db.cursor() as c:
+                c.execute(
+                    """\
+                    SELECT name
+                    FROM shards
+                    WHERE readonly = FALSE and packing = FALSE and active_writer IS NULL
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                    """
+                )
+                result = c.fetchone()
+                if result is None:
+                    return None
+                shard_name = result[0]
+                try:
+                    c.execute(
+                        """\
+                        UPDATE shards
+                        SET active_writer_ts = now(), active_writer = %s
+                        WHERE
+                            name = %s
+                            AND readonly = FALSE
+                            AND packing = FALSE
+                            AND active_writer IS NULL
+                        RETURNING name, id
+                        """,
+                        (WRITER_UUID, shard_name),
+                    )
+                except psycopg2.Error:
+                    logger.exception(
+                        "Writer %s failed to lock shard %s", WRITER_UUID, shard_name
+                    )
+                    return None
+                else:
+                    logger.debug("Writer %s locked shard %s", WRITER_UUID, shard_name)
+                    return c.fetchone()
 
     def unlock_shard(self):
-        del self.whoami_lock
+        with self.db.cursor() as c:
+            c.execute(
+                """\
+                UPDATE shards
+                SET active_writer = NULL
+                WHERE name = %s AND active_writer = %s
+                """,
+                (self._whoami, WRITER_UUID),
+            )
 
-    def create_shard(self):
+    def create_shard(self) -> Tuple[str, int]:
         name = uuid.uuid4().hex
         #
         # ensure the first character is not a number so it can be used as a
@@ -102,11 +137,20 @@ class SharedBase(Database):
         name = "i" + name[1:]
         with self.db.cursor() as c:
             c.execute(
-                "INSERT INTO shards (name, readonly, packing) "
-                "VALUES (%s, FALSE, FALSE)",
-                (name,),
+                """\
+                INSERT INTO shards
+                  (name, readonly, packing, active_writer, active_writer_ts)
+                VALUES
+                  (%s, FALSE, FALSE, %s, NOW())
+                RETURNING name, id""",
+                (name, WRITER_UUID),
             )
-        self.db.commit()
+            res = c.fetchone()
+            if res is None:
+                raise RuntimeError(
+                    f"Writer {WRITER_UUID} failed to create shard with name {name}"
+                )
+            return res
 
     def shard_packing_starts(self):
         with self.db.cursor() as c:
