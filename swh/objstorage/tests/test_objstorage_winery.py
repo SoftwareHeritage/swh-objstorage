@@ -139,7 +139,8 @@ def test_winery_get_shard_info(winery):
 def test_winery_packer(winery, ceph_pool):
     shard = winery.base.whoami
     content = b"SOMETHING"
-    winery.add(content=content)
+    obj_id = compute_hash(content, "sha256")
+    winery.add(content=content, obj_id=obj_id)
     winery.base.shard_packing_starts()
     packer = Packer(shard, **winery.args)
     try:
@@ -156,7 +157,8 @@ def test_winery_packer(winery, ceph_pool):
 def test_winery_get_object(winery, ceph_pool):
     shard = winery.base.whoami
     content = b"SOMETHING"
-    obj_id = winery.add(content=content)
+    obj_id = compute_hash(content, "sha256")
+    winery.add(content=content, obj_id=obj_id)
     winery.base.shard_packing_starts()
     assert pack(shard, **winery.args) is True
     assert winery.get(obj_id) == content

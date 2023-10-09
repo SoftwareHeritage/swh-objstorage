@@ -14,6 +14,7 @@ import psycopg2
 
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,8 @@ class Worker:
         count = 0
         while len(self.storage.winery.packers) == 0:
             content = random_content.read(random.choice(self.payloads))
-            obj_id = self.storage.add(content=content)
+            obj_id = compute_hash(content, "sha256")
+            self.storage.add(content=content, obj_id=obj_id)
             if self.stats.stats_active:
                 self.stats.stats_write(obj_id, content)
             count += 1
