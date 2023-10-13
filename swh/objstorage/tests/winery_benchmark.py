@@ -136,21 +136,27 @@ class RWWorker(Worker):
         logger.info("Worker(rw, %s): start", os.getpid())
         start = time.time()
         count = 0
-        while len(self.winery.packers) == 0:
+        while self.keep_going():
             content = random_content.read(random.choice(self.payloads))
             obj_id = compute_hash(content, "sha256")
             self.storage.add(content=content, obj_id=obj_id)
             if self.stats.stats_active:
                 self.stats.stats_write(obj_id, content)
             count += 1
-        logger.info("Worker(rw, %s): packing %s objects", os.getpid(), count)
-        packer = self.winery.packers[0]
-        packer.join()
-        assert packer.exitcode == 0
+        self.finalize(count)
         elapsed = time.time() - start
         logger.info("Worker(rw, %s): finished (%.2fs)", os.getpid(), elapsed)
 
         return "rw"
+
+    def keep_going(self):
+        return len(self.winery.packers) == 0
+
+    def finalize(self, count):
+        logger.info("Worker(rw, %s): packing %s objects", os.getpid(), count)
+        packer = self.winery.packers[0]
+        packer.join()
+        assert packer.exitcode == 0
 
 
 class Bench(object):
