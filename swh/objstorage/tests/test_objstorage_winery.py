@@ -5,10 +5,10 @@
 
 import logging
 import os
+import shutil
 import time
 
 import pytest
-import sh
 
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
@@ -32,9 +32,9 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def needs_ceph():
-    try:
-        sh.ceph("--version")
-    except sh.CommandNotFound:
+    ceph = shutil.which("ceph")
+
+    if not ceph:
         pytest.skip("the ceph CLI was not found")
 
 
