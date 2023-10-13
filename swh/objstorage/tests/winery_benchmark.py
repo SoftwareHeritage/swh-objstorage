@@ -70,9 +70,11 @@ class Worker:
                 )
                 if c.rowcount > 0:
                     break
-                logger.info(f"Worker(ro, {os.getpid()}): empty, waiting")
+                logger.info("Worker(ro, %s): empty, waiting", os.getpid())
                 time.sleep(1)
-            logger.info(f"Worker(ro, {os.getpid()}): requesting {c.rowcount} objects")
+            logger.info(
+                "Worker(ro, %s): requesting %s objects", os.getpid(), c.rowcount
+            )
             start = time.time()
             for row in c:
                 obj_id = row[0].tobytes()
@@ -81,7 +83,7 @@ class Worker:
                 if self.stats.stats_active:
                     self.stats.stats_read(obj_id, content)
             elapsed = time.time() - start
-            logger.info(f"Worker(ro, {os.getpid()}): finished ({elapsed:.2f}s)")
+            logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
 
     def payloads_define(self):
         self.payloads = [
@@ -105,7 +107,7 @@ class Worker:
             )
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")
-        logger.info(f"Worker(rw, {os.getpid()}): start")
+        logger.info("Worker(rw, %s): start", os.getpid())
         start = time.time()
         count = 0
         while len(self.storage.winery.packers) == 0:
@@ -115,12 +117,12 @@ class Worker:
             if self.stats.stats_active:
                 self.stats.stats_write(obj_id, content)
             count += 1
-        logger.info(f"Worker(rw, {os.getpid()}): packing {count} objects")
+        logger.info("Worker(rw, %s): packing %s objects", os.getpid(), count)
         packer = self.storage.winery.packers[0]
         packer.join()
         assert packer.exitcode == 0
         elapsed = time.time() - start
-        logger.info(f"Worker(rw, {os.getpid()}): finished ({elapsed:.2f}s)")
+        logger.info("Worker(rw, %s): finished (%.2fs)", os.getpid(), elapsed)
 
 
 class Bench(object):
@@ -149,7 +151,7 @@ class Bench(object):
 
             def create_worker(kind):
                 self.count += 1
-                logger.info(f"Bench.run: launched {kind} worker number {self.count}")
+                logger.info("Bench.run: launched %s worker number %s", kind, self.count)
                 return loop.run_in_executor(executor, work, kind, self.args)
 
             for kind in ["rw"] * self.args["rw_workers"] + ["ro"] * self.args[
@@ -158,7 +160,7 @@ class Bench(object):
                 workers.add(create_worker(kind))
 
             while len(workers) > 0:
-                logger.info(f"Bench.run: waiting for {len(workers)} workers")
+                logger.info("Bench.run: waiting for %s workers", len(workers))
                 current = workers
                 done, pending = await asyncio.wait(
                     current, return_when=asyncio.FIRST_COMPLETED
@@ -166,7 +168,7 @@ class Bench(object):
                 workers = pending
                 for task in done:
                     kind = task.result()
-                    logger.info(f"Bench.run: worker {kind} complete")
+                    logger.info("Bench.run: worker %s complete", kind)
                     if not self.timeout():
                         workers.add(create_worker(kind))
 
