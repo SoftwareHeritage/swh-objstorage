@@ -34,6 +34,7 @@ class DatabaseAdmin:
             c.close()
 
     def create_database(self):
+        logger.debug("database %s: create", self.dbname)
         with self.admin_cursor() as c:
             c.execute(
                 "SELECT datname FROM pg_catalog.pg_database "
@@ -47,6 +48,7 @@ class DatabaseAdmin:
                     pass
 
     def drop_database(self):
+        logger.debug("database %s: drop", self.dbname)
         with self.admin_cursor() as c:
             c.execute(
                 "SELECT pg_terminate_backend(pg_stat_activity.pid)"
@@ -110,6 +112,7 @@ class Database(abc.ABC):
         raise NotImplementedError("Database.database_tables")
 
     def create_tables(self):
+        logger.debug("database %s: create tables", self.dbname)
         db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
         db.autocommit = True
         c = db.cursor()
