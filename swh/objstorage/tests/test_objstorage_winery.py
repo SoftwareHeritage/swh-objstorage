@@ -12,7 +12,7 @@ import pytest
 
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
-from swh.objstorage.backends.winery.objstorage import Packer, pack
+from swh.objstorage.backends.winery.objstorage import pack
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
     BandwidthCalculator,
@@ -146,8 +146,7 @@ def test_winery_packer(winery, ceph_pool):
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
     winery.base.shard_packing_starts()
-    packer = Packer(shard, **winery.args)
-    assert packer.run() is True
+    assert pack(shard, **winery.args)
 
     readonly, packing = SharedBaseHelper(winery.base).get_shard_info_by_name(shard)
     assert readonly is True

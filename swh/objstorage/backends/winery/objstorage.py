@@ -5,6 +5,7 @@
 
 import logging
 from multiprocessing import Process
+import time
 
 from typing_extensions import Literal
 
@@ -112,42 +113,40 @@ class WineryReader(WineryBase):
 
 
 def pack(shard, **kwargs):
-    return Packer(shard, **kwargs).run()
+    stats = Stats(kwargs.get("output_dir"))
+    rw = RWShard(shard, **kwargs)
+    ro = ROShard(shard, **kwargs)
 
+    count = rw.count()
+    logger.info("Creating RO shard %s for %s objects", shard, count)
+    ro.create(count)
+    logger.info("Created RO shard %s", shard)
+    for i, (obj_id, content) in enumerate(rw.all()):
+        ro.add(content, obj_id)
+        if stats.stats_active:
+            stats.stats_read(obj_id, content)
+            stats.stats_write(obj_id, content)
+        if i % 100 == 99:
+            logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
 
-class Packer:
-    def __init__(self, shard, **kwargs):
-        self.stats = Stats(kwargs.get("output_dir"))
-        self.args = kwargs
-        self.shard = shard
-        self.rw = RWShard(self.shard, **self.args)
-        self.ro = ROShard(self.shard, **self.args)
+    logger.debug("RO shard %s: added %s objects, saving", shard, count)
+    assert ro.save() != -1, f"Shard saving failed for {shard}"
+    logger.debug("RO shard %s: saved", shard)
 
-    def run(self):
-        count = self.rw.count()
-        logger.info("Creating RO shard %s for %s objects", self.shard, count)
-        self.ro.create(count)
-        logger.info("Created RO shard %s", self.shard)
-        for i, (obj_id, content) in enumerate(self.rw.all()):
-            self.ro.add(content, obj_id)
-            if self.stats.stats_active:
-                self.stats.stats_read(obj_id, content)
-                self.stats.stats_write(obj_id, content)
-            if i % 100 == 99:
-                logger.debug(
-                    "RO shard %s: added %s/%s objects", self.shard, i + 1, count
-                )
+    while True:
+        if ro.load():
+            break
 
-        logger.debug("RO shard %s: added %s objects, saving", self.shard, count)
-        assert self.ro.save() != -1, f"Shard saving failed for {self.shard}"
-        logger.debug("RO shard %s: saved", self.shard)
+        logger.warn("Shard %s didn't sync yet, sleeping", shard)
+        time.sleep(0.1)
+        ro = ROShard(shard, **kwargs)
 
-        base = SharedBase(**self.args)
-        base.shard_packing_ends(self.shard)
-        base.uninit()
-        self.rw.uninit()
-        self.rw.drop()
-        return True
+    base = SharedBase(**kwargs)
+    base.shard_packing_ends(shard)
+    base.uninit()
+    rw.uninit()
+    rw.drop()
+    return True
 
 
 class WineryWriter(WineryReader):
