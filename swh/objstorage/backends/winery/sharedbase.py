@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 import uuid
 
 import psycopg2
+import psycopg2.errors
 
 from .database import Database, DatabaseAdmin
 

@@ -9,6 +9,7 @@ import logging
 import time
 
 import psycopg2
+import psycopg2.errors
 import psycopg2.extras
 
 logger = logging.getLogger(__name__)
