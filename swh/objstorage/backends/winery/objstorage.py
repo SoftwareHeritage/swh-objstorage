@@ -141,7 +141,6 @@ class WineryWriter(WineryReader):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.packers = []
-        self.init()
 
     def init(self):
         super().init()
