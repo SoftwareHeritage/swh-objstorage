@@ -76,14 +76,23 @@ class WineryBase:
 class WineryReader(WineryBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.shards = {}
+        self.ro_shards = {}
+        self.rw_shards = {}
 
     def roshard(self, name):
-        if name not in self.shards:
+        if name not in self.ro_shards:
             shard = ROShard(name, **self.args)
             shard.load()
-            self.shards[name] = shard
-        return self.shards[name]
+            self.ro_shards[name] = shard
+            if name in self.rw_shards:
+                del self.rw_shards[name]
+        return self.ro_shards[name]
+
+    def rwshard(self, name):
+        if name not in self.rw_shards:
+            shard = RWShard(name, **self.args)
+            self.rw_shards[name] = shard
+        return self.rw_shards[name]
 
     def get(self, obj_id: ObjId) -> bytes:
         shard_info = self.base.get(obj_id)
@@ -95,7 +104,7 @@ class WineryReader(WineryBase):
             content = shard.get(obj_id)
             del shard
         else:
-            shard = RWShard(name, **self.args)
+            shard = self.rwshard(name)
             content = shard.get(obj_id)
         if content is None:
             raise exc.ObjNotFoundError(obj_id)
