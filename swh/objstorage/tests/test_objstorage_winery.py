@@ -24,7 +24,7 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
 
-from .winery_benchmark import Bench, work
+from .winery_benchmark import Bench, ROWorker, RWWorker, work
 from .winery_testing_helpers import PoolHelper, SharedBaseHelper
 
 logger = logging.getLogger(__name__)
@@ -240,11 +240,18 @@ def test_winery_bench_fake(pytestconfig, postgresql_dsn, mocker):
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
 
-    def run(kind):
-        logger.info("running for %s", kwargs["duration"])
-        return kind
+    class _ROWorker(ROWorker):
+        def run(self):
+            logger.info("running ro for %s", kwargs["duration"])
+            return "ro"
 
-    mocker.patch("swh.objstorage.tests.winery_benchmark.Worker.run", side_effect=run)
+    class _RWWorker(RWWorker):
+        def run(self):
+            logger.info("running rw for %s", kwargs["duration"])
+            return "rw"
+
+    mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
+    mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
     mocker.patch(
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )

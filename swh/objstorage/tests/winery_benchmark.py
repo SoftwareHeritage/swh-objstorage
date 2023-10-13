@@ -9,9 +9,10 @@ import logging
 import os
 import random
 import time
-from typing import Any, Dict, Union
+from typing import Any, Dict, Set, Union
 
 import psycopg2
+from typing_extensions import Literal
 
 from swh.objstorage.backends.winery.objstorage import (
     WineryObjStorage,
@@ -25,13 +26,22 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
+WorkerKind = Literal["ro", "rw"]
 
-def work(kind, storage: Union[ObjStorageInterface, Dict[str, Any]]):
+
+def work(
+    kind: WorkerKind, storage: Union[ObjStorageInterface, Dict[str, Any]]
+) -> WorkerKind:
     if isinstance(storage, dict):
         if kind == "ro":
             storage = {**storage, "readonly": True}
         storage = get_objstorage("winery", **storage)
-    return Worker(storage).run(kind)
+    if kind == "ro":
+        return ROWorker(storage).run()
+    elif kind == "rw":
+        return RWWorker(storage).run()
+    else:
+        raise ValueError("Unknown worker kind: %s" % kind)
 
 
 class Worker:
@@ -42,23 +52,31 @@ class Worker:
         self.stats = Stats(storage.winery.args.get("output_dir"))
         self.storage = storage
 
-    def run(self, kind):
-        getattr(self, kind)()
-        return kind
+    def run(self) -> WorkerKind:
+        raise NotImplementedError
 
-    def ro(self):
+
+class ROWorker(Worker):
+    def __init__(self, storage: ObjStorageInterface) -> None:
+        super().__init__(storage)
+
         if not isinstance(self.storage.winery, WineryReader):
             raise ValueError(
                 f"Running ro benchmark on {self.storage.winery.__class__.__name__}"
                 ", expected read-only"
             )
 
+        self.winery: WineryReader = self.storage.winery
+
+    def run(self) -> Literal["ro"]:
         try:
             self._ro()
         except psycopg2.OperationalError:
             # It may happen when the database is dropped, just
             # conclude the read loop gracefully and move on
             pass
+
+        return "ro"
 
     def _ro(self):
         with self.storage.winery.base.db.cursor() as c:
@@ -85,6 +103,19 @@ class Worker:
             elapsed = time.time() - start
             logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
 
+
+class RWWorker(Worker):
+    def __init__(self, storage: ObjStorageInterface) -> None:
+        super().__init__(storage)
+
+        if not isinstance(self.storage.winery, WineryWriter):
+            raise ValueError(
+                f"Running rw benchmark on {self.storage.winery.__class__.__name__}"
+                ", expected read-write"
+            )
+
+        self.winery: WineryWriter = self.storage.winery
+
     def payloads_define(self):
         self.payloads = [
             3 * 1024 + 1,
@@ -99,18 +130,13 @@ class Worker:
             80 * 1024 + 1,
         ]
 
-    def rw(self):
-        if not isinstance(self.storage.winery, WineryWriter):
-            raise ValueError(
-                f"Running rw benchmark on {self.storage.winery.__class__.__name__}"
-                ", expected read-write"
-            )
+    def run(self) -> Literal["rw"]:
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")
         logger.info("Worker(rw, %s): start", os.getpid())
         start = time.time()
         count = 0
-        while len(self.storage.winery.packers) == 0:
+        while len(self.winery.packers) == 0:
             content = random_content.read(random.choice(self.payloads))
             obj_id = compute_hash(content, "sha256")
             self.storage.add(content=content, obj_id=obj_id)
@@ -118,24 +144,26 @@ class Worker:
                 self.stats.stats_write(obj_id, content)
             count += 1
         logger.info("Worker(rw, %s): packing %s objects", os.getpid(), count)
-        packer = self.storage.winery.packers[0]
+        packer = self.winery.packers[0]
         packer.join()
         assert packer.exitcode == 0
         elapsed = time.time() - start
         logger.info("Worker(rw, %s): finished (%.2fs)", os.getpid(), elapsed)
 
+        return "rw"
+
 
 class Bench(object):
-    def __init__(self, args):
+    def __init__(self, args) -> None:
         self.args = args
 
     def timer_start(self):
         self.start = time.time()
 
-    def timeout(self):
+    def timeout(self) -> bool:
         return time.time() - self.start > self.args["duration"]
 
-    async def run(self):
+    async def run(self) -> int:
         self.timer_start()
 
         loop = asyncio.get_running_loop()
@@ -147,17 +175,17 @@ class Bench(object):
             logger.info("Bench.run: running")
 
             self.count = 0
-            workers = set()
+            workers: "Set[asyncio.Future[WorkerKind]]" = set()
 
-            def create_worker(kind):
+            def create_worker(kind: WorkerKind) -> "asyncio.Future[WorkerKind]":
                 self.count += 1
                 logger.info("Bench.run: launched %s worker number %s", kind, self.count)
                 return loop.run_in_executor(executor, work, kind, self.args)
 
-            for kind in ["rw"] * self.args["rw_workers"] + ["ro"] * self.args[
-                "ro_workers"
-            ]:
-                workers.add(create_worker(kind))
+            for _ in range(self.args["rw_workers"]):
+                workers.add(create_worker("rw"))
+            for _ in range(self.args["ro_workers"]):
+                workers.add(create_worker("ro"))
 
             while len(workers) > 0:
                 logger.info("Bench.run: waiting for %s workers", len(workers))
