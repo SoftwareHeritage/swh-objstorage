@@ -51,20 +51,26 @@ def ceph_pool(needs_ceph):
 
 
 @pytest.fixture
-def storage(request, postgresql):
+def postgresql_dsn(postgresql_proc):
+    dsn = f"user={postgresql_proc.user} host={postgresql_proc.host} port={postgresql_proc.port}"
+    yield dsn
+    d = DatabaseAdmin(dsn)
+    for database in d.list_databases():
+        if database not in (postgresql_proc.dbname, f"{postgresql_proc.dbname}_tmpl"):
+            DatabaseAdmin(dsn, database).drop_database()
+
+
+@pytest.fixture
+def storage(request, postgresql_dsn):
     marker = request.node.get_closest_marker("shard_max_size")
     if marker is None:
         shard_max_size = 1024
     else:
         shard_max_size = marker.args[0]
-    dsn = (
-        f"postgres://{postgresql.info.user}"
-        f":@{postgresql.info.host}:{postgresql.info.port}"
-    )
     storage = get_objstorage(
         cls="winery",
-        base_dsn=dsn,
-        shard_dsn=dsn,
+        base_dsn=postgresql_dsn,
+        shard_dsn=postgresql_dsn,
         shard_max_size=shard_max_size,
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
@@ -72,14 +78,6 @@ def storage(request, postgresql):
     logger.debug("Instantiated storage %s", storage)
     yield storage
     storage.winery.uninit()
-    #
-    # pytest-postgresql will not remove databases that it did not
-    # create between tests (only at the very end).
-    #
-    d = DatabaseAdmin(dsn)
-    for database in d.list_databases():
-        if database != postgresql.info.dbname and database != "tests_tmpl":
-            DatabaseAdmin(dsn, database).drop_database()
 
 
 @pytest.fixture
@@ -207,11 +205,7 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     assert work("ro", args) == "ro"
 
 
-def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
-    dsn = (
-        f"postgres://{postgresql.info.user}"
-        f":@{postgresql.info.host}:{postgresql.info.port}"
-    )
+def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
     kwargs = {
         "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
         "rw_workers": pytestconfig.getoption("--winery-bench-rw-workers"),
@@ -221,8 +215,8 @@ def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
             "--winery-bench-ro-worker-max-request"
         ),
         "duration": pytestconfig.getoption("--winery-bench-duration"),
-        "base_dsn": dsn,
-        "shard_dsn": dsn,
+        "base_dsn": postgresql_dsn,
+        "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
@@ -230,11 +224,7 @@ def test_winery_bench_real(pytestconfig, postgresql, ceph_pool):
     assert count > 0
 
 
-def test_winery_bench_fake(pytestconfig, postgresql, mocker):
-    dsn = (
-        f"postgres://{postgresql.info.user}"
-        f":@{postgresql.info.host}:{postgresql.info.port}"
-    )
+def test_winery_bench_fake(pytestconfig, postgresql_dsn, mocker):
     kwargs = {
         "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
         "rw_workers": pytestconfig.getoption("--winery-bench-rw-workers"),
@@ -244,8 +234,8 @@ def test_winery_bench_fake(pytestconfig, postgresql, mocker):
             "--winery-bench-ro-worker-max-request"
         ),
         "duration": pytestconfig.getoption("--winery-bench-duration"),
-        "base_dsn": dsn,
-        "shard_dsn": dsn,
+        "base_dsn": postgresql_dsn,
+        "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
     }
@@ -350,15 +340,11 @@ def test_winery_bandwidth_calculator(mocker):
     assert len(b.history) == b.duration - 1
 
 
-def test_winery_io_throttler(postgresql, mocker):
-    dsn = (
-        f"postgres://{postgresql.info.user}"
-        f":@{postgresql.info.host}:{postgresql.info.port}"
-    )
-    DatabaseAdmin(dsn, "throttler").create_database()
+def test_winery_io_throttler(postgresql_dsn, mocker):
+    DatabaseAdmin(postgresql_dsn, "throttler").create_database()
     sleep = mocker.spy(time, "sleep")
     speed = 100
-    i = IOThrottler("read", base_dsn=dsn, throttle_read=100)
+    i = IOThrottler("read", base_dsn=postgresql_dsn, throttle_read=100)
     count = speed
     i.add(count)
     sleep.assert_not_called()
@@ -376,12 +362,8 @@ def test_winery_io_throttler(postgresql, mocker):
     sleep.assert_called_once()
 
 
-def test_winery_throttler(postgresql):
-    dsn = (
-        f"postgres://{postgresql.info.user}"
-        f":@{postgresql.info.host}:{postgresql.info.port}"
-    )
-    t = Throttler(base_dsn=dsn, throttle_read=100, throttle_write=100)
+def test_winery_throttler(postgresql_dsn):
+    t = Throttler(base_dsn=postgresql_dsn, throttle_read=100, throttle_write=100)
 
     base = {}
     key = "KEY"
