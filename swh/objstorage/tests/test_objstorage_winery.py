@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 import os
 import time
 
@@ -25,6 +26,8 @@ from swh.objstorage.utils import call_async
 
 from .winery_benchmark import Bench, work
 from .winery_testing_helpers import PoolHelper, SharedBaseHelper
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -66,6 +69,7 @@ def storage(request, postgresql):
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
     )
+    logger.debug("Instantiated storage %s", storage)
     yield storage
     storage.winery.uninit()
     #

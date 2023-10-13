@@ -63,15 +63,20 @@ class ROShard:
         self.pool = Pool(shard_max_size=kwargs["shard_max_size"])
         self.throttler = Throttler(**kwargs)
         self.name = name
+        self.path = self.pool.image_path(self.name)
 
     def create(self, count):
         self.pool.image_create(self.name)
-        self.shard = Shard(self.pool.image_path(self.name))
-        return self.shard.create(count)
+        self.shard = Shard(self.path)
+        ret = self.shard.create(count)
+        logger.debug("ROShard %s: created", self.name)
+        return ret
 
     def load(self):
-        self.shard = Shard(self.pool.image_path(self.name))
-        return self.shard.load() == self.shard
+        self.shard = Shard(self.path)
+        ret = self.shard.load() == self.shard
+        logger.debug("ROShard %s: loaded", self.name)
+        return ret
 
     def get(self, key):
         return self.throttler.throttle_get(self.shard.lookup, key)

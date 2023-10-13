@@ -25,6 +25,8 @@ class SharedBase(Database):
         self._whoami: str = None
         self._whoami_id: int = None
 
+        logger.debug("SharedBase %s: instantiated", WRITER_UUID)
+
     def uninit(self):
         self.db.close()
         del self.db
@@ -110,11 +112,15 @@ class SharedBase(Database):
                     )
                 except psycopg2.Error:
                     logger.exception(
-                        "Writer %s failed to lock shard %s", WRITER_UUID, shard_name
+                        "SharedBase %s: shard %s failed to lock",
+                        WRITER_UUID,
+                        shard_name,
                     )
                     return None
                 else:
-                    logger.debug("Writer %s locked shard %s", WRITER_UUID, shard_name)
+                    logger.debug(
+                        "SharedBase %s: shard %s locked", WRITER_UUID, shard_name
+                    )
                     return c.fetchone()
 
     def unlock_shard(self):
@@ -127,6 +133,7 @@ class SharedBase(Database):
                 """,
                 (self._whoami, WRITER_UUID),
             )
+            logger.debug("SharedBase %s: shard %s unlocked", WRITER_UUID, self._whoami)
 
     def create_shard(self) -> Tuple[str, int]:
         name = uuid.uuid4().hex
@@ -150,6 +157,10 @@ class SharedBase(Database):
                 raise RuntimeError(
                     f"Writer {WRITER_UUID} failed to create shard with name {name}"
                 )
+
+            logger.debug(
+                "SharedBase %s: shard %s created (and locked)", WRITER_UUID, res[0]
+            )
             return res
 
     def shard_packing_starts(self):
@@ -157,6 +168,7 @@ class SharedBase(Database):
             c.execute(
                 "UPDATE shards SET packing = TRUE WHERE name = %s", (self.whoami,)
             )
+        logger.debug("SharedBase %s: shard %s starts packing", WRITER_UUID, self.whoami)
         self.unlock_shard()
 
     def shard_packing_ends(self, name):
@@ -165,6 +177,7 @@ class SharedBase(Database):
                 "UPDATE shards SET readonly = TRUE, packing = FALSE " "WHERE name = %s",
                 (name,),
             )
+        logger.debug("SharedBase %s: shard %s ends packing", WRITER_UUID, name)
 
     def get_shard_info(self, id):
         with self.db.cursor() as c:

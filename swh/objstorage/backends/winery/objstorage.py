@@ -146,6 +146,7 @@ class WineryWriter(WineryReader):
     def init(self):
         super().init()
         self.shard = RWShard(self.base.whoami, **self.args)
+        logger.debug("WineryBase: RWShard %s instantiated", self.base.whoami)
 
     def uninit(self):
         self.shard.uninit()
