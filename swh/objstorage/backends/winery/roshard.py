@@ -4,8 +4,9 @@
 # See top-level LICENSE file for more information
 
 import logging
-
-import sh
+import os.path
+import subprocess
+from typing import Iterable
 
 from swh.perfecthash import Shard
 
@@ -19,43 +20,77 @@ class Pool(object):
 
     def __init__(self, **kwargs):
         self.args = kwargs
-        self.rbd = sh.sudo.bake("rbd", f"--pool={self.name}")
-        self.ceph = sh.sudo.bake("ceph")
         self.image_size = int((self.args["shard_max_size"] * 2) / (1024 * 1024))
+
+    def run(self, *cmd: str) -> Iterable[str]:
+        """Run the given command, and return its output as lines.
+
+        Return: the standard output of the run command
+
+        Raises: CalledProcessError if the command doesn't exit with exit code 0.
+        """
+
+        logger.info(" ".join(repr(item) if " " in item else item for item in cmd))
+        result = subprocess.check_output(cmd, encoding="utf-8", stderr=subprocess.PIPE)
+
+        return result.splitlines()
+
+    def rbd(self, *arguments: str) -> Iterable[str]:
+        """Run sudo rbd with the given arguments"""
+
+        cli = ["sudo", "rbd", f"--pool={self.name}", *arguments]
+
+        return self.run(*cli)
 
     def image_list(self):
         try:
-            self.rbd.ls()
-        except sh.ErrorReturnCode_2 as e:
-            if "No such file or directory" in e.args[0]:
+            images = self.rbd("ls")
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 2 and "No such file or directory" in exc.stderr:
                 return []
             else:
                 raise
-        return [image.strip() for image in self.rbd.ls()]
+        return [image.strip() for image in images]
 
     def image_path(self, image):
         return f"/dev/rbd/{self.name}/{image}"
 
     def image_create(self, image):
-        logger.info(f"rdb --pool {self.name} create --size={self.image_size} {image}")
-        self.rbd.create(
-            f"--size={self.image_size}", f"--data-pool={self.name}-data", image
+        self.rbd(
+            "create",
+            f"--size={self.image_size}",
+            f"--data-pool={self.name}-data",
+            image,
         )
-        self.rbd.feature.disable(
-            f"{self.name}/{image}", "object-map", "fast-diff", "deep-flatten"
+        self.rbd(
+            "feature",
+            "disable",
+            f"{self.name}/{image}",
+            "object-map",
+            "fast-diff",
+            "deep-flatten",
         )
         self.image_map(image, "rw")
 
     def image_map(self, image, options):
-        self.rbd.device("map", "-o", options, image)
-        sh.sudo("chmod", "777", self.image_path(image))
+        self.rbd("device", "map", "-o", options, image)
+        self.run("sudo", "chmod", "777", self.image_path(image))
 
     def image_remap_ro(self, image):
         self.image_unmap(image)
         self.image_map(image, "ro")
 
     def image_unmap(self, image):
-        self.rbd.device.unmap(f"{self.name}/{image}", _ok_code=(0, 22))
+        if os.path.exists(self.image_path(image)):
+            try:
+                self.rbd("device", "unmap", self.image_path(image))
+            except subprocess.CalledProcessError as exc:
+                if exc.returncode == 22 and "Invalid argument" in exc.stderr:
+                    logger.warning(
+                        "Image %s already unmapped? stderr: %s", image, exc.stderr
+                    )
+                else:
+                    raise
 
 
 class ROShard:

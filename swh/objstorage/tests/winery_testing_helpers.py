@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
+from typing import Iterable
 
 from swh.objstorage.backends.winery.roshard import Pool
 
@@ -24,14 +25,19 @@ class SharedBaseHelper:
 
 
 class PoolHelper(Pool):
+    def ceph(self, *arguments) -> Iterable[str]:
+        """Run sudo ceph with the given arguments"""
+
+        cli = ["sudo", "ceph", *arguments]
+
+        return self.run(*cli)
+
     def image_delete(self, image):
         self.image_unmap(image)
-        logger.info(f"rdb --pool {self.name} remove {image}")
-        self.rbd.remove(image)
+        self.rbd("remove", image)
 
     def images_clobber(self):
         for image in self.image_list():
-            image = image.strip()
             self.image_unmap(image)
 
     def clobber(self):
@@ -39,16 +45,20 @@ class PoolHelper(Pool):
         self.pool_clobber()
 
     def pool_clobber(self):
-        logger.info(f"ceph osd pool delete {self.name}")
-        self.ceph.osd.pool.delete(self.name, self.name, "--yes-i-really-really-mean-it")
-        data = f"{self.name}-data"
-        logger.info(f"ceph osd pool delete {data}")
-        self.ceph.osd.pool.delete(data, data, "--yes-i-really-really-mean-it")
+        for pool in (self.name, f"{self.name}-data"):
+            self.ceph(
+                "osd",
+                "pool",
+                "delete",
+                pool,
+                pool,
+                "--yes-i-really-really-mean-it",
+            )
 
     def pool_create(self):
         data = f"{self.name}-data"
-        logger.info(f"ceph osd pool create {data}")
-        self.ceph.osd(
+        self.ceph(
+            "osd",
             "erasure-code-profile",
             "set",
             "--force",
@@ -57,8 +67,7 @@ class PoolHelper(Pool):
             "m=2",
             "crush-failure-domain=host",
         )
-        self.ceph.osd.pool.create(data, "100", "erasure", data)
-        self.ceph.osd.pool.set(data, "allow_ec_overwrites", "true")
-        self.ceph.osd.pool.set(data, "pg_autoscale_mode", "off")
-        logger.info(f"ceph osd pool create {self.name}")
-        self.ceph.osd.pool.create(self.name)
+        self.ceph("osd", "pool", "create", data, "100", "erasure", data)
+        self.ceph("osd", "pool", "set", data, "allow_ec_overwrites", "true")
+        self.ceph("osd", "pool", "set", data, "pg_autoscale_mode", "off")
+        self.ceph("osd", "pool", "create", self.name)
