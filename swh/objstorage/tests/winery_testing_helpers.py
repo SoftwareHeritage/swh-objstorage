@@ -3,7 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import atexit
 import logging
+from subprocess import CalledProcessError
 from typing import Iterable
 
 from swh.objstorage.backends.winery.roshard import Pool
@@ -38,7 +40,15 @@ class PoolHelper(Pool):
 
     def images_clobber(self):
         for image in self.image_list():
-            self.image_unmap(image)
+            try:
+                self.image_unmap(image)
+            except CalledProcessError:
+                logger.error(
+                    "Could not unmap image %s, we'll try again in an atexit handler...",
+                    image,
+                )
+                atexit.register(self.image_unmap, image)
+                pass
 
     def clobber(self):
         self.images_clobber()
