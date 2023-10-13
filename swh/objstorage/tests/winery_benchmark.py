@@ -9,30 +9,50 @@ import logging
 import os
 import random
 import time
+from typing import Any, Dict, Union
 
 import psycopg2
 
+from swh.objstorage.backends.winery.objstorage import (
+    WineryObjStorage,
+    WineryReader,
+    WineryWriter,
+)
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
 
-def work(kind, args):
-    return Worker(args).run(kind)
+def work(kind, storage: Union[ObjStorageInterface, Dict[str, Any]]):
+    if isinstance(storage, dict):
+        if kind == "ro":
+            storage = {**storage, "readonly": True}
+        storage = get_objstorage("winery", **storage)
+    return Worker(storage).run(kind)
 
 
 class Worker:
-    def __init__(self, args):
-        self.stats = Stats(args.get("output_dir"))
-        self.args = args
+    def __init__(self, storage: ObjStorageInterface):
+        assert isinstance(
+            storage, WineryObjStorage
+        ), f"winery_benchmark passed unexpected {storage.__class__.__name__}"
+        self.stats = Stats(storage.winery.args.get("output_dir"))
+        self.storage = storage
 
     def run(self, kind):
         getattr(self, kind)()
         return kind
 
     def ro(self):
+        if not isinstance(self.storage.winery, WineryReader):
+            raise ValueError(
+                f"Running ro benchmark on {self.storage.winery.__class__.__name__}"
+                ", expected read-only"
+            )
+
         try:
             self._ro()
         except psycopg2.OperationalError:
@@ -41,22 +61,12 @@ class Worker:
             pass
 
     def _ro(self):
-        self.storage = get_objstorage(
-            cls="winery",
-            readonly=True,
-            base_dsn=self.args["base_dsn"],
-            shard_dsn=self.args["shard_dsn"],
-            shard_max_size=self.args["shard_max_size"],
-            throttle_read=self.args["throttle_read"],
-            throttle_write=self.args["throttle_write"],
-            output_dir=self.args.get("output_dir"),
-        )
         with self.storage.winery.base.db.cursor() as c:
             while True:
                 c.execute(
                     "SELECT signature FROM signature2shard WHERE inflight = FALSE "
                     "ORDER BY random() LIMIT %s",
-                    (self.args["ro_worker_max_request"],),
+                    (self.storage.winery.args["ro_worker_max_request"],),
                 )
                 if c.rowcount > 0:
                     break
@@ -88,15 +98,11 @@ class Worker:
         ]
 
     def rw(self):
-        self.storage = get_objstorage(
-            cls="winery",
-            base_dsn=self.args["base_dsn"],
-            shard_dsn=self.args["shard_dsn"],
-            shard_max_size=self.args["shard_max_size"],
-            throttle_read=self.args["throttle_read"],
-            throttle_write=self.args["throttle_write"],
-            output_dir=self.args.get("output_dir"),
-        )
+        if not isinstance(self.storage.winery, WineryWriter):
+            raise ValueError(
+                f"Running rw benchmark on {self.storage.winery.__class__.__name__}"
+                ", expected read-write"
+            )
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")
         logger.info(f"Worker(rw, {os.getpid()}): start")
