@@ -147,10 +147,7 @@ def test_winery_packer(winery, ceph_pool):
     winery.add(content=content, obj_id=obj_id)
     winery.base.shard_packing_starts()
     packer = Packer(shard, **winery.args)
-    try:
-        assert packer.run() is True
-    finally:
-        packer.uninit()
+    assert packer.run() is True
 
     readonly, packing = SharedBaseHelper(winery.base).get_shard_info_by_name(shard)
     assert readonly is True

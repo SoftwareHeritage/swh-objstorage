@@ -120,24 +120,28 @@ class Packer:
         self.stats = Stats(kwargs.get("output_dir"))
         self.args = kwargs
         self.shard = shard
-        self.init()
-
-    def init(self):
         self.rw = RWShard(self.shard, **self.args)
         self.ro = ROShard(self.shard, **self.args)
 
-    def uninit(self):
-        del self.ro
-        self.rw.uninit()
-
     def run(self):
-        self.ro.create(self.rw.count())
-        for obj_id, content in self.rw.all():
+        count = self.rw.count()
+        logger.info("Creating RO shard %s for %s objects", self.shard, count)
+        self.ro.create(count)
+        logger.info("Created RO shard %s", self.shard)
+        for i, (obj_id, content) in enumerate(self.rw.all()):
             self.ro.add(content, obj_id)
             if self.stats.stats_active:
                 self.stats.stats_read(obj_id, content)
                 self.stats.stats_write(obj_id, content)
-        self.ro.save()
+            if i % 100 == 99:
+                logger.debug(
+                    "RO shard %s: added %s/%s objects", self.shard, i + 1, count
+                )
+
+        logger.debug("RO shard %s: added %s objects, saving", self.shard, count)
+        assert self.ro.save() != -1, f"Shard saving failed for {self.shard}"
+        logger.debug("RO shard %s: saved", self.shard)
+
         base = SharedBase(**self.args)
         base.shard_packing_ends(self.shard)
         base.uninit()
