@@ -23,8 +23,7 @@ class SharedBase(Database):
         super().__init__(kwargs["base_dsn"], "sharedbase")
         self.create_tables()
         self.db = self.connect_database()
-        self._whoami: str = None
-        self._whoami_id: int = None
+        self._whoami: Optional[Tuple[str, int]] = None
 
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
 
@@ -59,26 +58,28 @@ class SharedBase(Database):
         ]
 
     @property
-    def whoami(self):
+    def whoami(self) -> str:
         self.set_whoami()
-        return self._whoami
+
+        assert self._whoami, "failed to lock a shard"
+        return self._whoami[0]
 
     @property
-    def id(self):
+    def id(self) -> int:
         self.set_whoami()
-        return self._whoami_id
 
-    def set_whoami(self):
+        assert self._whoami, "failed to lock a shard"
+        return self._whoami[1]
+
+    def set_whoami(self) -> None:
         if self._whoami is not None:
             return
 
-        locked = self.lock_shard()
-        if locked:
-            self._whoami, self._whoami_id = locked
-        else:
-            self._whoami, self._whoami_id = self.create_shard()
+        self._whoami = self.lock_shard()
+        if not self._whoami:
+            self._whoami = self.create_shard()
 
-        return self._whoami
+        return
 
     def lock_shard(self) -> Optional[Tuple[str, int]]:
         with self.db:
@@ -125,6 +126,9 @@ class SharedBase(Database):
                     return c.fetchone()
 
     def unlock_shard(self):
+        if not self._whoami:
+            raise ValueError("Can't unlock shard, no shard locked")
+
         with self.db.cursor() as c:
             c.execute(
                 """\
@@ -132,9 +136,11 @@ class SharedBase(Database):
                 SET active_writer = NULL
                 WHERE name = %s AND active_writer = %s
                 """,
-                (self._whoami, WRITER_UUID),
+                (self._whoami[0], WRITER_UUID),
             )
-            logger.debug("SharedBase %s: shard %s unlocked", WRITER_UUID, self._whoami)
+            logger.debug(
+                "SharedBase %s: shard %s unlocked", WRITER_UUID, self._whoami[0]
+            )
 
     def create_shard(self) -> Tuple[str, int]:
         name = uuid.uuid4().hex
@@ -165,11 +171,16 @@ class SharedBase(Database):
             return res
 
     def shard_packing_starts(self):
+        if not self._whoami:
+            raise ValueError("Can't pack shard, no shard locked")
+
         with self.db.cursor() as c:
             c.execute(
-                "UPDATE shards SET packing = TRUE WHERE name = %s", (self.whoami,)
+                "UPDATE shards SET packing = TRUE WHERE name = %s", (self._whoami[0],)
             )
-        logger.debug("SharedBase %s: shard %s starts packing", WRITER_UUID, self.whoami)
+        logger.debug(
+            "SharedBase %s: shard %s starts packing", WRITER_UUID, self._whoami[0]
+        )
         self.unlock_shard()
 
     def shard_packing_ends(self, name):
