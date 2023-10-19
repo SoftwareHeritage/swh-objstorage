@@ -114,7 +114,22 @@ class ROWorker(Worker):
 
 
 class RWWorker(Worker):
-    def __init__(self, storage: ObjStorageInterface) -> None:
+    """A read-write benchmark worker
+
+    Args:
+      storage: the read-write storage used
+      object_limit: the number of objects written before stopping
+      single_shard: stop when the worker switches to a new shard
+      block_until_packed: whether to wait for shards to be packed before exiting
+    """
+
+    def __init__(
+        self,
+        storage: ObjStorageInterface,
+        object_limit: Optional[int] = None,
+        single_shard: bool = True,
+        block_until_packed: bool = True,
+    ) -> None:
         super().__init__(storage)
 
         if not isinstance(self.storage.winery, WineryWriter):
@@ -124,6 +139,10 @@ class RWWorker(Worker):
             )
 
         self.winery: WineryWriter = self.storage.winery
+        self.object_limit = object_limit
+        self.single_shard = single_shard
+        self.block_until_packed = block_until_packed
+        self.count = 0
 
     def payloads_define(self):
         self.payloads = [
@@ -144,28 +163,38 @@ class RWWorker(Worker):
         random_content = open("/dev/urandom", "rb")
         logger.info("Worker(rw, %s): start", os.getpid())
         start = time.time()
-        count = 0
         while self.keep_going():
             content = random_content.read(random.choice(self.payloads))
             obj_id = compute_hash(content, "sha256")
             self.storage.add(content=content, obj_id=obj_id)
             if self.stats.stats_active:
                 self.stats.stats_write(obj_id, content)
-            count += 1
-        self.finalize(count)
+            self.count += 1
+        self.finalize()
         elapsed = time.time() - start
         logger.info("Worker(rw, %s): finished (%.2fs)", os.getpid(), elapsed)
 
         return "rw"
 
-    def keep_going(self):
-        return len(self.winery.packers) == 0
+    def keep_going(self) -> bool:
+        if self.object_limit is not None and self.count >= self.object_limit:
+            return False
+        if self.single_shard and self.winery.shards_filled:
+            return False
 
-    def finalize(self, count):
-        logger.info("Worker(rw, %s): packing %s objects", os.getpid(), count)
-        packer = self.winery.packers[0]
-        packer.join()
-        assert packer.exitcode == 0
+        return True
+
+    def finalize(self):
+        if not self.block_until_packed:
+            return
+        logger.info(
+            "Worker(rw, %s): waiting for %s objects to be packed",
+            os.getpid(),
+            self.count,
+        )
+        for packer in self.winery.packers:
+            packer.join()
+            assert packer.exitcode == 0
 
 
 class Bench(object):

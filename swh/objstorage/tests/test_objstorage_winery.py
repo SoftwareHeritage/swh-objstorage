@@ -206,6 +206,53 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     assert work("ro", args, {"ro": {"max_request": 1}}) == "ro"
 
 
+@pytest.mark.shard_max_size(10 * 1024 * 1024)
+def test_winery_bench_rw_object_limit(storage):
+    object_limit = 15
+    worker = RWWorker(
+        storage, object_limit=object_limit, single_shard=False, block_until_packed=False
+    )
+
+    assert worker.run() == "rw"
+
+    with storage.winery.base.db.cursor() as c:
+        c.execute("SELECT count(*) from signature2shard")
+        assert c.fetchone() == (object_limit,)
+
+
+@pytest.mark.shard_max_size(10 * 1024 * 1024)
+def test_winery_bench_rw_block_until_packed(storage, ceph_pool):
+    worker = RWWorker(storage, single_shard=True, block_until_packed=False)
+
+    assert worker.run() == "rw"
+
+    packed = 0
+    for packer in storage.winery.packers:
+        packer.join()
+        assert packer.exitcode == 0
+        packed += 1
+
+    assert packed > 0, "did not have any packers to wait for"
+
+
+@pytest.mark.shard_max_size(1024 * 1024)
+def test_winery_bench_rw_block_until_packed_multiple_shards(storage, ceph_pool):
+    # 1000 objects will create multiple shards when the limit is 1MB
+    worker = RWWorker(
+        storage, object_limit=1000, single_shard=False, block_until_packed=False
+    )
+
+    assert worker.run() == "rw"
+
+    packed = 0
+    for packer in storage.winery.packers:
+        packer.join()
+        assert packer.exitcode == 0
+        packed += 1
+
+    assert packed > 0, "did not have any packers to wait for"
+
+
 def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
     storage_config = {
         "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),

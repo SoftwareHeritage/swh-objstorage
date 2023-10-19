@@ -152,6 +152,7 @@ def pack(shard, **kwargs):
 class WineryWriter(WineryReader):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.shards_filled = []
         self.packers = []
 
     def init(self):
@@ -176,6 +177,7 @@ class WineryWriter(WineryReader):
         self.base.add_phase_2(obj_id)
 
         if self.shard.is_full():
+            self.shards_filled.append(self.shard.name)
             self.pack()
 
     def check(self, obj_id: ObjId) -> None:
