@@ -9,7 +9,7 @@ import logging
 import os
 import random
 import time
-from typing import Any, Dict, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
 import psycopg2
 from typing_extensions import Literal
@@ -30,16 +30,24 @@ WorkerKind = Literal["ro", "rw"]
 
 
 def work(
-    kind: WorkerKind, storage: Union[ObjStorageInterface, Dict[str, Any]]
+    kind: WorkerKind,
+    storage: Union[ObjStorageInterface, Dict[str, Any]],
+    worker_args: Optional[Dict[WorkerKind, Any]] = None,
 ) -> WorkerKind:
     if isinstance(storage, dict):
         if kind == "ro":
             storage = {**storage, "readonly": True}
         storage = get_objstorage("winery", **storage)
+
+    if not worker_args:
+        worker_args = {}
+
+    kind_args = worker_args.get(kind, {})
+
     if kind == "ro":
-        return ROWorker(storage).run()
+        return ROWorker(storage, **kind_args).run()
     elif kind == "rw":
-        return RWWorker(storage).run()
+        return RWWorker(storage, **kind_args).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -57,7 +65,7 @@ class Worker:
 
 
 class ROWorker(Worker):
-    def __init__(self, storage: ObjStorageInterface) -> None:
+    def __init__(self, storage: ObjStorageInterface, max_request: int = 1000) -> None:
         super().__init__(storage)
 
         if not isinstance(self.storage.winery, WineryReader):
@@ -67,6 +75,7 @@ class ROWorker(Worker):
             )
 
         self.winery: WineryReader = self.storage.winery
+        self.max_request = max_request
 
     def run(self) -> Literal["ro"]:
         try:
@@ -84,7 +93,7 @@ class ROWorker(Worker):
                 c.execute(
                     "SELECT signature FROM signature2shard WHERE inflight = FALSE "
                     "ORDER BY random() LIMIT %s",
-                    (self.storage.winery.args["ro_worker_max_request"],),
+                    (self.max_request,),
                 )
                 if c.rowcount > 0:
                     break
@@ -160,21 +169,31 @@ class RWWorker(Worker):
 
 
 class Bench(object):
-    def __init__(self, args) -> None:
-        self.args = args
+    def __init__(
+        self,
+        storage_config: Union[ObjStorageInterface, Dict[str, Any]],
+        duration: int,
+        workers_per_kind: Dict[WorkerKind, int],
+        worker_args: Optional[Dict[WorkerKind, Any]] = None,
+    ) -> None:
+        self.storage_config = storage_config
+        self.duration = duration
+        self.workers_per_kind = workers_per_kind
+        self.worker_args = worker_args or {}
 
     def timer_start(self):
         self.start = time.time()
 
     def timeout(self) -> bool:
-        return time.time() - self.start > self.args["duration"]
+        return time.time() - self.start > self.duration
 
     async def run(self) -> int:
         self.timer_start()
 
         loop = asyncio.get_running_loop()
 
-        workers_count = self.args["rw_workers"] + self.args["ro_workers"]
+        workers_count = sum(self.workers_per_kind.values())
+
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=workers_count
         ) as executor:
@@ -186,12 +205,13 @@ class Bench(object):
             def create_worker(kind: WorkerKind) -> "asyncio.Future[WorkerKind]":
                 self.count += 1
                 logger.info("Bench.run: launched %s worker number %s", kind, self.count)
-                return loop.run_in_executor(executor, work, kind, self.args)
+                return loop.run_in_executor(
+                    executor, work, kind, self.storage_config, self.worker_args
+                )
 
-            for _ in range(self.args["rw_workers"]):
-                workers.add(create_worker("rw"))
-            for _ in range(self.args["ro_workers"]):
-                workers.add(create_worker("ro"))
+            for kind, count in self.workers_per_kind.items():
+                for _ in range(count):
+                    workers.add(create_worker(kind))
 
             while len(workers) > 0:
                 logger.info("Bench.run: waiting for %s workers", len(workers))
