@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class SharedBase(Database):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         DatabaseAdmin(kwargs["base_dsn"], "sharedbase").create_database()
         super().__init__(kwargs["base_dsn"], "sharedbase")
         self.create_tables()
@@ -205,17 +205,17 @@ class SharedBase(Database):
             for row in c:
                 yield row[0], row[1], row[2]
 
-    def contains(self, obj_id):
+    def contains(self, obj_id) -> Optional[int]:
         with self.db.cursor() as c:
             c.execute(
                 "SELECT shard FROM signature2shard WHERE "
                 "signature = %s AND inflight = FALSE",
                 (obj_id,),
             )
-            if c.rowcount == 0:
+            row = c.fetchone()
+            if not row:
                 return None
-            else:
-                return c.fetchone()[0]
+            return row[0]
 
     def get(self, obj_id):
         id = self.contains(obj_id)
@@ -223,7 +223,7 @@ class SharedBase(Database):
             return None
         return self.get_shard_info(id)
 
-    def add_phase_1(self, obj_id):
+    def add_phase_1(self, obj_id) -> Optional[int]:
         try:
             with self.db.cursor() as c:
                 c.execute(
@@ -240,10 +240,10 @@ class SharedBase(Database):
                     "signature = %s AND inflight = TRUE",
                     (obj_id,),
                 )
-                if c.rowcount == 0:
+                row = c.fetchone()
+                if not row:
                     return None
-                else:
-                    return c.fetchone()[0]
+                return row[0]
 
     def add_phase_2(self, obj_id):
         with self.db.cursor() as c:
