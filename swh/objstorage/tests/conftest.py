@@ -27,7 +27,7 @@ def pytest_addoption(parser):
         default=1,
     )
     parser.addoption(
-        "--winery-shard-max-size",
+        "--winery-bench-shard-max-size",
         type=int,
         help="Size of the shard in bytes",
         default=10 * 1024 * 1024,

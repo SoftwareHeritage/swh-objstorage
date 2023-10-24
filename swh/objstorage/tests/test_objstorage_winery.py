@@ -255,7 +255,7 @@ def test_winery_bench_rw_block_until_packed_multiple_shards(storage, ceph_pool):
 def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
     storage_config = {
         "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
-        "shard_max_size": pytestconfig.getoption("--winery-shard-max-size"),
+        "shard_max_size": pytestconfig.getoption("--winery-bench-shard-max-size"),
         "base_dsn": postgresql_dsn,
         "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
@@ -287,7 +287,7 @@ def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
 def test_winery_bench_fake(pytestconfig, postgresql_dsn, mocker):
     storage_config = {
         "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
-        "shard_max_size": pytestconfig.getoption("--winery-shard-max-size"),
+        "shard_max_size": pytestconfig.getoption("--winery-bench-shard-max-size"),
         "base_dsn": postgresql_dsn,
         "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
