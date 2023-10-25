@@ -97,6 +97,20 @@ def test_winery_sharedbase(winery):
     assert id1 is not None
     assert id1 == base.locked_shard_id
 
+    helper = SharedBaseHelper(winery.base)
+
+    assert helper.get_shard_info_by_name(shard1) is ShardState.WRITING
+
+    winery.base.uninit()
+
+    assert winery.base._locked_shard is None
+    assert helper.get_shard_info_by_name(shard1) is ShardState.STANDBY
+
+    shard2 = winery.base.locked_shard
+
+    assert shard1 == shard2, "Locked a different shard?"
+    assert helper.get_shard_info_by_name(shard1) is ShardState.WRITING
+
 
 def test_winery_add_get(winery):
     shard = winery.base.locked_shard

@@ -48,8 +48,6 @@ class SharedBase(Database):
     def uninit(self):
         if self._locked_shard is not None:
             self.set_shard_state(new_state=ShardState.STANDBY)
-        self.db.close()
-        del self.db
         self._locked_shard = None
 
     @property
