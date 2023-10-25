@@ -3,8 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from enum import Enum
 import logging
-from typing import Optional, Tuple
+from typing import Iterator, Optional, Tuple
 import uuid
 
 import psycopg2
@@ -15,6 +16,23 @@ from .database import Database, DatabaseAdmin
 WRITER_UUID = uuid.uuid4()
 
 logger = logging.getLogger(__name__)
+
+
+class ShardState(Enum):
+    STANDBY = "standby"
+    WRITING = "writing"
+    FULL = "full"
+    PACKING = "packing"
+    PACKED = "packed"
+    READONLY = "readonly"
+
+    @property
+    def locked(self):
+        return self not in {self.STANDBY, self.FULL}
+
+    @property
+    def readonly_available(self):
+        return self in {self.PACKED, self.READONLY}
 
 
 class SharedBase(Database):
@@ -38,13 +56,21 @@ class SharedBase(Database):
     @property
     def database_tables(self):
         return [
+            f"""\
+        DO $$ BEGIN
+          CREATE TYPE shard_state AS ENUM (
+            {", ".join("'%s'" % value.value for value in ShardState)}
+          );
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+            """,
             """
         CREATE TABLE IF NOT EXISTS shards(
             id BIGSERIAL PRIMARY KEY,
-            readonly BOOLEAN NOT NULL,
-            packing BOOLEAN NOT NULL,
-            active_writer_ts TIMESTAMPTZ,
-            active_writer UUID,
+            state shard_state NOT NULL DEFAULT 'standby',
+            locker_ts TIMESTAMPTZ,
+            locker UUID,
             name CHAR(32) NOT NULL UNIQUE
         )
         """,
@@ -75,13 +101,24 @@ class SharedBase(Database):
         if self._whoami is not None:
             return
 
-        self._whoami = self.lock_shard()
-        if not self._whoami:
-            self._whoami = self.create_shard()
+        locked = self.lock_one_shard(
+            current_state=ShardState.STANDBY, new_state=ShardState.WRITING
+        )
+        if locked is not None:
+            self._whoami = locked
+        else:
+            self._whoami = self.create_shard(new_state=ShardState.WRITING)
 
         return
 
-    def lock_shard(self) -> Optional[Tuple[str, int]]:
+    def lock_one_shard(
+        self, current_state: ShardState, new_state: ShardState
+    ) -> Optional[Tuple[str, int]]:
+        """Lock one shard in `current_state`, putting it into `new_state`"""
+
+        if not new_state.locked:
+            raise ValueError(f"{new_state} is not a locked state")
+
         with self.db:
             # run the next two statements in a transaction
             with self.db.cursor() as c:
@@ -89,10 +126,11 @@ class SharedBase(Database):
                     """\
                     SELECT name
                     FROM shards
-                    WHERE readonly = FALSE and packing = FALSE and active_writer IS NULL
+                    WHERE state = %s
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
-                    """
+                    """,
+                    (current_state.value,),
                 )
                 result = c.fetchone()
                 if result is None:
@@ -102,15 +140,15 @@ class SharedBase(Database):
                     c.execute(
                         """\
                         UPDATE shards
-                        SET active_writer_ts = now(), active_writer = %s
-                        WHERE
-                            name = %s
-                            AND readonly = FALSE
-                            AND packing = FALSE
-                            AND active_writer IS NULL
+                        SET state = %s, locker_ts = now(), locker = %s
+                        WHERE name = %s
                         RETURNING name, id
                         """,
-                        (WRITER_UUID, shard_name),
+                        (
+                            new_state.value,
+                            WRITER_UUID,
+                            shard_name,
+                        ),
                     )
                 except psycopg2.Error:
                     logger.exception(
@@ -125,24 +163,51 @@ class SharedBase(Database):
                     )
                     return c.fetchone()
 
-    def unlock_shard(self):
-        if not self._whoami:
-            raise ValueError("Can't unlock shard, no shard locked")
+    def set_shard_state(
+        self,
+        new_state: ShardState,
+        set_locker: bool = False,
+        check_locker: bool = False,
+        name: Optional[str] = None,
+    ):
+        if not name:
+            if not self._whoami:
+                raise ValueError("Can't set shard state, no shard specified or locked")
+            name = self._whoami[0]
 
         with self.db.cursor() as c:
             c.execute(
                 """\
                 UPDATE shards
-                SET active_writer = NULL
-                WHERE name = %s AND active_writer = %s
+                SET
+                  locker = %s,
+                  locker_ts = (CASE WHEN %s THEN NOW() ELSE NULL END),
+                  state = %s
+                WHERE name = %s AND (CASE WHEN %s THEN locker = %s ELSE TRUE END)
                 """,
-                (self._whoami[0], WRITER_UUID),
+                (
+                    WRITER_UUID if set_locker else None,
+                    set_locker,
+                    new_state.value,
+                    name,
+                    check_locker,
+                    WRITER_UUID,
+                ),
             )
+            affected = c.rowcount
+            if affected != 1:
+                raise ValueError(
+                    "set_pack_state(%s) affected %s rows, expected 1" % (name, affected)
+                )
+
             logger.debug(
-                "SharedBase %s: shard %s unlocked", WRITER_UUID, self._whoami[0]
+                "SharedBase %s: shard %s moved into state %s",
+                WRITER_UUID,
+                name,
+                new_state,
             )
 
-    def create_shard(self) -> Tuple[str, int]:
+    def create_shard(self, new_state: ShardState) -> Tuple[str, int]:
         name = uuid.uuid4().hex
         #
         # ensure the first character is not a number so it can be used as a
@@ -153,11 +218,11 @@ class SharedBase(Database):
             c.execute(
                 """\
                 INSERT INTO shards
-                  (name, readonly, packing, active_writer, active_writer_ts)
+                  (name, state, locker, locker_ts)
                 VALUES
-                  (%s, FALSE, FALSE, %s, NOW())
+                  (%s, %s, %s, NOW())
                 RETURNING name, id""",
-                (name, WRITER_UUID),
+                (name, new_state.value, WRITER_UUID),
             )
             res = c.fetchone()
             if res is None:
@@ -173,37 +238,69 @@ class SharedBase(Database):
     def shard_packing_starts(self):
         if not self._whoami:
             raise ValueError("Can't pack shard, no shard locked")
+        name = self._whoami[0]
 
-        with self.db.cursor() as c:
-            c.execute(
-                "UPDATE shards SET packing = TRUE WHERE name = %s", (self._whoami[0],)
-            )
-        logger.debug(
-            "SharedBase %s: shard %s starts packing", WRITER_UUID, self._whoami[0]
-        )
-        self.unlock_shard()
+        with self.db:
+            with self.db.cursor() as c:
+                c.execute(
+                    "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
+                    (name,),
+                )
+                returned = c.fetchone()
+                if not returned:
+                    raise ValueError("Could not get shard state for %s" % name)
+                state = ShardState(returned[0])
+                if state != ShardState.FULL:
+                    raise ValueError(
+                        "Cannot pack shard in state %s, expected ShardState.FULL"
+                        % state
+                    )
+
+                logger.debug(
+                    "SharedBase %s: shard %s starts packing", WRITER_UUID, name
+                )
+                self.set_shard_state(
+                    new_state=ShardState.PACKING, set_locker=True, check_locker=False
+                )
 
     def shard_packing_ends(self, name):
-        with self.db.cursor() as c:
-            c.execute(
-                "UPDATE shards SET readonly = TRUE, packing = FALSE " "WHERE name = %s",
-                (name,),
-            )
-        logger.debug("SharedBase %s: shard %s ends packing", WRITER_UUID, name)
+        with self.db:
+            with self.db.cursor() as c:
+                c.execute(
+                    "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
+                    (name,),
+                )
+                returned = c.fetchone()
+                if not returned:
+                    raise ValueError("Could not get shard state for %s" % name)
+                state = ShardState(returned[0])
+                if state != ShardState.PACKING:
+                    raise ValueError(
+                        "Cannot finalize packing for shard in state %s,"
+                        " expected ShardState.PACKING" % state
+                    )
 
-    def get_shard_info(self, id):
+                logger.debug("SharedBase %s: shard %s done packing", WRITER_UUID, name)
+                self.set_shard_state(
+                    name=name,
+                    new_state=ShardState.PACKED,
+                    set_locker=False,
+                    check_locker=False,
+                )
+
+    def get_shard_info(self, id: int) -> Optional[Tuple[str, ShardState]]:
         with self.db.cursor() as c:
-            c.execute("SELECT name, readonly FROM shards WHERE id = %s", (id,))
-            if c.rowcount == 0:
+            c.execute("SELECT name, state FROM shards WHERE id = %s", (id,))
+            row = c.fetchone()
+            if not row:
                 return None
-            else:
-                return c.fetchone()
+            return (row[0], ShardState(row[1]))
 
-    def list_shards(self):
+    def list_shards(self) -> Iterator[Tuple[str, ShardState]]:
         with self.db.cursor() as c:
-            c.execute("SELECT name, readonly, packing FROM shards")
+            c.execute("SELECT name, state FROM shards")
             for row in c:
-                yield row[0], row[1], row[2]
+                yield row[0], ShardState(row[1])
 
     def contains(self, obj_id) -> Optional[int]:
         with self.db.cursor() as c:
@@ -217,7 +314,7 @@ class SharedBase(Database):
                 return None
             return row[0]
 
-    def get(self, obj_id):
+    def get(self, obj_id) -> Optional[Tuple[str, ShardState]]:
         id = self.contains(obj_id)
         if id is None:
             return None

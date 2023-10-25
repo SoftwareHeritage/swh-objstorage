@@ -9,6 +9,7 @@ from subprocess import CalledProcessError
 from typing import Iterable
 
 from swh.objstorage.backends.winery.roshard import Pool
+from swh.objstorage.backends.winery.sharedbase import ShardState
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,11 @@ class SharedBaseHelper:
 
     def get_shard_info_by_name(self, name):
         with self.sharedbase.db.cursor() as c:
-            c.execute("SELECT readonly, packing FROM shards WHERE name = %s", (name,))
-            if c.rowcount == 0:
+            c.execute("SELECT state FROM shards WHERE name = %s", (name,))
+            row = c.fetchone()
+            if not row:
                 return None
-            else:
-                return c.fetchone()
+            return ShardState(row[0])
 
 
 class PoolHelper(Pool):

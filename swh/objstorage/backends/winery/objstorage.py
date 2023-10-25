@@ -15,7 +15,7 @@ from swh.objstorage.objstorage import ObjStorage
 
 from .roshard import ROShard
 from .rwshard import RWShard
-from .sharedbase import SharedBase
+from .sharedbase import ShardState, SharedBase
 from .stats import Stats
 
 logger = logging.getLogger(__name__)
@@ -99,8 +99,8 @@ class WineryReader(WineryBase):
         shard_info = self.base.get(obj_id)
         if shard_info is None:
             raise exc.ObjNotFoundError(obj_id)
-        name, readonly = shard_info
-        if readonly:
+        name, state = shard_info
+        if state.readonly_available:
             shard = self.roshard(name)
             content = shard.get(obj_id)
             del shard
@@ -143,9 +143,10 @@ def pack(shard, **kwargs):
 
     base = SharedBase(**kwargs)
     base.shard_packing_ends(shard)
-    base.uninit()
     rw.uninit()
     rw.drop()
+    base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    base.uninit()
     return True
 
 
@@ -177,6 +178,7 @@ class WineryWriter(WineryReader):
         self.base.add_phase_2(obj_id)
 
         if self.shard.is_full():
+            self.base.set_shard_state(new_state=ShardState.FULL)
             self.shards_filled.append(self.shard.name)
             self.pack()
 

@@ -14,6 +14,7 @@ import pytest
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import pack
+from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
     BandwidthCalculator,
@@ -144,12 +145,14 @@ def test_winery_packer(winery, ceph_pool):
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
+    winery.base.set_shard_state(ShardState.FULL)
     winery.base.shard_packing_starts()
     assert pack(shard, **winery.args)
 
-    readonly, packing = SharedBaseHelper(winery.base).get_shard_info_by_name(shard)
-    assert readonly is True
-    assert packing is False
+    assert (
+        SharedBaseHelper(winery.base).get_shard_info_by_name(shard)
+        is ShardState.READONLY
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -158,6 +161,7 @@ def test_winery_get_object(winery, ceph_pool):
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
+    winery.base.set_shard_state(ShardState.FULL)
     winery.base.shard_packing_starts()
     assert pack(shard, **winery.args) is True
     assert winery.get(obj_id) == content
@@ -189,16 +193,11 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     #
     whoami = storage.winery.base.whoami
     shards_info = list(storage.winery.base.list_shards())
-    assert len(shards_info) == 1
-    _, readonly, packing = shards_info[0]
-    assert (readonly, packing) == (False, False)
+    assert shards_info == [(whoami, ShardState.WRITING)]
     assert work("rw", storage) == "rw"
-    shards_info = {
-        name: (readonly, packing)
-        for name, readonly, packing in storage.winery.base.list_shards()
-    }
+    shards_info = dict(storage.winery.base.list_shards())
     assert len(shards_info) == 2
-    assert shards_info[whoami] == (True, False)
+    assert shards_info[whoami].readonly_available
     #
     # ro worker reads a shard
     #
