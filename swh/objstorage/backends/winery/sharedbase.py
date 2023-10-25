@@ -40,7 +40,7 @@ class SharedBase(Database):
         return [
             """
         CREATE TABLE IF NOT EXISTS shards(
-            id SERIAL PRIMARY KEY,
+            id BIGSERIAL PRIMARY KEY,
             readonly BOOLEAN NOT NULL,
             packing BOOLEAN NOT NULL,
             active_writer_ts TIMESTAMPTZ,
@@ -52,7 +52,7 @@ class SharedBase(Database):
         CREATE TABLE IF NOT EXISTS signature2shard(
             signature BYTEA PRIMARY KEY,
             inflight BOOLEAN NOT NULL,
-            shard INTEGER NOT NULL
+            shard BIGINT NOT NULL REFERENCES shards(id)
         )
         """,
         ]
