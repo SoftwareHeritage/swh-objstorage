@@ -152,6 +152,7 @@ def pack(shard, **kwargs):
 
 class WineryWriter(WineryReader):
     def __init__(self, **kwargs):
+        self.pack_immediately = kwargs.get("pack_immediately", True)
         super().__init__(**kwargs)
         self.shards_filled = []
         self.packers = []
@@ -180,7 +181,12 @@ class WineryWriter(WineryReader):
         if self.shard.is_full():
             self.base.set_shard_state(new_state=ShardState.FULL)
             self.shards_filled.append(self.shard.name)
-            self.pack()
+            if self.pack_immediately:
+                self.pack()
+            else:
+                # Switch shards
+                self.uninit()
+                self.init()
 
     def check(self, obj_id: ObjId) -> None:
         # load all shards packing == True and not locked (i.e. packer

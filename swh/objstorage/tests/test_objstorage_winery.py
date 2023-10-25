@@ -63,12 +63,25 @@ def postgresql_dsn(postgresql_proc):
 
 
 @pytest.fixture
-def storage(request, postgresql_dsn):
+def shard_max_size(request) -> int:
     marker = request.node.get_closest_marker("shard_max_size")
     if marker is None:
-        shard_max_size = 1024
+        return 1024
     else:
-        shard_max_size = marker.args[0]
+        return marker.args[0]
+
+
+@pytest.fixture
+def pack_immediately(request) -> bool:
+    marker = request.node.get_closest_marker("pack_immediately")
+    if marker is None:
+        return True
+    else:
+        return marker.args[0]
+
+
+@pytest.fixture
+def storage(shard_max_size, pack_immediately, postgresql_dsn):
     storage = get_objstorage(
         cls="winery",
         base_dsn=postgresql_dsn,
@@ -76,6 +89,7 @@ def storage(request, postgresql_dsn):
         shard_max_size=shard_max_size,
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
+        pack_immediately=pack_immediately,
     )
     logger.debug("Instantiated storage %s", storage)
     yield storage
@@ -169,6 +183,45 @@ def test_winery_packer(winery, ceph_pool):
     )
 
 
+@pytest.mark.shard_max_size(1024 * 1024)
+@pytest.mark.pack_immediately(True)
+def test_winery_writer_pack_immediately_true(ceph_pool, storage):
+    shard = storage.winery.base.locked_shard
+
+    for i in range(1024):
+        content = i.to_bytes(1024, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    assert storage.winery.packers
+    for packer in storage.winery.packers:
+        packer.join()
+
+    assert storage.winery.base.locked_shard != shard
+
+    shard_info = SharedBaseHelper(storage.winery.base).get_shard_info_by_name(shard)
+
+    assert shard_info is ShardState.READONLY
+
+
+@pytest.mark.shard_max_size(1024 * 1024)
+@pytest.mark.pack_immediately(False)
+def test_winery_writer_pack_immediately_false(storage):
+    shard = storage.winery.base.locked_shard
+
+    for i in range(1024):
+        content = i.to_bytes(1024, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    assert storage.winery.base.locked_shard != shard
+    assert not storage.winery.packers
+
+    shard_info = SharedBaseHelper(storage.winery.base).get_shard_info_by_name(shard)
+
+    assert shard_info is ShardState.FULL
+
+
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 def test_winery_get_object(winery, ceph_pool):
     shard = winery.base.locked_shard
@@ -220,6 +273,7 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
+@pytest.mark.pack_immediately(False)
 def test_winery_bench_rw_object_limit(storage):
     object_limit = 15
     worker = RWWorker(
@@ -234,6 +288,7 @@ def test_winery_bench_rw_object_limit(storage):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
+@pytest.mark.pack_immediately(True)
 def test_winery_bench_rw_block_until_packed(storage, ceph_pool):
     worker = RWWorker(storage, single_shard=True, block_until_packed=False)
 
@@ -249,6 +304,7 @@ def test_winery_bench_rw_block_until_packed(storage, ceph_pool):
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
+@pytest.mark.pack_immediately(True)
 def test_winery_bench_rw_block_until_packed_multiple_shards(storage, ceph_pool):
     # 1000 objects will create multiple shards when the limit is 1MB
     worker = RWWorker(

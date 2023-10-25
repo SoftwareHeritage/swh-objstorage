@@ -1,5 +1,8 @@
 def pytest_configure(config):
     config.addinivalue_line("markers", "shard_max_size: winery backend")
+    config.addinivalue_line(
+        "markers", "pack_immediately(bool): whether winery should pack immediately"
+    )
 
 
 def pytest_addoption(parser):
