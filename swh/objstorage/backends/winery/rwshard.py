@@ -38,7 +38,7 @@ class RWShard(Database):
         return self._name
 
     def is_full(self):
-        return self.size > self.limit
+        return self.size >= self.limit
 
     def drop(self):
         DatabaseAdmin(self.dsn, self.dbname).drop_database()
