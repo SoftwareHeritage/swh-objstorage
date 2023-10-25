@@ -46,8 +46,11 @@ class SharedBase(Database):
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
 
     def uninit(self):
+        if self._locked_shard is not None:
+            self.set_shard_state(new_state=ShardState.STANDBY)
         self.db.close()
         del self.db
+        self._locked_shard = None
 
     @property
     def lock(self):
@@ -170,10 +173,12 @@ class SharedBase(Database):
         check_locker: bool = False,
         name: Optional[str] = None,
     ):
+        reset_locked_shard = False
         if not name:
             if not self._locked_shard:
                 raise ValueError("Can't set shard state, no shard specified or locked")
             name = self._locked_shard[0]
+            reset_locked_shard = True
 
         with self.db.cursor() as c:
             c.execute(
@@ -207,6 +212,9 @@ class SharedBase(Database):
                 new_state,
             )
 
+        if reset_locked_shard and not new_state.locked:
+            self._locked_shard = None
+
     def create_shard(self, new_state: ShardState) -> Tuple[str, int]:
         name = uuid.uuid4().hex
         #
@@ -235,11 +243,7 @@ class SharedBase(Database):
             )
             return res
 
-    def shard_packing_starts(self):
-        if not self._locked_shard:
-            raise ValueError("Can't pack shard, no shard locked")
-        name = self._locked_shard[0]
-
+    def shard_packing_starts(self, name: str):
         with self.db:
             with self.db.cursor() as c:
                 c.execute(
@@ -260,7 +264,10 @@ class SharedBase(Database):
                     "SharedBase %s: shard %s starts packing", WRITER_UUID, name
                 )
                 self.set_shard_state(
-                    new_state=ShardState.PACKING, set_locker=True, check_locker=False
+                    name=name,
+                    new_state=ShardState.PACKING,
+                    set_locker=True,
+                    check_locker=False,
                 )
 
     def shard_packing_ends(self, name):

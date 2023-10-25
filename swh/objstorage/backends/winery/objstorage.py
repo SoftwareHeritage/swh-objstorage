@@ -188,7 +188,7 @@ class WineryWriter(WineryReader):
         pass
 
     def pack(self):
-        self.base.shard_packing_starts()
+        self.base.shard_packing_starts(self.shard.name)
         p = Process(target=pack, args=(self.shard.name,), kwargs=self.args)
         self.uninit()
         p.start()

@@ -146,7 +146,7 @@ def test_winery_packer(winery, ceph_pool):
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
     winery.base.set_shard_state(ShardState.FULL)
-    winery.base.shard_packing_starts()
+    winery.base.shard_packing_starts(shard)
     assert pack(shard, **winery.args)
 
     assert (
@@ -162,7 +162,7 @@ def test_winery_get_object(winery, ceph_pool):
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
     winery.base.set_shard_state(ShardState.FULL)
-    winery.base.shard_packing_starts()
+    winery.base.shard_packing_starts(shard)
     assert pack(shard, **winery.args) is True
     assert winery.get(obj_id) == content
 
