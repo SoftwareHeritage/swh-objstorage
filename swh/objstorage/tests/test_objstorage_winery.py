@@ -89,17 +89,17 @@ def winery(storage):
 
 def test_winery_sharedbase(winery):
     base = winery.base
-    shard1 = base.whoami
+    shard1 = base.locked_shard
     assert shard1 is not None
-    assert shard1 == base.whoami
+    assert shard1 == base.locked_shard
 
-    id1 = base.id
+    id1 = base.locked_shard_id
     assert id1 is not None
-    assert id1 == base.id
+    assert id1 == base.locked_shard_id
 
 
 def test_winery_add_get(winery):
-    shard = winery.base.whoami
+    shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
     assert (
@@ -109,7 +109,7 @@ def test_winery_add_get(winery):
     winery.add(content=content, obj_id=obj_id)
     winery.add(content=content, obj_id=obj_id)
     winery.add(content=content, obj_id=obj_id, check_presence=False)
-    assert winery.base.whoami == shard
+    assert winery.base.locked_shard == shard
     assert winery.get(obj_id) == content
     with pytest.raises(exc.ObjNotFoundError):
         winery.get(b"unknown")
@@ -119,10 +119,10 @@ def test_winery_add_get(winery):
 @pytest.mark.shard_max_size(1)
 def test_winery_add_and_pack(winery, mocker):
     mocker.patch("swh.objstorage.backends.winery.objstorage.pack", return_value=True)
-    shard = winery.base.whoami
+    shard = winery.base.locked_shard
     content = b"SOMETHING"
     winery.add(content=content, obj_id=compute_hash(content, "sha256"))
-    assert winery.base.whoami != shard
+    assert winery.base.locked_shard != shard
     assert len(winery.packers) == 1
     packer = winery.packers[0]
     packer.join()
@@ -141,7 +141,7 @@ def test_winery_get_shard_info(winery):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 def test_winery_packer(winery, ceph_pool):
-    shard = winery.base.whoami
+    shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
@@ -157,7 +157,7 @@ def test_winery_packer(winery, ceph_pool):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 def test_winery_get_object(winery, ceph_pool):
-    shard = winery.base.whoami
+    shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
     winery.add(content=content, obj_id=obj_id)
@@ -191,13 +191,13 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     #
     # rw worker creates a shard
     #
-    whoami = storage.winery.base.whoami
+    locked_shard = storage.winery.base.locked_shard
     shards_info = list(storage.winery.base.list_shards())
-    assert shards_info == [(whoami, ShardState.WRITING)]
+    assert shards_info == [(locked_shard, ShardState.WRITING)]
     assert work("rw", storage) == "rw"
     shards_info = dict(storage.winery.base.list_shards())
     assert len(shards_info) == 2
-    assert shards_info[whoami].readonly_available
+    assert shards_info[locked_shard].readonly_available
     #
     # ro worker reads a shard
     #

@@ -41,7 +41,7 @@ class SharedBase(Database):
         super().__init__(kwargs["base_dsn"], "sharedbase")
         self.create_tables()
         self.db = self.connect_database()
-        self._whoami: Optional[Tuple[str, int]] = None
+        self._locked_shard: Optional[Tuple[str, int]] = None
 
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
 
@@ -84,30 +84,30 @@ class SharedBase(Database):
         ]
 
     @property
-    def whoami(self) -> str:
-        self.set_whoami()
+    def locked_shard(self) -> str:
+        self.set_locked_shard()
 
-        assert self._whoami, "failed to lock a shard"
-        return self._whoami[0]
+        assert self._locked_shard, "failed to lock a shard"
+        return self._locked_shard[0]
 
     @property
-    def id(self) -> int:
-        self.set_whoami()
+    def locked_shard_id(self) -> int:
+        self.set_locked_shard()
 
-        assert self._whoami, "failed to lock a shard"
-        return self._whoami[1]
+        assert self._locked_shard, "failed to lock a shard"
+        return self._locked_shard[1]
 
-    def set_whoami(self) -> None:
-        if self._whoami is not None:
+    def set_locked_shard(self) -> None:
+        if self._locked_shard is not None:
             return
 
         locked = self.lock_one_shard(
             current_state=ShardState.STANDBY, new_state=ShardState.WRITING
         )
         if locked is not None:
-            self._whoami = locked
+            self._locked_shard = locked
         else:
-            self._whoami = self.create_shard(new_state=ShardState.WRITING)
+            self._locked_shard = self.create_shard(new_state=ShardState.WRITING)
 
         return
 
@@ -171,9 +171,9 @@ class SharedBase(Database):
         name: Optional[str] = None,
     ):
         if not name:
-            if not self._whoami:
+            if not self._locked_shard:
                 raise ValueError("Can't set shard state, no shard specified or locked")
-            name = self._whoami[0]
+            name = self._locked_shard[0]
 
         with self.db.cursor() as c:
             c.execute(
@@ -236,9 +236,9 @@ class SharedBase(Database):
             return res
 
     def shard_packing_starts(self):
-        if not self._whoami:
+        if not self._locked_shard:
             raise ValueError("Can't pack shard, no shard locked")
-        name = self._whoami[0]
+        name = self._locked_shard[0]
 
         with self.db:
             with self.db.cursor() as c:
@@ -326,10 +326,10 @@ class SharedBase(Database):
                 c.execute(
                     "INSERT INTO signature2shard (signature, shard, inflight) "
                     "VALUES (%s, %s, TRUE)",
-                    (obj_id, self.id),
+                    (obj_id, self.locked_shard_id),
                 )
             self.db.commit()
-            return self.id
+            return self.locked_shard_id
         except psycopg2.errors.UniqueViolation:
             with self.db.cursor() as c:
                 c.execute(
@@ -347,6 +347,6 @@ class SharedBase(Database):
             c.execute(
                 "UPDATE signature2shard SET inflight = FALSE "
                 "WHERE signature = %s AND shard = %s",
-                (obj_id, self.id),
+                (obj_id, self.locked_shard_id),
             )
         self.db.commit()

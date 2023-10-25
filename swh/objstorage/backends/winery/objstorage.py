@@ -158,8 +158,8 @@ class WineryWriter(WineryReader):
 
     def init(self):
         super().init()
-        self.shard = RWShard(self.base.whoami, **self.args)
-        logger.debug("WineryBase: RWShard %s instantiated", self.base.whoami)
+        self.shard = RWShard(self.base.locked_shard, **self.args)
+        logger.debug("WineryBase: RWShard %s instantiated", self.base.locked_shard)
 
     def uninit(self):
         self.shard.uninit()
@@ -170,7 +170,7 @@ class WineryWriter(WineryReader):
             return
 
         shard = self.base.add_phase_1(obj_id)
-        if shard != self.base.id:
+        if shard != self.base.locked_shard_id:
             #  this object is the responsibility of another shard
             return
 
