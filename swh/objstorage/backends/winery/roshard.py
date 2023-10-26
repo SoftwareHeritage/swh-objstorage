@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
+import math
 import os.path
 import subprocess
 from typing import Iterable
@@ -20,7 +21,7 @@ class Pool(object):
 
     def __init__(self, **kwargs):
         self.args = kwargs
-        self.image_size = int((self.args["shard_max_size"] * 2) / (1024 * 1024))
+        self.image_size = math.ceil((self.args["shard_max_size"] * 2) / (1024 * 1024))
 
     def run(self, *cmd: str) -> Iterable[str]:
         """Run the given command, and return its output as lines.
