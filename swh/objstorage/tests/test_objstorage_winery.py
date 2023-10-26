@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 import logging
 import os
 import shutil
@@ -13,7 +14,12 @@ import pytest
 
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
-from swh.objstorage.backends.winery.objstorage import pack
+from swh.objstorage.backends.winery.objstorage import (
+    pack,
+    shard_packer,
+    sleep_exponential,
+    stop_after_shards,
+)
 from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
@@ -168,7 +174,7 @@ def test_winery_get_shard_info(winery):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_packer(winery, ceph_pool):
+def test_winery_pack(winery, ceph_pool):
     shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
@@ -220,6 +226,135 @@ def test_winery_writer_pack_immediately_false(storage):
     shard_info = SharedBaseHelper(storage.winery.base).get_shard_info_by_name(shard)
 
     assert shard_info is ShardState.FULL
+
+
+@pytest.mark.parametrize(
+    "min_duration,factor,max_duration,expected",
+    (
+        (1, 2, 10, [1, 2, 4, 8, 10, 10]),
+        (10, 1.5, 20, [10, 15.0, 20.0, 20.0]),
+        (20, 1.3, 10, [10, 10, 10]),
+    ),
+)
+def test_winery_sleep_exponential(mocker, min_duration, factor, max_duration, expected):
+    calls = []
+
+    def mocked_sleep(t: float):
+        calls.append(t)
+
+    mocker.patch("time.sleep", mocked_sleep)
+
+    sleep = sleep_exponential(min_duration, factor, max_duration)
+
+    for _ in expected:
+        sleep()
+
+    assert calls == expected
+
+
+def test_winery_sleep_exponential_negative():
+    with pytest.raises(ValueError, match="negative amount"):
+        _ = sleep_exponential(-1, 2, 10)
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
+def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, storage):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.FULL
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    # Pack a single shard
+    assert (
+        shard_packer(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            shard_max_size=shard_max_size,
+            throttle_read=200 * 1024 * 1024,
+            throttle_write=200 * 1024 * 1024,
+            stop_packing=stop_after_shards(1),
+        )
+        == 1
+    )
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {
+        ShardState.FULL: 3,
+        ShardState.READONLY: 1,
+        ShardState.WRITING: 1,
+    }
+
+    # Pack all remaining shards
+    assert (
+        shard_packer(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            shard_max_size=shard_max_size,
+            throttle_read=200 * 1024 * 1024,
+            throttle_write=200 * 1024 * 1024,
+            stop_packing=stop_after_shards(3),
+        )
+        == 3
+    )
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {ShardState.READONLY: 4, ShardState.WRITING: 1}
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
+def test_winery_standalone_packer_never_stop_packing(
+    ceph_pool, postgresql_dsn, shard_max_size, storage
+):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.FULL
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    class NoShardLeft(Exception):
+        pass
+
+    called = 0
+
+    def wait_five_times() -> None:
+        nonlocal called
+        called += 1
+        if called >= 5:
+            raise NoShardLeft(called)
+
+    with pytest.raises(NoShardLeft):
+        shard_packer(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            shard_max_size=shard_max_size,
+            throttle_read=200 * 1024 * 1024,
+            throttle_write=200 * 1024 * 1024,
+            wait_for_shard=wait_five_times,
+        )
+
+    assert called == 5
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {ShardState.READONLY: 4, ShardState.WRITING: 1}
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)

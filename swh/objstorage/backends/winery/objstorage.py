@@ -6,6 +6,7 @@
 import logging
 from multiprocessing import Process
 import time
+from typing import Callable, Optional
 
 from typing_extensions import Literal
 
@@ -112,7 +113,7 @@ class WineryReader(WineryBase):
         return content
 
 
-def pack(shard, **kwargs):
+def pack(shard, shared_base=None, **kwargs):
     stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
     ro = ROShard(shard, **kwargs)
@@ -141,12 +142,16 @@ def pack(shard, **kwargs):
         time.sleep(0.1)
         ro = ROShard(shard, **kwargs)
 
-    base = SharedBase(**kwargs)
-    base.shard_packing_ends(shard)
+    uninit_base = False
+    if not shared_base:
+        shared_base = SharedBase(**kwargs)
+        uninit_base = True
+    shared_base.shard_packing_ends(shard)
     rw.uninit()
     rw.drop()
-    base.set_shard_state(name=shard, new_state=ShardState.READONLY)
-    base.uninit()
+    shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    if uninit_base:
+        shared_base.uninit()
     return True
 
 
@@ -205,3 +210,91 @@ class WineryWriter(WineryReader):
         for p in self.packers:
             p.kill()
             p.join()
+
+
+def never_stop_packing(_: int) -> bool:
+    return False
+
+
+def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
+    def stop_packing(shards_packed: int):
+        return shards_packed >= max_shards_packed
+
+    return stop_packing
+
+
+def sleep_exponential(min_duration: float, factor: float, max_duration: float):
+    """Return a function that sleeps `min_duration`,
+    then increases that by `factor` at every call, up to `max_duration`."""
+    duration = min(min_duration, max_duration)
+
+    if duration <= 0:
+        raise ValueError("Cannot sleep for a negative amount of time")
+
+    def sleep():
+        nonlocal duration
+        logger.debug("No shards to pack, waiting for %s", duration)
+        time.sleep(duration)
+
+        duration *= factor
+        if duration >= max_duration:
+            duration = max_duration
+
+    return sleep
+
+
+def shard_packer(
+    base_dsn: str,
+    shard_dsn: str,
+    shard_max_size: int,
+    throttle_read: int,
+    throttle_write: int,
+    output_dir: Optional[str] = None,
+    stop_packing: Callable[[int], bool] = never_stop_packing,
+    wait_for_shard: Callable[[], None] = sleep_exponential(
+        min_duration=5, factor=2, max_duration=60
+    ),
+) -> int:
+    """Pack shards until the `stop_packing` function returns True.
+
+    When no shards are available for packing, call the `wait_for_shard` function.
+
+    Arguments:
+      base_dsn: PostgreSQL dsn for the shared database
+      shard_dsn: PostgreSQL dsn for the individual shard databases
+      shard_max_size: Max size of a shard (used to size new shards)
+      throttle_read: reads per second
+      throttle_write: writes per second
+      output_dir: output directory for statistics
+      stop_packing: callback to determine whether the packer should exit
+      wait_for_shard: callback called when no shards are available to be packed
+    """
+    base = SharedBase(base_dsn=base_dsn)
+
+    shards_packed = 0
+    while not stop_packing(shards_packed):
+        shard_to_pack = base.lock_one_shard(
+            current_state=ShardState.FULL, new_state=ShardState.PACKING
+        )
+
+        if not shard_to_pack:
+            wait_for_shard()
+            continue
+
+        name, _ = shard_to_pack
+        logger.info("shard_packer: Locked shard %s to pack", name)
+        ret = pack(
+            name,
+            base_dsn=base_dsn,
+            shard_dsn=shard_dsn,
+            shard_max_size=shard_max_size,
+            output_dir=output_dir,
+            shared_base=base,
+            throttle_read=throttle_read,
+            throttle_write=throttle_write,
+        )
+        if not ret:
+            raise ValueError("Packing shard %s failed" % name)
+        shards_packed += 1
+
+    return shards_packed
