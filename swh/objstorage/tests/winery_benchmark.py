@@ -8,6 +8,7 @@ import concurrent.futures
 import logging
 import os
 import random
+import sys
 import time
 from typing import Any, Dict, Optional, Set, Union
 
@@ -249,6 +250,18 @@ class Bench(object):
                     current, return_when=asyncio.FIRST_COMPLETED
                 )
                 workers = pending
+                exceptions = list(filter(None, [task.exception() for task in done]))
+                if exceptions:
+                    for task in pending:
+                        task.cancel()
+                    if sys.version_info >= (3, 11):
+                        raise BaseExceptionGroup(  # noqa: F821
+                            "Some workers raised an exception", exceptions
+                        )
+                    else:
+                        for exc in exceptions:
+                            logger.error("Worker raised an exception", exc_info=exc)
+                        raise exceptions[0]
                 for task in done:
                     kind = task.result()
                     logger.info("Bench.run: worker %s complete", kind)
