@@ -33,7 +33,7 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
 
-from .winery_benchmark import Bench, ROWorker, RWWorker, WorkerKind, work
+from .winery_benchmark import Bench, PackWorker, ROWorker, RWWorker, WorkerKind, work
 from .winery_testing_helpers import PoolHelper, SharedBaseHelper
 
 logger = logging.getLogger(__name__)
@@ -470,9 +470,11 @@ class WineryBenchOptions:
 def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     output_dir = pytestconfig.getoption("--winery-bench-output-directory")
     shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
+    pack_immediately = pytestconfig.getoption("--winery-bench-pack-immediately")
     storage_config = {
         "output_dir": output_dir,
         "shard_max_size": shard_max_size,
+        "pack_immediately": pack_immediately,
         "base_dsn": postgresql_dsn,
         "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
@@ -488,7 +490,20 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
                 "--winery-bench-ro-worker-max-request"
             )
         },
+        "pack": {
+            "base_dsn": postgresql_dsn,
+            "shard_dsn": postgresql_dsn,
+            "output_dir": output_dir,
+            "shard_max_size": shard_max_size,
+            "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
+            "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
+        },
     }
+
+    if not pack_immediately:
+        worker_args["rw"] = {"block_until_packed": False}
+        workers_per_kind["pack"] = pytestconfig.getoption("--winery-bench-pack-workers")
+
     duration = pytestconfig.getoption("--winery-bench-duration")
 
     return WineryBenchOptions(
@@ -515,8 +530,14 @@ def test_winery_bench_fake(bench_options, mocker):
             logger.info("running rw for %s", bench_options.duration)
             return "rw"
 
+    class _PackWorker(PackWorker):
+        def run(self):
+            logger.info("running pack for %s", bench_options.duration)
+            return "pack"
+
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
+    mocker.patch("swh.objstorage.tests.winery_benchmark.PackWorker", _PackWorker)
     mocker.patch(
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )

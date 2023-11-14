@@ -19,6 +19,7 @@ from swh.objstorage.backends.winery.objstorage import (
     WineryObjStorage,
     WineryReader,
     WineryWriter,
+    shard_packer,
 )
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
@@ -27,7 +28,7 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
-WorkerKind = Literal["ro", "rw"]
+WorkerKind = Literal["ro", "rw", "pack"]
 
 
 def work(
@@ -49,6 +50,8 @@ def work(
         return ROWorker(storage, **kind_args).run()
     elif kind == "rw":
         return RWWorker(storage, **kind_args).run()
+    elif kind == "pack":
+        return PackWorker(**kind_args).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -63,6 +66,45 @@ class Worker:
 
     def run(self) -> WorkerKind:
         raise NotImplementedError
+
+
+class PackWorker:
+    def __init__(
+        self,
+        base_dsn: str,
+        shard_dsn: str,
+        shard_max_size: int,
+        throttle_read: int,
+        throttle_write: int,
+        output_dir: Optional[str] = None,
+    ):
+        self.base_dsn = base_dsn
+        self.shard_dsn = shard_dsn
+        self.shard_max_size = shard_max_size
+        self.output_dir = output_dir
+        self.throttle_read = throttle_read
+        self.throttle_write = throttle_write
+        self.waited = 0
+
+    def stop_packing(self, shards_count: int) -> bool:
+        return shards_count >= 1 or self.waited > 5
+
+    def wait_for_shard(self):
+        time.sleep(1)
+        self.waited += 1
+
+    def run(self) -> Literal["pack"]:
+        shard_packer(
+            base_dsn=self.base_dsn,
+            shard_dsn=self.shard_dsn,
+            shard_max_size=self.shard_max_size,
+            throttle_read=self.throttle_read,
+            throttle_write=self.throttle_write,
+            output_dir=self.output_dir,
+            stop_packing=self.stop_packing,
+            wait_for_shard=self.wait_for_shard,
+        )
+        return "pack"
 
 
 class ROWorker(Worker):
