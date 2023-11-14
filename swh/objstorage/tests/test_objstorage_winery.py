@@ -4,11 +4,12 @@
 # See top-level LICENSE file for more information
 
 from collections import Counter
+from dataclasses import asdict, dataclass
 import logging
 import os
 import shutil
 import time
-from typing import Dict
+from typing import Any, Dict
 
 import pytest
 
@@ -457,10 +458,21 @@ def test_winery_bench_rw_block_until_packed_multiple_shards(storage, ceph_pool):
     assert packed > 0, "did not have any packers to wait for"
 
 
-def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
+@dataclass
+class WineryBenchOptions:
+    storage_config: Dict[str, Any]
+    workers_per_kind: Dict[WorkerKind, int]
+    worker_args: Dict[WorkerKind, Dict]
+    duration: float
+
+
+@pytest.fixture
+def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
+    output_dir = pytestconfig.getoption("--winery-bench-output-directory")
+    shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
     storage_config = {
-        "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
-        "shard_max_size": pytestconfig.getoption("--winery-bench-shard-max-size"),
+        "output_dir": output_dir,
+        "shard_max_size": shard_max_size,
         "base_dsn": postgresql_dsn,
         "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
@@ -475,50 +487,32 @@ def test_winery_bench_real(pytestconfig, postgresql_dsn, ceph_pool):
             "max_request": pytestconfig.getoption(
                 "--winery-bench-ro-worker-max-request"
             )
-        }
+        },
     }
     duration = pytestconfig.getoption("--winery-bench-duration")
-    count = call_async(
-        Bench(
-            storage_config=storage_config,
-            duration=duration,
-            workers_per_kind=workers_per_kind,
-            worker_args=worker_args,
-        ).run
+
+    return WineryBenchOptions(
+        storage_config,
+        workers_per_kind,
+        worker_args,
+        duration,
     )
+
+
+def test_winery_bench_real(bench_options, ceph_pool):
+    count = call_async(Bench(**asdict(bench_options)).run)
     assert count > 0
 
 
-def test_winery_bench_fake(pytestconfig, postgresql_dsn, mocker):
-    storage_config = {
-        "output_dir": pytestconfig.getoption("--winery-bench-output-directory"),
-        "shard_max_size": pytestconfig.getoption("--winery-bench-shard-max-size"),
-        "base_dsn": postgresql_dsn,
-        "shard_dsn": postgresql_dsn,
-        "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
-        "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
-    }
-    workers_per_kind: Dict[WorkerKind, int] = {
-        "ro": pytestconfig.getoption("--winery-bench-ro-workers"),
-        "rw": pytestconfig.getoption("--winery-bench-rw-workers"),
-    }
-    worker_args: Dict[WorkerKind, Dict] = {
-        "ro": {
-            "max_request": pytestconfig.getoption(
-                "--winery-bench-ro-worker-max-request"
-            )
-        }
-    }
-    duration = pytestconfig.getoption("--winery-bench-duration")
-
+def test_winery_bench_fake(bench_options, mocker):
     class _ROWorker(ROWorker):
         def run(self):
-            logger.info("running ro for %s", duration)
+            logger.info("running ro for %s", bench_options.duration)
             return "ro"
 
     class _RWWorker(RWWorker):
         def run(self):
-            logger.info("running rw for %s", duration)
+            logger.info("running rw for %s", bench_options.duration)
             return "rw"
 
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
@@ -527,15 +521,8 @@ def test_winery_bench_fake(pytestconfig, postgresql_dsn, mocker):
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )
 
-    count = call_async(
-        Bench(
-            storage_config=storage_config,
-            duration=duration,
-            workers_per_kind=workers_per_kind,
-            worker_args=worker_args,
-        ).run
-    )
-    assert count == sum(workers_per_kind.values())
+    count = call_async(Bench(**asdict(bench_options)).run)
+    assert count == sum(bench_options.workers_per_kind.values())
 
 
 def test_winery_leaky_bucket_tick(mocker):
