@@ -9,6 +9,7 @@ import logging
 import time
 
 import psycopg2
+import psycopg2.extras
 
 logger = logging.getLogger(__name__)
 
@@ -120,5 +121,6 @@ class Database(abc.ABC):
 
     def connect_database(self):
         db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
+        psycopg2.extras.register_uuid(conn_or_curs=db)
         db.autocommit = True
         return db

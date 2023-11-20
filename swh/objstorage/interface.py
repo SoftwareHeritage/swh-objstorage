@@ -3,14 +3,29 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from datetime import timedelta
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
-from typing_extensions import Protocol, TypedDict, runtime_checkable
+from datetime import timedelta
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
+
+from typing_extensions import Literal, Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT
+
+COMPOSITE_OBJID_KEYS: FrozenSet[
+    Literal["sha1", "sha1_git", "sha256", "blake2s256"]
+] = frozenset(("sha1", "sha1_git", "sha256", "blake2s256"))
 
 
 class CompositeObjId(TypedDict, total=False):
@@ -18,6 +33,27 @@ class CompositeObjId(TypedDict, total=False):
     sha1_git: bytes
     sha256: bytes
     blake2s256: bytes
+
+
+def objid_from_dict(d: Dict[str, Any]) -> CompositeObjId:
+    filtered: CompositeObjId = {}
+
+    for key in COMPOSITE_OBJID_KEYS:
+        value = d.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, bytes):
+            raise TypeError(
+                "value for %s is %s, not bytes" % (key, value.__class__.__name__)
+            )
+        filtered[key] = value
+
+    if not filtered:
+        raise ValueError(
+            "dict is missing at least one of %s" % ", ".join(COMPOSITE_OBJID_KEYS)
+        )
+
+    return filtered
 
 
 ObjId = Union[bytes, CompositeObjId]
