@@ -1,9 +1,6 @@
 .. _swh-objstorage:
 
-Software Heritage - Object storage
-==================================
-
-Content-addressable object storage.
+.. include:: README.rst
 
 
 Reference Documentation
