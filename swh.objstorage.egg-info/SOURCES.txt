@@ -7,7 +7,7 @@ CONTRIBUTORS
 LICENSE
 MANIFEST.in
 Makefile
-README.md
+README.rst
 mypy.ini
 pyproject.toml
 pytest.ini
@@ -75,6 +75,7 @@ swh/objstorage/multiplexer/filter/read_write_filter.py
 swh/objstorage/tests/__init__.py
 swh/objstorage/tests/conftest.py
 swh/objstorage/tests/objstorage_testing.py
+swh/objstorage/tests/test_interface.py
 swh/objstorage/tests/test_objstorage_api.py
 swh/objstorage/tests/test_objstorage_azure.py
 swh/objstorage/tests/test_objstorage_cloud.py

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 2.3.0
+Version: 2.3.1
 Summary: Software Heritage Object Storage
 Home-page: https://gitlab.softwareheritage.org/swh/devel/swh-objstorage
 Author: Software Heritage developers
@@ -15,16 +15,40 @@ Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 Classifier: Operating System :: OS Independent
 Classifier: Development Status :: 5 - Production/Stable
 Requires-Python: >=3.7
-Description-Content-Type: text/markdown
-Provides-Extra: testing
-Provides-Extra: azure
-Provides-Extra: libcloud
-Provides-Extra: winery
+Description-Content-Type: text/x-rst
 License-File: LICENSE
 License-File: AUTHORS
+Requires-Dist: click
+Requires-Dist: msgpack
+Requires-Dist: typing-extensions>=3.7.4
+Requires-Dist: requests
+Requires-Dist: swh.core[http]>=0.3
+Requires-Dist: swh.model>=0.0.27
+Requires-Dist: swh.perfecthash>=0.1.2
+Provides-Extra: testing
+Requires-Dist: moto[s3,server]; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-mock; extra == "testing"
+Requires-Dist: requests_mock[fixture]>=1.9; extra == "testing"
+Requires-Dist: requests_toolbelt; extra == "testing"
+Requires-Dist: swh.core[testing]; extra == "testing"
+Requires-Dist: types-pyyaml; extra == "testing"
+Requires-Dist: types-requests; extra == "testing"
+Requires-Dist: pytest-postgresql<4.0.0; extra == "testing"
+Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "testing"
+Requires-Dist: apache-libcloud; extra == "testing"
+Requires-Dist: psycopg2; extra == "testing"
+Requires-Dist: sh; extra == "testing"
+Provides-Extra: azure
+Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "azure"
+Provides-Extra: libcloud
+Requires-Dist: apache-libcloud; extra == "libcloud"
+Provides-Extra: winery
+Requires-Dist: psycopg2; extra == "winery"
+Requires-Dist: sh; extra == "winery"
 
-swh-objstorage
-==============
+Software Heritage - Object storage
+==================================
 
 Content-addressable object storage for the Software Heritage project.
 
@@ -42,35 +66,35 @@ In the example below we will create a new objstorage using the
 backend.
 
 
-```
-~/swh$ mkvirtualenv -p /usr/bin/python3 -i swh.objstorage swh-objstorage
-[...]
-(swh-objstorage) ~/swh$ cat >local.yml <<EOF
-objstorage:
-  cls: pathslicing
-  args:
-    root: /tmp/objstorage
-    slicing: 0:2/2:4/4:6
-EOF
-(swh-objstorage) ~/swh$ mkdir /tmp/objstorage
-(swh-objstorage) ~/swh$ swh-objstorage -C local.yml serve -p 15003
-INFO:swh.core.config:Loading config file local.yml
-======== Running on http://0.0.0.0:15003 ========
-(Press CTRL+C to quit)
-```
+.. code-block:: shell
+
+   ~/swh$ mkvirtualenv -p /usr/bin/python3 -i swh.objstorage swh-objstorage
+   [...]
+   (swh-objstorage) ~/swh$ cat >local.yml <<EOF
+   objstorage:
+     cls: pathslicing
+     args:
+       root: /tmp/objstorage
+       slicing: 0:2/2:4/4:6
+   EOF
+   (swh-objstorage) ~/swh$ mkdir /tmp/objstorage
+   (swh-objstorage) ~/swh$ swh-objstorage -C local.yml serve -p 15003
+   INFO:swh.core.config:Loading config file local.yml
+   ======== Running on http://0.0.0.0:15003 ========
+   (Press CTRL+C to quit)
 
 Now we have an API listening on http://0.0.0.0:15003 we can use to store and
 retrieve objects from. I an other terminal:
 
-```
-~/swh$ workon swh-objstorage
-(swh-objstorage) ~/swh$ cat >remote.yml <<EOF
-objstorage:
-  cls: remote
-  args:
-    url: http://127.0.0.1:15003
-EOF
-(swh-objstorage) ~/swh$ swh-objstorage -C remote.yml import .
-INFO:swh.core.config:Loading config file remote.yml
-Imported 1369 files for a volume of 722837 bytes in 2 seconds
-```
+.. code-block:: shell
+
+   ~/swh$ workon swh-objstorage
+   (swh-objstorage) ~/swh$ cat >remote.yml <<EOF
+   objstorage:
+     cls: remote
+     args:
+       url: http://127.0.0.1:15003
+   EOF
+   (swh-objstorage) ~/swh$ swh-objstorage -C remote.yml import .
+   INFO:swh.core.config:Loading config file remote.yml
+   Imported 1369 files for a volume of 722837 bytes in 2 seconds

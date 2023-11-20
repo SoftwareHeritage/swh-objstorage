@@ -1,8 +1,11 @@
-swh-objstorage (2.3.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-objstorage (2.3.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 2.3.1     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-11-20 14:27:22 +0100)
+  * Upstream changes:     - v2.3.1     - add support for CompositeObjId
+    in winery     - normalize the README file
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Jul 2023 15:37:42 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 20 Nov 2023 15:45:16 +0000
 
 swh-objstorage (2.3.0-1~swh1) unstable-swh; urgency=medium
 
