@@ -19,9 +19,13 @@ repos:
     hooks:
       - id: codespell
         name: Check source code spelling
+        additional_dependencies:
+          - tomli
         stages: [commit]
       - id: codespell
         name: Check commit message spelling
+        additional_dependencies:
+          - tomli
         stages: [commit-msg]
 
   - repo: local

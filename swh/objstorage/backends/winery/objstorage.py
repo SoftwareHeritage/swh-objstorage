@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
-
     PRIMARY_HASH: Literal["sha256"] = "sha256"
 
     def __init__(self, **kwargs):

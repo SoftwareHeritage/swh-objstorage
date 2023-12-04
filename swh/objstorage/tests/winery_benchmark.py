@@ -134,7 +134,6 @@ class Bench(object):
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=workers_count
         ) as executor:
-
             logger.info("Bench.run: running")
 
             self.count = 0
