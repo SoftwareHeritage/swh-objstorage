@@ -14,7 +14,7 @@ from swh.objstorage import exc
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
-from .roshard import ROShard
+from .roshard import ROShard, ROShardCreator
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .stats import Stats
@@ -84,7 +84,6 @@ class WineryReader(WineryBase):
     def roshard(self, name):
         if name not in self.ro_shards:
             shard = ROShard(name, **self.args)
-            shard.load()
             self.ro_shards[name] = shard
             if name in self.rw_shards:
                 del self.rw_shards[name]
@@ -116,31 +115,22 @@ class WineryReader(WineryBase):
 def pack(shard, shared_base=None, **kwargs):
     stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
-    ro = ROShard(shard, **kwargs)
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
-    ro.create(count)
-    logger.info("Created RO shard %s", shard)
-    for i, (obj_id, content) in enumerate(rw.all()):
-        ro.add(content, obj_id)
-        if stats.stats_active:
-            stats.stats_read(obj_id, content)
-            stats.stats_write(obj_id, content)
-        if i % 100 == 99:
-            logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
+    with ROShardCreator(shard, count, **kwargs) as ro:
+        logger.info("Created RO shard %s", shard)
+        for i, (obj_id, content) in enumerate(rw.all()):
+            ro.add(content, obj_id)
+            if stats.stats_active:
+                stats.stats_read(obj_id, content)
+                stats.stats_write(obj_id, content)
+            if i % 100 == 99:
+                logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
 
-    logger.debug("RO shard %s: added %s objects, saving", shard, count)
-    assert ro.save() != -1, f"Shard saving failed for {shard}"
+        logger.debug("RO shard %s: added %s objects, saving", shard, count)
+
     logger.debug("RO shard %s: saved", shard)
-
-    while True:
-        if ro.load():
-            break
-
-        logger.warn("Shard %s didn't sync yet, sleeping", shard)
-        time.sleep(0.1)
-        ro = ROShard(shard, **kwargs)
 
     uninit_base = False
     if not shared_base:
