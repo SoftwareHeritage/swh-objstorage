@@ -1,3 +1,4 @@
+.copier-answers.yml
 .git-blame-ignore-revs
 .gitignore
 .pre-commit-config.yaml
@@ -5,7 +6,6 @@ AUTHORS
 CODE_OF_CONDUCT.md
 CONTRIBUTORS
 LICENSE
-MANIFEST.in
 Makefile
 README.rst
 mypy.ini
@@ -18,7 +18,6 @@ requirements-test.txt
 requirements-winery.txt
 requirements.txt
 setup.cfg
-setup.py
 tox.ini
 bin/swh-objstorage-azure
 docs/.gitignore
@@ -29,7 +28,6 @@ docs/index.rst
 docs/winery.rst
 docs/_static/.placeholder
 docs/_templates/.placeholder
-swh/__init__.py
 swh.objstorage.egg-info/PKG-INFO
 swh.objstorage.egg-info/SOURCES.txt
 swh.objstorage.egg-info/dependency_links.txt

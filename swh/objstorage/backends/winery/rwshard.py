@@ -4,9 +4,14 @@
 # See top-level LICENSE file for more information
 
 
+import logging
+
 import psycopg2
+import psycopg2.errors
 
 from .database import Database, DatabaseAdmin
+
+logger = logging.getLogger(__name__)
 
 
 class RWShard(Database):
@@ -33,7 +38,7 @@ class RWShard(Database):
         return self._name
 
     def is_full(self):
-        return self.size > self.limit
+        return self.size >= self.limit
 
     def drop(self):
         DatabaseAdmin(self.dsn, self.dbname).drop_database()

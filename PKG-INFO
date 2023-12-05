@@ -1,14 +1,13 @@
 Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 2.3.1
-Summary: Software Heritage Object Storage
-Home-page: https://gitlab.softwareheritage.org/swh/devel/swh-objstorage
-Author: Software Heritage developers
-Author-email: swh-devel@inria.fr
+Version: 2.5.0
+Summary: Software Heritage object storage
+Author-email: Software Heritage developers <swh-devel@inria.fr>
+Project-URL: Homepage, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage
 Project-URL: Bug Reports, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues
 Project-URL: Funding, https://www.softwareheritage.org/donate
-Project-URL: Source, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git
 Project-URL: Documentation, https://docs.softwareheritage.org/devel/swh-objstorage/
+Project-URL: Source, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git
 Classifier: Programming Language :: Python :: 3
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
@@ -24,7 +23,13 @@ Requires-Dist: typing-extensions>=3.7.4
 Requires-Dist: requests
 Requires-Dist: swh.core[http]>=0.3
 Requires-Dist: swh.model>=0.0.27
-Requires-Dist: swh.perfecthash>=0.1.2
+Requires-Dist: swh.perfecthash>=1.1.0
+Provides-Extra: azure
+Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "azure"
+Provides-Extra: libcloud
+Requires-Dist: apache-libcloud; extra == "libcloud"
+Provides-Extra: winery
+Requires-Dist: psycopg2; extra == "winery"
 Provides-Extra: testing
 Requires-Dist: moto[s3,server]; extra == "testing"
 Requires-Dist: pytest; extra == "testing"
@@ -38,14 +43,6 @@ Requires-Dist: pytest-postgresql<4.0.0; extra == "testing"
 Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "testing"
 Requires-Dist: apache-libcloud; extra == "testing"
 Requires-Dist: psycopg2; extra == "testing"
-Requires-Dist: sh; extra == "testing"
-Provides-Extra: azure
-Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "azure"
-Provides-Extra: libcloud
-Requires-Dist: apache-libcloud; extra == "libcloud"
-Provides-Extra: winery
-Requires-Dist: psycopg2; extra == "winery"
-Requires-Dist: sh; extra == "winery"
 
 Software Heritage - Object storage
 ==================================
