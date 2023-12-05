@@ -1,3 +1,13 @@
+swh-objstorage (2.5.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.5.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-12-05 12:03:13 +0100)
+  * Upstream changes:     - v2.5.0     - Blackify and codespell.     -
+    Update and improve winery; make it ready for deployment (finger     -
+    crossed).
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 05 Dec 2023 11:17:36 +0000
+
 swh-objstorage (2.3.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 2.3.1     - (tagged by David Douard
