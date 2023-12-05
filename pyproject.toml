@@ -1,3 +1,54 @@
+[project]
+name = "swh.objstorage"
+authors = [
+	{name="Software Heritage developers", email="swh-devel@inria.fr"},
+]
+description = "Software Heritage object storage"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+]
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[tool.setuptools.packages.find]
+include = ["swh.*"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
+
+[tool.setuptools.dynamic.optional-dependencies]
+azure = {file = "requirements-azure.txt"}
+libcloud = {file = "requirements-libcloud.txt"}
+winery = {file = "requirements-winery.txt"}
+testing = {file = [
+    "requirements-test.txt",
+    "requirements-azure.txt",
+    "requirements-libcloud.txt",
+    "requirements-winery.txt",
+    ]}
+
+[project.entry-points."swh.cli.subcommands"]
+"swh.objstorage" = "swh.objstorage.cli"
+
+[project.urls]
+"Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage"
+"Bug Reports" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues"
+"Funding" = "https://www.softwareheritage.org/donate"
+"Documentation" = "https://docs.softwareheritage.org/devel/swh-objstorage/"
+"Source" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git"
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+fallback_version = "0.0.1"
+
 [tool.black]
 target-version = ['py37']
 
@@ -9,3 +60,7 @@ use_parentheses = true
 ensure_newline_before_comments = true
 line_length = 88
 force_sort_within_sections = true
+known_first_party = ['swh']
+
+[tool.codespell]
+ignore-words-list = "inflight"

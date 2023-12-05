@@ -4,7 +4,7 @@ typing-extensions>=3.7.4
 requests
 swh.core[http]>=0.3
 swh.model>=0.0.27
-swh.perfecthash>=0.1.2
+swh.perfecthash>=1.1.0
 
 [azure]
 azure-storage-blob!=12.9.0,>=12.0
@@ -25,8 +25,6 @@ pytest-postgresql<4.0.0
 azure-storage-blob!=12.9.0,>=12.0
 apache-libcloud
 psycopg2
-sh
 
 [winery]
 psycopg2
-sh

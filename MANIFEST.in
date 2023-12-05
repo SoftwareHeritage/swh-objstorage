@@ -1,5 +1,0 @@
-include Makefile
-include requirements*.txt
-include version.txt
-recursive-include swh py.typed
-exclude winery-test-environment
