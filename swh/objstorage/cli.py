@@ -9,11 +9,15 @@ import logging
 # control
 import os
 import time
+from types import FrameType
+from typing import Optional
 
 import click
 
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
+
+logger = logging.getLogger(__name__)
 
 
 @swh_cli_group.group(name="objstorage", context_settings=CONTEXT_SETTINGS)
@@ -88,6 +92,75 @@ def serve(ctx, host, port, debug):
     validate_config(ctx.obj["config"])
     app.config.update(ctx.obj["config"])
     app.run(host, port=int(port), debug=bool(debug))
+
+
+@objstorage_cli_group.group("winery")
+@click.pass_context
+def winery(ctx):
+    "Winery related commands"
+    config = ctx.obj["config"]["objstorage"]
+    if config["cls"] != "winery":
+        raise click.ClickException("winery packer only works on a winery objstorage")
+
+
+@winery.command("packer")
+@click.option("--stop-after-shards", type=click.INT, default=None)
+@click.pass_context
+def winery_packer(ctx, stop_after_shards: Optional[int] = None):
+    """Run a winery packer process"""
+    import signal
+
+    from swh.objstorage.backends.winery.objstorage import shard_packer
+    from swh.objstorage.backends.winery.roshard import (
+        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    )
+
+    config = ctx.obj["config"]["objstorage"]
+
+    signal_received = False
+
+    def stop_packing(num_shards: int) -> bool:
+        """Stop packing when a signal is received, or when stop_after_shards is reached."""
+        return signal_received or (
+            stop_after_shards is not None and num_shards >= stop_after_shards
+        )
+
+    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+        nonlocal signal_received
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        signal_received = True
+
+    base_dsn = config["base_dsn"]
+    shard_dsn = config["shard_dsn"]
+    shard_max_size = config["shard_max_size"]
+    throttle_read = config.get("throttle_read", 200 * 1024 * 1024)
+    throttle_write = config.get("throttle_write", 200 * 1024 * 1024)
+    output_dir = config.get("output_dir")
+    rbd_pool_name = config.get("rbd_pool_name", "shards")
+    rbd_data_pool_name = config.get("rbd_data_pool_name")
+    rbd_use_sudo = config.get("rbd_use_sudo", True)
+    rbd_image_features_unsupported = tuple(
+        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
+    )
+
+    signal.signal(signal.SIGINT, set_signal_received)
+    signal.signal(signal.SIGTERM, set_signal_received)
+
+    ret = shard_packer(
+        base_dsn=base_dsn,
+        shard_dsn=shard_dsn,
+        shard_max_size=shard_max_size,
+        throttle_read=throttle_read,
+        throttle_write=throttle_write,
+        rbd_pool_name=rbd_pool_name,
+        rbd_data_pool_name=rbd_data_pool_name,
+        rbd_image_features_unsupported=rbd_image_features_unsupported,
+        rbd_use_sudo=rbd_use_sudo,
+        output_dir=output_dir,
+        stop_packing=stop_packing,
+    )
+
+    logger.info("Packed %s shards", ret)
 
 
 @objstorage_cli_group.command("import")

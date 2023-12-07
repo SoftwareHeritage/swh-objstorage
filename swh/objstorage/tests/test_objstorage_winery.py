@@ -11,7 +11,9 @@ import shutil
 import time
 from typing import Any, Dict
 
+from click.testing import CliRunner
 import pytest
+import yaml
 
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
@@ -31,6 +33,7 @@ from swh.objstorage.backends.winery.throttler import (
     LeakyBucket,
     Throttler,
 )
+from swh.objstorage.cli import swh_cli_group
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
@@ -56,6 +59,18 @@ def needs_ceph():
 
     if not ceph:
         pytest.skip("the ceph CLI was not found")
+
+
+@pytest.fixture
+def cli_runner(capsys):
+    "Run click commands with log capture disabled"
+
+    class CapsysDisabledCliRunner(CliRunner):
+        def invoke(self, *args, **kwargs):
+            with capsys.disabled():
+                return super().invoke(*args, **kwargs)
+
+    return CapsysDisabledCliRunner()
 
 
 @pytest.fixture
@@ -404,6 +419,41 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
 
     shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
     assert shard_counts == {ShardState.READONLY: 4, ShardState.WRITING: 1}
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
+def test_winery_cli_packer(ceph_pool, storage, tmp_path, cli_runner):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.FULL
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    with open(tmp_path / "config.yml", "w") as f:
+        yaml.safe_dump(
+            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
+        )
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        ("objstorage", "winery", "packer", "--stop-after-shards=4"),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.PACKED
 
 
 @pytest.mark.shard_max_size(1024)
