@@ -130,6 +130,8 @@ class ROShardCreator:
         exc_tb: Optional[TracebackType],
     ) -> None:
         self.shard.__exit__(exc_type, exc_val, exc_tb)
+        if not exc_type:
+            self.pool.image_remap_ro(self.name)
 
     def add(self, content, obj_id):
         return self.throttler.throttle_add(self.shard.write, obj_id, content)
