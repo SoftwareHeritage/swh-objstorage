@@ -427,7 +427,7 @@ def test_winery_ceph_pool(needs_ceph):
     assert pool.image_list() == [name]
     pool.image_remap_ro(name)
     pool.images_clobber()
-    assert pool.image_list() == [name]
+    assert pool.image_list() == []
     pool.clobber()
     assert pool.image_list() == []
 

@@ -94,13 +94,13 @@ class PoolHelper(Pool):
     def images_clobber(self):
         for image in self.image_list():
             try:
-                self.image_unmap(image)
+                self.image_delete(image)
             except CalledProcessError:
                 logger.error(
-                    "Could not unmap image %s, we'll try again in an atexit handler...",
+                    "Could not clobber image %s, we'll try again in an atexit handler...",
                     image,
                 )
-                atexit.register(self.image_unmap, image)
+                atexit.register(self.image_delete, image)
                 pass
 
     def clobber(self):
