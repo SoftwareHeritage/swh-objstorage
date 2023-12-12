@@ -8,7 +8,7 @@ import math
 import os.path
 import subprocess
 from types import TracebackType
-from typing import Iterable, Optional, Type
+from typing import Iterable, Optional, Tuple, Type
 
 from swh.perfecthash import Shard, ShardCreator
 
@@ -16,13 +16,36 @@ from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
+# This would be used for image features that are not supported by the kernel RBD
+# driver, e.g. exclusive-lock, object-map and fast-diff for kernels < 5.3
+DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
+
 
 class Pool(object):
-    name = "shards"
+    def __init__(
+        self,
+        shard_max_size: int,
+        rbd_pool_name: str = "shards",
+        rbd_data_pool_name: Optional[str] = None,
+        rbd_image_features_unsupported: Tuple[
+            str, ...
+        ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    ) -> None:
+        self.pool_name = rbd_pool_name
+        self.data_pool_name = rbd_data_pool_name or f"{self.pool_name}-data"
+        self.features_unsupported = rbd_image_features_unsupported
+        self.image_size = math.ceil((shard_max_size * 2) / (1024 * 1024))
 
-    def __init__(self, **kwargs):
-        self.args = kwargs
-        self.image_size = math.ceil((self.args["shard_max_size"] * 2) / (1024 * 1024))
+    POOL_CONFIG: Tuple[str, ...] = (
+        "shard_max_size",
+        "rbd_pool_name",
+        "rbd_data_pool_name",
+        "rbd_image_features_unsupported",
+    )
+
+    @classmethod
+    def from_kwargs(cls, **kwargs) -> "Pool":
+        return cls(**{k: kwargs[k] for k in cls.POOL_CONFIG if k in kwargs})
 
     def run(self, *cmd: str) -> Iterable[str]:
         """Run the given command, and return its output as lines.
@@ -40,7 +63,7 @@ class Pool(object):
     def rbd(self, *arguments: str) -> Iterable[str]:
         """Run sudo rbd with the given arguments"""
 
-        cli = ["sudo", "rbd", f"--pool={self.name}", *arguments]
+        cli = ["sudo", "rbd", f"--pool={self.pool_name}", *arguments]
 
         return self.run(*cli)
 
@@ -55,23 +78,22 @@ class Pool(object):
         return [image.strip() for image in images]
 
     def image_path(self, image):
-        return f"/dev/rbd/{self.name}/{image}"
+        return f"/dev/rbd/{self.pool_name}/{image}"
 
     def image_create(self, image):
         self.rbd(
             "create",
             f"--size={self.image_size}",
-            f"--data-pool={self.name}-data",
+            f"--data-pool={self.data_pool_name}",
             image,
         )
-        self.rbd(
-            "feature",
-            "disable",
-            f"{self.name}/{image}",
-            "object-map",
-            "fast-diff",
-            "deep-flatten",
-        )
+        if self.features_unsupported:
+            self.rbd(
+                "feature",
+                "disable",
+                f"{self.pool_name}/{image}",
+                *self.features_unsupported,
+            )
         self.image_map(image, "rw")
 
     def image_map(self, image, options):
@@ -97,7 +119,7 @@ class Pool(object):
 
 class ROShard:
     def __init__(self, name, **kwargs):
-        self.pool = Pool(shard_max_size=kwargs["shard_max_size"])
+        self.pool = Pool.from_kwargs(**kwargs)
         self.throttler = Throttler(**kwargs)
         self.name = name
         self.path = self.pool.image_path(self.name)
@@ -110,7 +132,7 @@ class ROShard:
 
 class ROShardCreator:
     def __init__(self, name: str, count: int, **kwargs):
-        self.pool = Pool(shard_max_size=kwargs["shard_max_size"])
+        self.pool = Pool.from_kwargs(**kwargs)
         self.throttler = Throttler(**kwargs)
         self.name = name
         self.count = count

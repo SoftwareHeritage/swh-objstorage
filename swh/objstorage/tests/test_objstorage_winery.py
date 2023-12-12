@@ -48,15 +48,52 @@ def needs_ceph():
 
 
 @pytest.fixture
-def ceph_pool(needs_ceph):
-    pool = PoolHelper(shard_max_size=10 * 1024 * 1024)
-    pool.clobber()
-    pool.pool_create()
+def clobber_pool(request, pytestconfig):
+    marker = request.node.get_closest_marker("use_benchmark_flags")
+    if marker is None:
+        return True
+
+    return pytestconfig.getoption("--winery-bench-clobber-pool")
+
+
+@pytest.fixture
+def clobber_images(request, pytestconfig):
+    marker = request.node.get_closest_marker("use_benchmark_flags")
+    if marker is None:
+        return True
+
+    return pytestconfig.getoption("--winery-bench-clobber-images")
+
+
+@pytest.fixture
+def rbd_pool_name(request, pytestconfig):
+    marker = request.node.get_closest_marker("use_benchmark_flags")
+    if marker is None:
+        return "winery-test-shards"
+
+    return pytestconfig.getoption("--winery-bench-rbd-pool")
+
+
+@pytest.fixture
+def ceph_pool(clobber_pool, clobber_images, rbd_pool_name, needs_ceph):
+    pool = PoolHelper(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
+    if clobber_pool:
+        pool.clobber()
+        pool.pool_create()
+    else:
+        logger.info("Not clobbering pool")
 
     yield pool
 
-    pool.images_clobber()
-    pool.clobber()
+    if clobber_images or clobber_pool:
+        pool.images_clobber()
+    else:
+        logger.info("Not clobbering images")
+
+    if clobber_pool:
+        pool.clobber()
+    else:
+        logger.info("Not clobbering pool")
 
 
 @pytest.fixture
@@ -88,7 +125,7 @@ def pack_immediately(request) -> bool:
 
 
 @pytest.fixture
-def storage(shard_max_size, pack_immediately, postgresql_dsn):
+def storage(shard_max_size, pack_immediately, rbd_pool_name, postgresql_dsn):
     storage = get_objstorage(
         cls="winery",
         base_dsn=postgresql_dsn,
@@ -97,8 +134,9 @@ def storage(shard_max_size, pack_immediately, postgresql_dsn):
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
         pack_immediately=pack_immediately,
+        rbd_pool_name=rbd_pool_name,
     )
-    logger.debug("Instantiated storage %s", storage)
+    logger.debug("Instantiated storage %s on rbd pool %s", storage, rbd_pool_name)
     yield storage
     storage.winery.uninit()
 
@@ -284,6 +322,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(1),
+            rbd_pool_name=ceph_pool.pool_name,
         )
         == 1
     )
@@ -304,6 +343,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(3),
+            rbd_pool_name=ceph_pool.pool_name,
         )
         == 3
     )
@@ -350,6 +390,7 @@ def test_winery_standalone_packer_never_stop_packing(
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             wait_for_shard=wait_five_times,
+            rbd_pool_name=ceph_pool.pool_name,
         )
 
     assert called == 5
@@ -372,7 +413,9 @@ def test_winery_get_object(winery, ceph_pool):
 
 def test_winery_ceph_pool(needs_ceph):
     name = "IMAGE"
-    pool = PoolHelper(shard_max_size=10 * 1024 * 1024)
+    pool = PoolHelper(
+        shard_max_size=10 * 1024 * 1024, rbd_pool_name="test-winery-ceph-pool"
+    )
     pool.clobber()
     pool.pool_create()
     pool.image_create(name)
@@ -479,6 +522,7 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
         "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
+        "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
     }
     workers_per_kind: Dict[WorkerKind, int] = {
         "ro": pytestconfig.getoption("--winery-bench-ro-workers"),
@@ -495,6 +539,7 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
             "shard_dsn": postgresql_dsn,
             "output_dir": output_dir,
             "shard_max_size": shard_max_size,
+            "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
             "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
             "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
         },
@@ -514,11 +559,13 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     )
 
 
+@pytest.mark.use_benchmark_flags
 def test_winery_bench_real(bench_options, ceph_pool):
     count = call_async(Bench(**asdict(bench_options)).run)
     assert count > 0
 
 
+@pytest.mark.use_benchmark_flags
 def test_winery_bench_fake(bench_options, mocker):
     class _ROWorker(ROWorker):
         def run(self):

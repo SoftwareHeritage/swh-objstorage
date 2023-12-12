@@ -6,6 +6,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "pack_immediately(bool): whether winery should pack immediately"
     )
+    config.addinivalue_line(
+        "markers", "use_benchmark_flags: use the --winery-bench-* CLI flags"
+    )
 
 
 def pytest_addoption(parser):
@@ -24,6 +27,27 @@ def pytest_addoption(parser):
         help="Pack objects synchronously in benchmark",
         default=default,
     )
+
+    parser.addoption(
+        "--winery-bench-clobber-pool",
+        action=action,
+        help="Clobber Ceph pool before and after tests",
+        default=default,
+    )
+
+    parser.addoption(
+        "--winery-bench-clobber-images",
+        action=action,
+        help="Clobber Ceph images after tests",
+        default=default,
+    )
+
+    parser.addoption(
+        "--winery-bench-rbd-pool",
+        help="RBD pool for benchmark",
+        default="winery-benchmark-shards",
+    )
+
     parser.addoption(
         "--winery-bench-output-directory",
         help="Directory in which the performance results are stored",

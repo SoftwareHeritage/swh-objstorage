@@ -76,6 +76,7 @@ class PackWorker:
         shard_max_size: int,
         throttle_read: int,
         throttle_write: int,
+        rbd_pool_name: str = "shards",
         output_dir: Optional[str] = None,
     ):
         self.base_dsn = base_dsn
@@ -84,6 +85,7 @@ class PackWorker:
         self.output_dir = output_dir
         self.throttle_read = throttle_read
         self.throttle_write = throttle_write
+        self.rbd_pool_name = rbd_pool_name
         self.waited = 0
 
     def stop_packing(self, shards_count: int) -> bool:
@@ -100,6 +102,7 @@ class PackWorker:
             shard_max_size=self.shard_max_size,
             throttle_read=self.throttle_read,
             throttle_write=self.throttle_write,
+            rbd_pool_name=self.rbd_pool_name,
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
             wait_for_shard=self.wait_for_shard,

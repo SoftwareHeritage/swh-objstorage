@@ -6,7 +6,7 @@
 import logging
 from multiprocessing import Process
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from typing_extensions import Literal
 
@@ -14,7 +14,7 @@ from swh.objstorage import exc
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
-from .roshard import ROShard, ROShardCreator
+from .roshard import DEFAULT_IMAGE_FEATURES_UNSUPPORTED, ROShard, ROShardCreator
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .stats import Stats
@@ -239,6 +239,11 @@ def shard_packer(
     shard_max_size: int,
     throttle_read: int,
     throttle_write: int,
+    rbd_pool_name: str = "shards",
+    rbd_data_pool_name: Optional[str] = None,
+    rbd_image_features_unsupported: Tuple[
+        str, ...
+    ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop_packing,
     wait_for_shard: Callable[[], None] = sleep_exponential(
@@ -255,6 +260,7 @@ def shard_packer(
       shard_max_size: Max size of a shard (used to size new shards)
       throttle_read: reads per second
       throttle_write: writes per second
+      rbd_pool_name: name of the rbd pool
       output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
       wait_for_shard: callback called when no shards are available to be packed
@@ -282,6 +288,9 @@ def shard_packer(
             shared_base=base,
             throttle_read=throttle_read,
             throttle_write=throttle_write,
+            rbd_pool_name=rbd_pool_name,
+            rbd_data_pool_name=rbd_data_pool_name,
+            rbd_image_features_unsupported=rbd_image_features_unsupported,
         )
         if not ret:
             raise ValueError("Packing shard %s failed" % name)
