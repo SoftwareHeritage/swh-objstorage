@@ -138,6 +138,8 @@ def pack(shard, shared_base=None, **kwargs):
         uninit_base = True
     shared_base.shard_packing_ends(shard)
     rw.uninit()
+
+    # TODO: wait for all readers to have mapped the shard read-only
     rw.drop()
     shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
     if uninit_base:
