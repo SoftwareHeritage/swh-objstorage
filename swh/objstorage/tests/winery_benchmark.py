@@ -105,7 +105,7 @@ class PackWorker:
             rbd_pool_name=self.rbd_pool_name,
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
-            wait_for_shard=self.wait_for_shard,
+            wait_for_shard_factory=lambda: self.wait_for_shard,
         )
         return "pack"
 

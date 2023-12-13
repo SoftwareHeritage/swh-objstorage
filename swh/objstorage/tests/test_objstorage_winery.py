@@ -285,7 +285,7 @@ def test_winery_sleep_exponential(mocker, min_duration, factor, max_duration, ex
         factor=factor,
         max_duration=max_duration,
         message="Message",
-    )
+    )()
 
     for _ in expected:
         sleep()
@@ -393,7 +393,7 @@ def test_winery_standalone_packer_never_stop_packing(
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
-            wait_for_shard=wait_five_times,
+            wait_for_shard_factory=lambda: wait_five_times,
             rbd_pool_name=ceph_pool.pool_name,
         )
 

@@ -228,7 +228,7 @@ def shard_packer(
     ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     rbd_use_sudo: bool = True,
     rbd_create_images: bool = True,
-    rbd_wait_for_image: Callable[[], None] = sleep_exponential(
+    rbd_wait_for_image_factory: Callable[[], Callable[[], None]] = sleep_exponential(
         min_duration=5,
         factor=2,
         max_duration=60,
@@ -236,7 +236,7 @@ def shard_packer(
     ),
     output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop_packing,
-    wait_for_shard: Callable[[], None] = sleep_exponential(
+    wait_for_shard_factory: Callable[[], Callable[[], None]] = sleep_exponential(
         min_duration=5,
         factor=2,
         max_duration=60,
@@ -254,14 +254,17 @@ def shard_packer(
       throttle_read: reads per second
       throttle_write: writes per second
       rbd_create_images: create images directly (or wait for RBD mapper)
-      rbd_wait_for_image: function to wait for an image (if rbd_create_images=False)
+      rbd_wait_for_image_factory: generate a callback used to wait
+        for an image (if rbd_create_images=False)
       rbd_*: passed directly to :class:`roshard.Pool`
       output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
-      wait_for_shard: callback called when no shards are available to be packed
+      wait_for_shard_factory: generate a callback called when no
+        shards are available to be packed
     """
     base = SharedBase(base_dsn=base_dsn)
 
+    wait_for_shard = wait_for_shard_factory()
     shards_packed = 0
     while not stop_packing(shards_packed):
         shard_to_pack = base.lock_one_shard(
@@ -285,7 +288,7 @@ def shard_packer(
             throttle_write=throttle_write,
             rbd_use_sudo=rbd_use_sudo,
             rbd_create_images=rbd_create_images,
-            rbd_wait_for_image=rbd_wait_for_image,
+            rbd_wait_for_image=rbd_wait_for_image_factory(),
             rbd_pool_name=rbd_pool_name,
             rbd_data_pool_name=rbd_data_pool_name,
             rbd_image_features_unsupported=rbd_image_features_unsupported,
@@ -293,5 +296,6 @@ def shard_packer(
         if not ret:
             raise ValueError("Packing shard %s failed" % name)
         shards_packed += 1
+        wait_for_shard = wait_for_shard_factory()
 
     return shards_packed

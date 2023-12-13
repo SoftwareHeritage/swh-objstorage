@@ -155,7 +155,7 @@ class ROShardCreator:
       count: Number of objects to provision in the shard
       rbd_create_images: whether the ROShardCreator should create the rbd
         image, or delegate to the rbd_shard_manager
-      wait_for_shard: function called when waiting for a shard to be mapped
+      rbd_wait_for_image: function called when waiting for a shard to be mapped
       shard_max_size: the size of the shard, passed to :class:`Pool`
       rbd_*: other RBD-related :class:`Pool` arguments
       throttle_*: :class:`Throttler` arguments
@@ -171,7 +171,7 @@ class ROShardCreator:
             factor=2,
             max_duration=60,
             message="Waiting for RBD image mapping",
-        ),
+        )(),
         **kwargs,
     ):
         self.pool = Pool.from_kwargs(**kwargs)
