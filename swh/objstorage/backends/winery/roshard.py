@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2022  The Software Heritage developers
+# Copyright (C) 2021-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -22,15 +22,28 @@ DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
 
 
 class Pool(object):
+    """Manage a Ceph RBD pool for Winery shards.
+
+    Arguments:
+      shard_max_size: max size of shard contents
+      rbd_use_sudo: whether to use sudo for rbd commands
+      rbd_pool_name: name of the pool used for RBD images (metadata)
+      rbd_data_pool_name: name of the pool used for RBD images (data)
+      rbd_image_features_unsupported: features not supported by the kernel
+        mounting the rbd images
+    """
+
     def __init__(
         self,
         shard_max_size: int,
+        rbd_use_sudo: bool = True,
         rbd_pool_name: str = "shards",
         rbd_data_pool_name: Optional[str] = None,
         rbd_image_features_unsupported: Tuple[
             str, ...
         ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     ) -> None:
+        self.use_sudo = rbd_use_sudo
         self.pool_name = rbd_pool_name
         self.data_pool_name = rbd_data_pool_name or f"{self.pool_name}-data"
         self.features_unsupported = rbd_image_features_unsupported
@@ -38,6 +51,7 @@ class Pool(object):
 
     POOL_CONFIG: Tuple[str, ...] = (
         "shard_max_size",
+        "rbd_use_sudo",
         "rbd_pool_name",
         "rbd_data_pool_name",
         "rbd_image_features_unsupported",
@@ -45,6 +59,7 @@ class Pool(object):
 
     @classmethod
     def from_kwargs(cls, **kwargs) -> "Pool":
+        """Create a Pool from a set of arbitrary keyword arguments"""
         return cls(**{k: kwargs[k] for k in cls.POOL_CONFIG if k in kwargs})
 
     def run(self, *cmd: str) -> Iterable[str]:
@@ -55,17 +70,18 @@ class Pool(object):
         Raises: CalledProcessError if the command doesn't exit with exit code 0.
         """
 
+        sudo = ("sudo",) if self.use_sudo else ()
+        cmd = sudo + cmd
+
         logger.info(" ".join(repr(item) if " " in item else item for item in cmd))
         result = subprocess.check_output(cmd, encoding="utf-8", stderr=subprocess.PIPE)
 
         return result.splitlines()
 
     def rbd(self, *arguments: str) -> Iterable[str]:
-        """Run sudo rbd with the given arguments"""
+        """Run rbd with the given arguments"""
 
-        cli = ["sudo", "rbd", f"--pool={self.pool_name}", *arguments]
-
-        return self.run(*cli)
+        return self.run("rbd", f"--pool={self.pool_name}", *arguments)
 
     def image_list(self):
         try:
@@ -98,7 +114,7 @@ class Pool(object):
 
     def image_map(self, image, options):
         self.rbd("device", "map", "-o", options, image)
-        self.run("sudo", "chmod", "777", self.image_path(image))
+        self.run("chmod", "777", self.image_path(image))
 
     def image_remap_ro(self, image):
         self.image_unmap(image)

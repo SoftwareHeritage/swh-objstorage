@@ -226,6 +226,7 @@ def shard_packer(
     rbd_image_features_unsupported: Tuple[
         str, ...
     ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    rbd_use_sudo: bool = True,
     output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop_packing,
     wait_for_shard: Callable[[], None] = sleep_exponential(
@@ -245,7 +246,7 @@ def shard_packer(
       shard_max_size: Max size of a shard (used to size new shards)
       throttle_read: reads per second
       throttle_write: writes per second
-      rbd_pool_name: name of the rbd pool
+      rbd_*: passed directly to :class:`roshard.Pool`
       output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
       wait_for_shard: callback called when no shards are available to be packed
@@ -273,6 +274,7 @@ def shard_packer(
             shared_base=base,
             throttle_read=throttle_read,
             throttle_write=throttle_write,
+            rbd_use_sudo=rbd_use_sudo,
             rbd_pool_name=rbd_pool_name,
             rbd_data_pool_name=rbd_data_pool_name,
             rbd_image_features_unsupported=rbd_image_features_unsupported,

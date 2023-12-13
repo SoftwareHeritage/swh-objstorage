@@ -33,6 +33,7 @@ class PoolHelper(Pool):
     def __init__(
         self,
         shard_max_size: int,
+        rbd_use_sudo: bool = True,
         rbd_pool_name: str = "test-shards",
         rbd_data_pool_name: Optional[str] = None,
         rbd_image_features_unsupported: Tuple[
@@ -43,6 +44,7 @@ class PoolHelper(Pool):
     ):
         super().__init__(
             shard_max_size=shard_max_size,
+            rbd_use_sudo=rbd_use_sudo,
             rbd_pool_name=rbd_pool_name,
             rbd_data_pool_name=rbd_data_pool_name,
             rbd_image_features_unsupported=rbd_image_features_unsupported,
@@ -67,11 +69,9 @@ class PoolHelper(Pool):
     )
 
     def ceph(self, *arguments) -> Iterable[str]:
-        """Run sudo ceph with the given arguments"""
+        """Run ceph with the given arguments"""
 
-        cli = ["sudo", "ceph", *arguments]
-
-        return self.run(*cli)
+        return self.run("ceph", *arguments)
 
     def image_delete(self, image):
         self.image_unmap(image)
