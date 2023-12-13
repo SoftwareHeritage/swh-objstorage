@@ -112,7 +112,7 @@ class WineryReader(WineryBase):
         return content
 
 
-def pack(shard, shared_base=None, **kwargs):
+def pack(shard, shared_base=None, clean_immediately=False, **kwargs):
     stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
 
@@ -138,18 +138,35 @@ def pack(shard, shared_base=None, **kwargs):
         uninit_base = True
     shared_base.shard_packing_ends(shard)
     rw.uninit()
-
-    # TODO: wait for all readers to have mapped the shard read-only
-    rw.drop()
-    shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    if clean_immediately:
+        cleanup_rw_shard(shard, shared_base=shared_base, **kwargs)
     if uninit_base:
         shared_base.uninit()
+    return True
+
+
+def cleanup_rw_shard(shard, shared_base=None, **kwargs):
+    rw = RWShard(shard, **{"shard_max_size": 0, **kwargs})
+
+    uninit_base = False
+    try:
+        if not shared_base:
+            shared_base = SharedBase(**kwargs)
+            uninit_base = True
+
+        rw.drop()
+        shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    finally:
+        if shared_base and uninit_base:
+            shared_base.uninit()
+
     return True
 
 
 class WineryWriter(WineryReader):
     def __init__(self, **kwargs):
         self.pack_immediately = kwargs.get("pack_immediately", True)
+        self.clean_immediately = kwargs.get("clean_immediately", True)
         super().__init__(**kwargs)
         self.shards_filled = []
         self.packers = []
@@ -192,7 +209,14 @@ class WineryWriter(WineryReader):
 
     def pack(self):
         self.base.shard_packing_starts(self.shard.name)
-        p = Process(target=pack, args=(self.shard.name,), kwargs=self.args)
+        p = Process(
+            target=pack,
+            kwargs={
+                "shard": self.shard.name,
+                "clean_immediately": self.clean_immediately,
+                **self.args,
+            },
+        )
         self.uninit()
         p.start()
         self.packers.append(p)
@@ -204,15 +228,15 @@ class WineryWriter(WineryReader):
             p.join()
 
 
-def never_stop_packing(_: int) -> bool:
+def never_stop(_: int) -> bool:
     return False
 
 
 def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
-    def stop_packing(shards_packed: int):
+    def stop(shards_packed: int):
         return shards_packed >= max_shards_packed
 
-    return stop_packing
+    return stop
 
 
 def shard_packer(
@@ -235,7 +259,7 @@ def shard_packer(
         message="Waiting for RBD image mapping",
     ),
     output_dir: Optional[str] = None,
-    stop_packing: Callable[[int], bool] = never_stop_packing,
+    stop_packing: Callable[[int], bool] = never_stop,
     wait_for_shard_factory: Callable[[], Callable[[], None]] = sleep_exponential(
         min_duration=5,
         factor=2,
@@ -299,3 +323,59 @@ def shard_packer(
         wait_for_shard = wait_for_shard_factory()
 
     return shards_packed
+
+
+def rw_shard_cleaner(
+    base_dsn: str,
+    shard_dsn: str,
+    min_mapped_hosts: int,
+    stop_cleaning: Callable[[int], bool] = never_stop,
+    wait_for_shard_factory: Callable[[], Callable[[], None]] = sleep_exponential(
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="No shards to clean up",
+    ),
+) -> int:
+    """Clean up RW shards until the `stop_cleaning` function returns True.
+
+    When no shards are available for packing, call the `wait_for_shard` function.
+
+    Arguments:
+      base_dsn: PostgreSQL dsn for the shared database
+      shard_dsn: PostgreSQL dsn for the individual shard databases
+      min_mapped_hosts: how many hosts should have mapped the image read-only before
+        cleaning it
+      stop_cleaning: callback to determine whether the cleaner should exit
+      wait_for_shard_factory: callback called when no shards are available to be cleaned
+    """
+    base = SharedBase(base_dsn=base_dsn)
+
+    wait_for_shard = wait_for_shard_factory()
+    shards_cleaned = 0
+    while not stop_cleaning(shards_cleaned):
+        shard_to_clean = base.lock_one_shard(
+            current_state=ShardState.PACKED,
+            new_state=ShardState.CLEANING,
+            min_mapped_hosts=min_mapped_hosts,
+        )
+
+        if not shard_to_clean:
+            wait_for_shard()
+            continue
+
+        name, _ = shard_to_clean
+        logger.info("rw_shard_cleaner: Locked shard %s to clean", name)
+
+        ret = cleanup_rw_shard(
+            name,
+            base_dsn=base_dsn,
+            shard_dsn=shard_dsn,
+            shared_base=base,
+        )
+        if not ret:
+            raise ValueError("Cleaning shard %s failed" % name)
+        shards_cleaned += 1
+        wait_for_shard = wait_for_shard_factory()
+
+    return shards_cleaned

@@ -16,7 +16,9 @@ import pytest
 from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import (
+    cleanup_rw_shard,
     pack,
+    rw_shard_cleaner,
     shard_packer,
     stop_after_shards,
 )
@@ -38,6 +40,7 @@ from .winery_benchmark import (
     PackWorker,
     RBDWorker,
     ROWorker,
+    RWShardCleanerWorker,
     RWWorker,
     WorkerKind,
     work,
@@ -232,8 +235,11 @@ def test_winery_pack(winery, ceph_pool):
     winery.add(content=content, obj_id=obj_id)
     winery.base.set_shard_state(ShardState.FULL)
     winery.base.shard_packing_starts(shard)
-    assert pack(shard, **winery.args)
 
+    assert pack(shard, **winery.args)
+    assert winery.base.get_shard_state(shard) == ShardState.PACKED
+
+    assert cleanup_rw_shard(shard, **winery.args)
     assert winery.base.get_shard_state(shard) == ShardState.READONLY
 
 
@@ -342,6 +348,24 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
     shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
     assert shard_counts == {
         ShardState.FULL: 3,
+        ShardState.PACKED: 1,
+        ShardState.WRITING: 1,
+    }
+
+    # Clean up the RW shard for the packed one
+    assert (
+        rw_shard_cleaner(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            min_mapped_hosts=0,
+            stop_cleaning=stop_after_shards(1),
+        )
+        == 1
+    )
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {
+        ShardState.FULL: 3,
         ShardState.READONLY: 1,
         ShardState.WRITING: 1,
     }
@@ -356,6 +380,24 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(3),
             rbd_pool_name=ceph_pool.pool_name,
+        )
+        == 3
+    )
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {
+        ShardState.PACKED: 3,
+        ShardState.READONLY: 1,
+        ShardState.WRITING: 1,
+    }
+
+    # Clean up the RW shard for the packed one
+    assert (
+        rw_shard_cleaner(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            min_mapped_hosts=0,
+            stop_cleaning=stop_after_shards(3),
         )
         == 3
     )
@@ -403,6 +445,21 @@ def test_winery_standalone_packer_never_stop_packing(
             throttle_write=200 * 1024 * 1024,
             wait_for_shard_factory=lambda: wait_five_times,
             rbd_pool_name=ceph_pool.pool_name,
+        )
+
+    assert called == 5
+
+    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    assert shard_counts == {ShardState.PACKED: 4, ShardState.WRITING: 1}
+
+    called = 0
+
+    with pytest.raises(NoShardLeft):
+        rw_shard_cleaner(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            min_mapped_hosts=0,
+            wait_for_shard_factory=lambda: wait_five_times,
         )
 
     assert called == 5
@@ -485,6 +542,18 @@ def test_winery_bench_work_rbd(storage, ceph_pool):
         "rbd_pool_name": ceph_pool.pool_name,
     }
     assert work("rbd", storage, {"rbd": rbd_args}) == "rbd"
+
+
+@pytest.mark.shard_max_size(10 * 1024 * 1024)
+def test_winery_bench_work_rw_shard_cleaner(storage):
+    rbd_args = {
+        "base_dsn": storage.winery.args["base_dsn"],
+        "shard_dsn": storage.winery.args["shard_dsn"],
+    }
+    assert (
+        work("rw_shard_cleaner", storage, {"rw_shard_cleaner": rbd_args})
+        == "rw_shard_cleaner"
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -582,6 +651,10 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
             "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
             "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
         },
+        "rw_shard_cleaner": {
+            "base_dsn": postgresql_dsn,
+            "shard_dsn": postgresql_dsn,
+        },
         "rbd": {
             "base_dsn": postgresql_dsn,
             "shard_max_size": shard_max_size,
@@ -593,6 +666,7 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     if not pack_immediately:
         worker_args["rw"] = {"block_until_packed": False}
         workers_per_kind["pack"] = pytestconfig.getoption("--winery-bench-pack-workers")
+        workers_per_kind["rw_shard_cleaner"] = workers_per_kind["pack"]
         workers_per_kind["rbd"] = 1
 
     return WineryBenchOptions(
@@ -631,10 +705,19 @@ def test_winery_bench_fake(bench_options, mocker):
             logger.info("running rbd for %s", bench_options.duration)
             return "rbd"
 
+    class _RWShardCleanerWorker(RWShardCleanerWorker):
+        def run(self):
+            logger.info("running rbd for %s", bench_options.duration)
+            return "rbd"
+
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.PackWorker", _PackWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RBDWorker", _RBDWorker)
+    mocker.patch(
+        "swh.objstorage.tests.winery_benchmark.RWShardCleanerWorker",
+        _RWShardCleanerWorker,
+    )
     mocker.patch(
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )

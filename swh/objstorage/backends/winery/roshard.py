@@ -191,24 +191,10 @@ class Pool(object):
                         shard_state.name,
                         shard_name,
                     )
-                    try:
-                        self.image_remap_ro(shard_name)
-                    except subprocess.CalledProcessError as exc:
-                        if exc.returncode == 16:
-                            logger.warning(
-                                "Could not remap %s shard %s RBD image read-only yet: %s",
-                                shard_state.name,
-                                shard_name,
-                                exc.stderr,
-                            )
-                        else:
-                            raise
-                    else:
-                        base.record_shard_mapped(
-                            name=shard_name, host=socket.gethostname()
-                        )
-                        mapped_images[shard_name] = "ro"
-                        did_something = True
+                    self.image_remap_ro(shard_name)
+                    base.record_shard_mapped(name=shard_name, host=socket.gethostname())
+                    mapped_images[shard_name] = "ro"
+                    did_something = True
                 elif manage_rw_images:
                     if os.path.exists(self.image_path(shard_name)):
                         # Image already mapped, nothing to do

@@ -19,6 +19,7 @@ from swh.objstorage.backends.winery.objstorage import (
     WineryObjStorage,
     WineryReader,
     WineryWriter,
+    rw_shard_cleaner,
     shard_packer,
 )
 from swh.objstorage.backends.winery.roshard import Pool
@@ -29,7 +30,7 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
-WorkerKind = Literal["ro", "rw", "pack", "rbd"]
+WorkerKind = Literal["ro", "rw", "pack", "rbd", "rw_shard_cleaner"]
 
 
 def work(
@@ -55,6 +56,8 @@ def work(
         return PackWorker(**kind_args).run()
     elif kind == "rbd":
         return RBDWorker(**kind_args).run()
+    elif kind == "rw_shard_cleaner":
+        return RWShardCleanerWorker(**kind_args).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -156,6 +159,39 @@ class RBDWorker:
             stop_running=self.stop_running,
         )
         return "rbd"
+
+
+class RWShardCleanerWorker:
+    def __init__(
+        self,
+        base_dsn: str,
+        shard_dsn: str,
+        min_mapped_hosts: int = 1,
+        duration: int = 10,
+    ):
+        self.base_dsn = base_dsn
+        self.shard_dsn = shard_dsn
+        self.min_mapped_hosts = min_mapped_hosts
+        self.duration = duration
+        self.started = time.monotonic()
+        self.waited = 0
+
+    def stop_cleaning(self, num_cleaned):
+        return num_cleaned >= 1 or self.waited > 5
+
+    def wait_for_shard(self):
+        time.sleep(1)
+        self.waited += 1
+
+    def run(self) -> Literal["rw_shard_cleaner"]:
+        rw_shard_cleaner(
+            base_dsn=self.base_dsn,
+            shard_dsn=self.shard_dsn,
+            min_mapped_hosts=self.min_mapped_hosts,
+            stop_cleaning=self.stop_cleaning,
+            wait_for_shard_factory=lambda: self.wait_for_shard,
+        )
+        return "rw_shard_cleaner"
 
 
 class ROWorker(Worker):
