@@ -437,7 +437,7 @@ def test_winery_ceph_pool(needs_ceph):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work(storage, ceph_pool, tmpdir):
+def test_winery_bench_work_ro_rw(storage, ceph_pool, tmpdir):
     #
     # rw worker creates a shard
     #
@@ -453,6 +453,19 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     #
     args = {**storage.winery.args, "readonly": True}
     assert work("ro", args, {"ro": {"max_request": 1}}) == "ro"
+
+
+@pytest.mark.shard_max_size(10 * 1024 * 1024)
+def test_winery_bench_work_pack(storage, ceph_pool):
+    pack_args = {
+        "base_dsn": storage.winery.args["base_dsn"],
+        "shard_dsn": storage.winery.args["shard_dsn"],
+        "shard_max_size": storage.winery.args["shard_max_size"],
+        "throttle_read": storage.winery.args["throttle_read"],
+        "throttle_write": storage.winery.args["throttle_write"],
+        "rbd_pool_name": ceph_pool.pool_name,
+    }
+    assert work("pack", storage, {"pack": pack_args}) == "pack"
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
