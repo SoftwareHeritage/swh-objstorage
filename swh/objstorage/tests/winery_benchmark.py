@@ -255,12 +255,13 @@ class Bench(object):
         self.duration = duration
         self.workers_per_kind = workers_per_kind
         self.worker_args = worker_args or {}
+        self.start = 0
 
     def timer_start(self):
-        self.start = time.time()
+        self.start = time.monotonic()
 
     def timeout(self) -> bool:
-        return time.time() - self.start > self.duration
+        return time.monotonic() - self.start > self.duration
 
     async def run(self) -> int:
         self.timer_start()
@@ -272,14 +273,14 @@ class Bench(object):
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=workers_count
         ) as executor:
-            logger.info("Bench.run: running")
+            logger.info("Running winery benchmark")
 
             self.count = 0
             workers: "Set[asyncio.Future[WorkerKind]]" = set()
 
             def create_worker(kind: WorkerKind) -> "asyncio.Future[WorkerKind]":
                 self.count += 1
-                logger.info("Bench.run: launched %s worker number %s", kind, self.count)
+                logger.info("launched %s worker number %s", kind, self.count)
                 return loop.run_in_executor(
                     executor, work, kind, self.storage_config, self.worker_args
                 )
@@ -289,7 +290,12 @@ class Bench(object):
                     workers.add(create_worker(kind))
 
             while len(workers) > 0:
-                logger.info("Bench.run: waiting for %s workers", len(workers))
+                logger.info(
+                    "Waiting for %s workers",
+                    ", ".join(
+                        f"{v} {k}" for k, v in self.workers_per_kind.items() if v
+                    ),
+                )
                 current = workers
                 done, pending = await asyncio.wait(
                     current, return_when=asyncio.FIRST_COMPLETED
@@ -307,11 +313,14 @@ class Bench(object):
                         for exc in exceptions:
                             logger.error("Worker raised an exception", exc_info=exc)
                         raise exceptions[0]
+
                 for task in done:
                     kind = task.result()
-                    logger.info("Bench.run: worker %s complete", kind)
+                    logger.info("worker %s complete", kind)
                     if not self.timeout():
                         workers.add(create_worker(kind))
+                    else:
+                        self.workers_per_kind[kind] -= 1
 
             logger.info("Bench.run: finished")
 
