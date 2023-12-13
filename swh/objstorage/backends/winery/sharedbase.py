@@ -31,8 +31,12 @@ class ShardState(Enum):
         return self not in {self.STANDBY, self.FULL}
 
     @property
-    def readonly_available(self):
+    def image_available(self):
         return self in {self.PACKED, self.READONLY}
+
+    @property
+    def readonly(self):
+        return self is self.READONLY
 
 
 class SharedBase(Database):

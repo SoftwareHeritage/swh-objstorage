@@ -450,7 +450,7 @@ def test_winery_bench_work(storage, ceph_pool, tmpdir):
     assert work("rw", storage) == "rw"
     shards_info = dict(storage.winery.base.list_shards())
     assert len(shards_info) == 2
-    assert shards_info[locked_shard].readonly_available
+    assert shards_info[locked_shard].image_available
     #
     # ro worker reads a shard
     #

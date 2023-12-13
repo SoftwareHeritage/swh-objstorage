@@ -100,7 +100,7 @@ class WineryReader(WineryBase):
         if shard_info is None:
             raise exc.ObjNotFoundError(obj_id)
         name, state = shard_info
-        if state.readonly_available:
+        if state.readonly:
             shard = self.roshard(name)
             content = shard.get(obj_id)
             del shard
