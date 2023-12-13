@@ -34,7 +34,7 @@ from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
 
 from .winery_benchmark import Bench, PackWorker, ROWorker, RWWorker, WorkerKind, work
-from .winery_testing_helpers import PoolHelper, SharedBaseHelper
+from .winery_testing_helpers import PoolHelper
 
 logger = logging.getLogger(__name__)
 
@@ -156,19 +156,17 @@ def test_winery_sharedbase(winery):
     assert id1 is not None
     assert id1 == base.locked_shard_id
 
-    helper = SharedBaseHelper(winery.base)
-
-    assert helper.get_shard_info_by_name(shard1) is ShardState.WRITING
+    assert base.get_shard_state(shard1) == ShardState.WRITING
 
     winery.base.uninit()
 
     assert winery.base._locked_shard is None
-    assert helper.get_shard_info_by_name(shard1) is ShardState.STANDBY
+    assert base.get_shard_state(shard1) == ShardState.STANDBY
 
     shard2 = winery.base.locked_shard
 
     assert shard1 == shard2, "Locked a different shard?"
-    assert helper.get_shard_info_by_name(shard1) is ShardState.WRITING
+    assert base.get_shard_state(shard1) == ShardState.WRITING
 
 
 def test_winery_add_get(winery):
@@ -209,7 +207,13 @@ def test_winery_delete(storage):
 
 def test_winery_get_shard_info(winery):
     assert winery.base.get_shard_info(1234) is None
-    assert SharedBaseHelper(winery.base).get_shard_info_by_name("nothing") is None
+    assert winery.base.get_shard_state("nothing") is None
+
+
+def test_winery_base_record_shard_mapped(winery):
+    assert {"test"} == winery.base.record_shard_mapped("test")
+    assert {"test"} == winery.base.record_shard_mapped("test")
+    assert {"test", "test2"} == winery.base.record_shard_mapped("test2")
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -222,10 +226,7 @@ def test_winery_pack(winery, ceph_pool):
     winery.base.shard_packing_starts(shard)
     assert pack(shard, **winery.args)
 
-    assert (
-        SharedBaseHelper(winery.base).get_shard_info_by_name(shard)
-        is ShardState.READONLY
-    )
+    assert winery.base.get_shard_state(shard) == ShardState.READONLY
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
@@ -244,9 +245,7 @@ def test_winery_writer_pack_immediately_true(ceph_pool, storage):
 
     assert storage.winery.base.locked_shard != shard
 
-    shard_info = SharedBaseHelper(storage.winery.base).get_shard_info_by_name(shard)
-
-    assert shard_info is ShardState.READONLY
+    assert storage.winery.base.get_shard_state(shard) == ShardState.READONLY
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
@@ -262,9 +261,7 @@ def test_winery_writer_pack_immediately_false(storage):
     assert storage.winery.base.locked_shard != shard
     assert not storage.winery.packers
 
-    shard_info = SharedBaseHelper(storage.winery.base).get_shard_info_by_name(shard)
-
-    assert shard_info is ShardState.FULL
+    assert storage.winery.base.get_shard_state(shard) == ShardState.FULL
 
 
 @pytest.mark.parametrize(

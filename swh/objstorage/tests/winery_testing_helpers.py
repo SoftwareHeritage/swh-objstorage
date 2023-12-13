@@ -12,22 +12,8 @@ from swh.objstorage.backends.winery.roshard import (
     DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     Pool,
 )
-from swh.objstorage.backends.winery.sharedbase import ShardState
 
 logger = logging.getLogger(__name__)
-
-
-class SharedBaseHelper:
-    def __init__(self, sharedbase):
-        self.sharedbase = sharedbase
-
-    def get_shard_info_by_name(self, name):
-        with self.sharedbase.db.cursor() as c:
-            c.execute("SELECT state FROM shards WHERE name = %s", (name,))
-            row = c.fetchone()
-            if not row:
-                return None
-            return ShardState(row[0])
 
 
 DEFAULT_ERASURE_CODE_PROFILE = {
