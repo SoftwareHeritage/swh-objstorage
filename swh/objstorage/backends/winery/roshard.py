@@ -8,10 +8,11 @@ import math
 import os.path
 import subprocess
 from types import TracebackType
-from typing import Iterable, Optional, Tuple, Type
+from typing import Callable, Iterable, Optional, Tuple, Type
 
 from swh.perfecthash import Shard, ShardCreator
 
+from .sleep import sleep_exponential
 from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
@@ -147,15 +148,47 @@ class ROShard:
 
 
 class ROShardCreator:
-    def __init__(self, name: str, count: int, **kwargs):
+    """Helper for Read-Only shard creation.
+
+    Arguments:
+      name: Name of the shard to be initialized
+      count: Number of objects to provision in the shard
+      rbd_create_images: whether the ROShardCreator should create the rbd
+        image, or delegate to the rbd_shard_manager
+      wait_for_shard: function called when waiting for a shard to be mapped
+      shard_max_size: the size of the shard, passed to :class:`Pool`
+      rbd_*: other RBD-related :class:`Pool` arguments
+      throttle_*: :class:`Throttler` arguments
+    """
+
+    def __init__(
+        self,
+        name: str,
+        count: int,
+        rbd_create_images: bool = True,
+        rbd_wait_for_image: Callable[[], None] = sleep_exponential(
+            min_duration=5,
+            factor=2,
+            max_duration=60,
+            message="Waiting for RBD image mapping",
+        ),
+        **kwargs,
+    ):
         self.pool = Pool.from_kwargs(**kwargs)
         self.throttler = Throttler(**kwargs)
         self.name = name
         self.count = count
         self.path = self.pool.image_path(self.name)
+        self.rbd_create_images = rbd_create_images
+        self.rbd_wait_for_image = rbd_wait_for_image
 
     def __enter__(self) -> "ROShardCreator":
-        self.pool.image_create(self.name)
+        if self.rbd_create_images:
+            self.pool.image_create(self.name)
+        else:
+            while not os.path.exists(self.path):
+                self.rbd_wait_for_image()
+
         self.shard = ShardCreator(self.path, self.count)
         logger.debug("ROShard %s: created", self.name)
         self.shard.__enter__()
@@ -168,7 +201,7 @@ class ROShardCreator:
         exc_tb: Optional[TracebackType],
     ) -> None:
         self.shard.__exit__(exc_type, exc_val, exc_tb)
-        if not exc_type:
+        if self.rbd_create_images and not exc_type:
             self.pool.image_remap_ro(self.name)
 
     def add(self, content, obj_id):
