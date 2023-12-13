@@ -3,15 +3,21 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 import logging
 import math
 import os.path
+import socket
 import subprocess
+import time
 from types import TracebackType
-from typing import Callable, Iterable, Optional, Tuple, Type
+from typing import Callable, Dict, Iterable, Optional, Tuple, Type
+
+from typing_extensions import Literal
 
 from swh.perfecthash import Shard, ShardCreator
 
+from .sharedbase import SharedBase
 from .sleep import sleep_exponential
 from .throttler import Throttler
 
@@ -84,6 +90,14 @@ class Pool(object):
 
         return self.run("rbd", f"--pool={self.pool_name}", *arguments)
 
+    def image_exists(self, image):
+        try:
+            self.rbd("info", image)
+        except subprocess.CalledProcessError:
+            return False
+        else:
+            return True
+
     def image_list(self):
         try:
             images = self.rbd("ls")
@@ -132,6 +146,100 @@ class Pool(object):
                     )
                 else:
                     raise
+
+    def manage_images(
+        self,
+        base_dsn: str,
+        manage_rw_images: bool,
+        wait_for_image_factory: Callable[[], Callable[[], None]],
+        stop_running: Callable[[], bool],
+    ) -> None:
+        """Manage RBD image creation and mapping automatically.
+
+        Arguments:
+          base_dsn: the DSN of the connection to the SharedBase
+          manage_rw_images: whether RW images should be created and mapped
+          wait_for_image_factory: returns a `wait_for_image` function which is called
+            at each loop iteration, if no images had to be mapped recently
+          stop_running: callback that returns True when the manager should stop running
+        """
+        base = SharedBase(base_dsn=base_dsn)
+
+        mapped_images: Dict[str, Literal["ro", "rw"]] = {}
+
+        wait_for_image = wait_for_image_factory()
+        while not stop_running():
+            did_something = False
+            logger.debug("Listing shards")
+            start = time.monotonic()
+            shards = list(base.list_shards())
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "Listed %d shards in %.02f seconds",
+                    len(shards),
+                    time.monotonic() - start,
+                )
+                logger.debug("Mapped images: %s", Counter(mapped_images.values()))
+
+            for shard_name, shard_state in shards:
+                mapped_state = mapped_images.get(shard_name)
+                if mapped_state == "ro":
+                    continue
+                elif shard_state.image_available:
+                    logger.debug(
+                        "Detected %s shard %s, mapping RBD image read-only",
+                        shard_state.name,
+                        shard_name,
+                    )
+                    try:
+                        self.image_remap_ro(shard_name)
+                    except subprocess.CalledProcessError as exc:
+                        if exc.returncode == 16:
+                            logger.warning(
+                                "Could not remap %s shard %s RBD image read-only yet: %s",
+                                shard_state.name,
+                                shard_name,
+                                exc.stderr,
+                            )
+                        else:
+                            raise
+                    else:
+                        base.record_shard_mapped(
+                            name=shard_name, host=socket.gethostname()
+                        )
+                        mapped_images[shard_name] = "ro"
+                        did_something = True
+                elif manage_rw_images:
+                    if os.path.exists(self.image_path(shard_name)):
+                        # Image already mapped, nothing to do
+                        pass
+                    elif not self.image_exists(shard_name):
+                        logger.info(
+                            "Detected %s shard %s, creating RBD image",
+                            shard_state.name,
+                            shard_name,
+                        )
+                        self.image_create(shard_name)
+                        did_something = True
+                    else:
+                        logger.warn(
+                            "Detected %s shard %s and RBD image exists, mapping read-write",
+                            shard_state.name,
+                            shard_name,
+                        )
+                        self.image_map(shard_name, "rw")
+                        did_something = True
+                    # Now the shard is mapped
+                    mapped_images[shard_name] = "rw"
+                else:
+                    logger.debug("%s shard %s, skipping", shard_state.name, shard_name)
+
+            if not did_something:
+                # Sleep using the current value
+                wait_for_image()
+            else:
+                # Reset the sleep function
+                wait_for_image = wait_for_image_factory()
 
 
 class ROShard:

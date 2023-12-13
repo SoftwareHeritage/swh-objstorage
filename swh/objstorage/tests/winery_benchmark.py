@@ -21,6 +21,7 @@ from swh.objstorage.backends.winery.objstorage import (
     WineryWriter,
     shard_packer,
 )
+from swh.objstorage.backends.winery.roshard import Pool
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -28,7 +29,7 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
-WorkerKind = Literal["ro", "rw", "pack"]
+WorkerKind = Literal["ro", "rw", "pack", "rbd"]
 
 
 def work(
@@ -52,6 +53,8 @@ def work(
         return RWWorker(storage, **kind_args).run()
     elif kind == "pack":
         return PackWorker(**kind_args).run()
+    elif kind == "rbd":
+        return RBDWorker(**kind_args).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -68,6 +71,13 @@ class Worker:
         raise NotImplementedError
 
 
+def wait_factory():
+    def waiter():
+        time.sleep(1)
+
+    return waiter
+
+
 class PackWorker:
     def __init__(
         self,
@@ -76,6 +86,7 @@ class PackWorker:
         shard_max_size: int,
         throttle_read: int,
         throttle_write: int,
+        rbd_create_images: bool = True,
         rbd_pool_name: str = "shards",
         output_dir: Optional[str] = None,
     ):
@@ -85,14 +96,15 @@ class PackWorker:
         self.output_dir = output_dir
         self.throttle_read = throttle_read
         self.throttle_write = throttle_write
+        self.rbd_create_images = rbd_create_images
         self.rbd_pool_name = rbd_pool_name
         self.waited = 0
 
     def stop_packing(self, shards_count: int) -> bool:
-        return shards_count >= 1 or self.waited > 5
+        return shards_count >= 1 or self.waited > 60
 
     def wait_for_shard(self):
-        time.sleep(1)
+        time.sleep(0.1)
         self.waited += 1
 
     def run(self) -> Literal["pack"]:
@@ -103,11 +115,47 @@ class PackWorker:
             throttle_read=self.throttle_read,
             throttle_write=self.throttle_write,
             rbd_pool_name=self.rbd_pool_name,
+            rbd_create_images=self.rbd_create_images,
+            rbd_wait_for_image_factory=self.wait_for_shard,
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
             wait_for_shard_factory=lambda: self.wait_for_shard,
         )
         return "pack"
+
+
+class RBDWorker:
+    def __init__(
+        self,
+        base_dsn: str,
+        rbd_pool_name: str,
+        shard_max_size: int,
+        duration: int = 10,
+    ):
+        self.base_dsn = base_dsn
+        self.pool = Pool(
+            shard_max_size=shard_max_size,
+            rbd_pool_name=rbd_pool_name,
+        )
+        self.duration = duration
+        self.started = time.monotonic()
+        self.waited = 0
+
+    def wait_for_shard(self):
+        time.sleep(1)
+        self.waited += 1
+
+    def stop_running(self):
+        return time.monotonic() > self.started + self.duration or self.waited > 5
+
+    def run(self) -> Literal["rbd"]:
+        self.pool.manage_images(
+            base_dsn=self.base_dsn,
+            manage_rw_images=True,
+            wait_for_image_factory=lambda: self.wait_for_shard,
+            stop_running=self.stop_running,
+        )
+        return "rbd"
 
 
 class ROWorker(Worker):

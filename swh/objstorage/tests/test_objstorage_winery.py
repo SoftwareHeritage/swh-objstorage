@@ -33,7 +33,15 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
 
-from .winery_benchmark import Bench, PackWorker, ROWorker, RWWorker, WorkerKind, work
+from .winery_benchmark import (
+    Bench,
+    PackWorker,
+    RBDWorker,
+    ROWorker,
+    RWWorker,
+    WorkerKind,
+    work,
+)
 from .winery_testing_helpers import PoolHelper
 
 logger = logging.getLogger(__name__)
@@ -469,6 +477,17 @@ def test_winery_bench_work_pack(storage, ceph_pool):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
+def test_winery_bench_work_rbd(storage, ceph_pool):
+    rbd_args = {
+        "base_dsn": storage.winery.args["base_dsn"],
+        "shard_max_size": storage.winery.args["shard_max_size"],
+        "duration": 1,
+        "rbd_pool_name": ceph_pool.pool_name,
+    }
+    assert work("rbd", storage, {"rbd": rbd_args}) == "rbd"
+
+
+@pytest.mark.shard_max_size(10 * 1024 * 1024)
 @pytest.mark.pack_immediately(False)
 def test_winery_bench_rw_object_limit(storage):
     object_limit = 15
@@ -531,6 +550,8 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     output_dir = pytestconfig.getoption("--winery-bench-output-directory")
     shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
     pack_immediately = pytestconfig.getoption("--winery-bench-pack-immediately")
+    duration = pytestconfig.getoption("--winery-bench-duration")
+
     storage_config = {
         "output_dir": output_dir,
         "shard_max_size": shard_max_size,
@@ -556,17 +577,23 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
             "shard_dsn": postgresql_dsn,
             "output_dir": output_dir,
             "shard_max_size": shard_max_size,
+            "rbd_create_images": False,
             "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
             "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
             "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
+        },
+        "rbd": {
+            "base_dsn": postgresql_dsn,
+            "shard_max_size": shard_max_size,
+            "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
+            "duration": duration,
         },
     }
 
     if not pack_immediately:
         worker_args["rw"] = {"block_until_packed": False}
         workers_per_kind["pack"] = pytestconfig.getoption("--winery-bench-pack-workers")
-
-    duration = pytestconfig.getoption("--winery-bench-duration")
+        workers_per_kind["rbd"] = 1
 
     return WineryBenchOptions(
         storage_config,
@@ -599,9 +626,15 @@ def test_winery_bench_fake(bench_options, mocker):
             logger.info("running pack for %s", bench_options.duration)
             return "pack"
 
+    class _RBDWorker(RBDWorker):
+        def run(self):
+            logger.info("running rbd for %s", bench_options.duration)
+            return "rbd"
+
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.PackWorker", _PackWorker)
+    mocker.patch("swh.objstorage.tests.winery_benchmark.RBDWorker", _RBDWorker)
     mocker.patch(
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )
