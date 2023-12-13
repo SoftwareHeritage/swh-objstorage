@@ -5,7 +5,6 @@
 
 import logging
 from multiprocessing import Process
-import time
 from typing import Callable, Optional, Tuple
 
 from typing_extensions import Literal
@@ -17,6 +16,7 @@ from swh.objstorage.objstorage import ObjStorage
 from .roshard import DEFAULT_IMAGE_FEATURES_UNSUPPORTED, ROShard, ROShardCreator
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
+from .sleep import sleep_exponential
 from .stats import Stats
 
 logger = logging.getLogger(__name__)
@@ -213,26 +213,6 @@ def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
     return stop_packing
 
 
-def sleep_exponential(min_duration: float, factor: float, max_duration: float):
-    """Return a function that sleeps `min_duration`,
-    then increases that by `factor` at every call, up to `max_duration`."""
-    duration = min(min_duration, max_duration)
-
-    if duration <= 0:
-        raise ValueError("Cannot sleep for a negative amount of time")
-
-    def sleep():
-        nonlocal duration
-        logger.debug("No shards to pack, waiting for %s", duration)
-        time.sleep(duration)
-
-        duration *= factor
-        if duration >= max_duration:
-            duration = max_duration
-
-    return sleep
-
-
 def shard_packer(
     base_dsn: str,
     shard_dsn: str,
@@ -247,7 +227,10 @@ def shard_packer(
     output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop_packing,
     wait_for_shard: Callable[[], None] = sleep_exponential(
-        min_duration=5, factor=2, max_duration=60
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="No shards to pack",
     ),
 ) -> int:
     """Pack shards until the `stop_packing` function returns True.

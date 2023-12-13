@@ -18,10 +18,10 @@ from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import (
     pack,
     shard_packer,
-    sleep_exponential,
     stop_after_shards,
 )
 from swh.objstorage.backends.winery.sharedbase import ShardState
+from swh.objstorage.backends.winery.sleep import sleep_exponential
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
     BandwidthCalculator,
@@ -283,7 +283,12 @@ def test_winery_sleep_exponential(mocker, min_duration, factor, max_duration, ex
 
     mocker.patch("time.sleep", mocked_sleep)
 
-    sleep = sleep_exponential(min_duration, factor, max_duration)
+    sleep = sleep_exponential(
+        min_duration=min_duration,
+        factor=factor,
+        max_duration=max_duration,
+        message="Message",
+    )
 
     for _ in expected:
         sleep()
@@ -293,7 +298,9 @@ def test_winery_sleep_exponential(mocker, min_duration, factor, max_duration, ex
 
 def test_winery_sleep_exponential_negative():
     with pytest.raises(ValueError, match="negative amount"):
-        _ = sleep_exponential(-1, 2, 10)
+        _ = sleep_exponential(
+            min_duration=-1, factor=2, max_duration=10, message="Message"
+        )
 
 
 @pytest.mark.shard_max_size(1024)
