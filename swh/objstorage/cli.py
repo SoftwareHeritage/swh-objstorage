@@ -37,7 +37,9 @@ def objstorage_cli_group(ctx, config_file):
 
     if config_file:
         if not os.path.exists(config_file):
-            raise ValueError("%s does not exist" % config_file)
+            raise click.ClickException(
+                "Configuration file %s does not exist" % config_file
+            )
         conf = config.read(config_file)
     else:
         conf = {}
