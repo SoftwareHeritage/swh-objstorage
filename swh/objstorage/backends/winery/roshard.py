@@ -129,7 +129,6 @@ class Pool(object):
 
     def image_map(self, image, options):
         self.rbd("device", "map", "-o", options, image)
-        self.run("chmod", "777", self.image_path(image))
 
     def image_remap_ro(self, image):
         self.image_unmap(image)
