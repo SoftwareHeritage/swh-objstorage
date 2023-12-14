@@ -59,21 +59,21 @@ def needs_ceph():
 
 
 @pytest.fixture
-def clobber_pool(request, pytestconfig):
+def remove_pool(request, pytestconfig):
     marker = request.node.get_closest_marker("use_benchmark_flags")
     if marker is None:
         return True
 
-    return pytestconfig.getoption("--winery-bench-clobber-pool")
+    return pytestconfig.getoption("--winery-bench-remove-pool")
 
 
 @pytest.fixture
-def clobber_images(request, pytestconfig):
+def remove_images(request, pytestconfig):
     marker = request.node.get_closest_marker("use_benchmark_flags")
     if marker is None:
         return True
 
-    return pytestconfig.getoption("--winery-bench-clobber-images")
+    return pytestconfig.getoption("--winery-bench-remove-images")
 
 
 @pytest.fixture
@@ -86,25 +86,25 @@ def rbd_pool_name(request, pytestconfig):
 
 
 @pytest.fixture
-def ceph_pool(clobber_pool, clobber_images, rbd_pool_name, needs_ceph):
+def ceph_pool(remove_pool, remove_images, rbd_pool_name, needs_ceph):
     pool = PoolHelper(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
-    if clobber_pool:
-        pool.clobber()
+    if remove_pool:
+        pool.remove()
         pool.pool_create()
     else:
-        logger.info("Not clobbering pool")
+        logger.info("Not removing pool")
 
     yield pool
 
-    if clobber_images or clobber_pool:
-        pool.images_clobber()
+    if remove_images or remove_pool:
+        pool.images_remove()
     else:
-        logger.info("Not clobbering images")
+        logger.info("Not removing images")
 
-    if clobber_pool:
-        pool.clobber()
+    if remove_pool:
+        pool.remove()
     else:
-        logger.info("Not clobbering pool")
+        logger.info("Not removing pool")
 
 
 @pytest.fixture
@@ -485,7 +485,7 @@ def test_winery_ceph_pool(needs_ceph):
     pool = PoolHelper(
         shard_max_size=10 * 1024 * 1024, rbd_pool_name="test-winery-ceph-pool"
     )
-    pool.clobber()
+    pool.remove()
     pool.pool_create()
     pool.image_create(name)
     p = pool.image_path(name)
@@ -495,9 +495,9 @@ def test_winery_ceph_pool(needs_ceph):
     assert open(p).read(len(something)) == something
     assert pool.image_list() == [name]
     pool.image_remap_ro(name)
-    pool.images_clobber()
+    pool.images_remove()
     assert pool.image_list() == []
-    pool.clobber()
+    pool.remove()
     assert pool.image_list() == []
 
 

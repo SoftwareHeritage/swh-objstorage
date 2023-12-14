@@ -29,16 +29,16 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--winery-bench-clobber-pool",
+        "--winery-bench-remove-pool",
         action=action,
-        help="Clobber Ceph pool before and after tests",
+        help="Remove Ceph pool before and after tests",
         default=default,
     )
 
     parser.addoption(
-        "--winery-bench-clobber-images",
+        "--winery-bench-remove-images",
         action=action,
-        help="Clobber Ceph images after tests",
+        help="Remove Ceph images after tests",
         default=default,
     )
 

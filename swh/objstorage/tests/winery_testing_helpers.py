@@ -73,27 +73,27 @@ class PoolHelper(Pool):
 
         return self.run("ceph", *arguments)
 
-    def image_delete(self, image):
+    def image_remove(self, image):
         self.image_unmap(image)
         self.rbd("remove", image)
 
-    def images_clobber(self):
+    def images_remove(self):
         for image in self.image_list():
             try:
-                self.image_delete(image)
+                self.image_remove(image)
             except CalledProcessError:
                 logger.error(
-                    "Could not clobber image %s, we'll try again in an atexit handler...",
+                    "Could not remove image %s, we'll try again in an atexit handler...",
                     image,
                 )
-                atexit.register(self.image_delete, image)
+                atexit.register(self.image_remove, image)
                 pass
 
-    def clobber(self):
-        self.images_clobber()
-        self.pool_clobber()
+    def remove(self):
+        self.images_remove()
+        self.pool_remove()
 
-    def pool_clobber(self):
+    def pool_remove(self):
         for pool in (self.pool_name, self.data_pool_name):
             self.ceph(
                 "osd",
