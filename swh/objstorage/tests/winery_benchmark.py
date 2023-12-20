@@ -6,6 +6,7 @@
 import asyncio
 import concurrent.futures
 import logging
+from multiprocessing import current_process
 import os
 import random
 import sys
@@ -37,11 +38,19 @@ def work(
     kind: WorkerKind,
     storage: Union[ObjStorageInterface, Dict[str, Any]],
     worker_args: Optional[Dict[WorkerKind, Any]] = None,
+    worker_id: int = 0,
 ) -> WorkerKind:
     if not worker_args:
         worker_args = {}
 
     kind_args = worker_args.get(kind, {})
+
+    process_name = f"Worker-{kind}-{worker_id}"
+    process = current_process()
+    if process and process.name != "MainProcess":
+        process.name = process_name
+
+    logger.info("Started process %s", process_name)
 
     if kind == "ro":
         if isinstance(storage, dict):
@@ -360,7 +369,12 @@ class Bench(object):
                 self.count += 1
                 logger.info("launched %s worker number %s", kind, self.count)
                 return loop.run_in_executor(
-                    executor, work, kind, self.storage_config, self.worker_args
+                    executor,
+                    work,
+                    kind,
+                    self.storage_config,
+                    self.worker_args,
+                    self.count,
                 )
 
             for kind, count in self.workers_per_kind.items():
