@@ -15,6 +15,7 @@ from swh.objstorage.objstorage import ObjStorage
 
 from .roshard import (
     DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    Pool,
     ROShard,
     ROShardCreator,
     ShardNotMapped,
@@ -56,7 +57,9 @@ class WineryObjStorage(ObjStorage):
         return self.winery.check(self._hash(obj_id))
 
     def delete(self, obj_id: ObjId):
-        raise PermissionError("Delete is not allowed.")
+        if not self.allow_delete:
+            raise PermissionError("Delete is not allowed.")
+        return self.winery.delete(obj_id)
 
     def _hash(self, obj_id: ObjId) -> bytes:
         if isinstance(obj_id, dict):
@@ -211,6 +214,27 @@ class WineryWriter(WineryReader):
                 # Switch shards
                 self.uninit()
                 self.init()
+
+    def delete(self, obj_id: ObjId):
+        shard_info = self.base.get(obj_id)
+        if shard_info is None:
+            raise exc.ObjNotFoundError(obj_id)
+        name, state = shard_info
+        # We only care about RWShard for now. ROShards will be
+        # taken care in a batch job.
+        if not state.image_available:
+            rwshard = self.rwshard(name)
+            try:
+                rwshard.delete(obj_id)
+            except KeyError:
+                logger.warning(
+                    "Shard %s does not seem to know about object %s, but we "
+                    "had an entry in SharedBase (which is going to "
+                    "be removed just now)",
+                    rwshard.name,
+                    obj_id,
+                )
+        self.base.delete(obj_id)
 
     def check(self, obj_id: ObjId) -> None:
         # load all shards packing == True and not locked (i.e. packer
@@ -392,3 +416,32 @@ def rw_shard_cleaner(
         shards_cleaned += 1
 
     return shards_cleaned
+
+
+def deleted_objects_cleaner(
+    base: SharedBase,
+    pool: Pool,
+    stop_running: Callable[[], bool],
+):
+    """Clean up deleted objects from RO shards and the shared database.
+
+    This requires the ability to map RBD images in read-write mode. Images will be
+    left mapped by this process as it is meant to be executed in a transient host
+    dedicated to this purpose.
+
+    Arguments:
+      base_dsn: PostgreSQL dsn for the shared database
+      pool: Ceph RBD pool for Winery shards
+      stop_running: callback that returns True when the manager should stop running
+    """
+    count = 0
+    with base.db.cursor() as cur:
+        for obj_id, shard_name, shard_state in base.deleted_objects(cur):
+            if stop_running():
+                break
+            if shard_state.readonly:
+                ROShard.delete(pool, shard_name, obj_id)
+            base.clean_delete_object(cur, obj_id)
+            count += 1
+    base.db.commit()
+    logger.info("Cleaned %d deleted objects", count)

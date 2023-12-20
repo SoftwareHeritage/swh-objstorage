@@ -83,6 +83,13 @@ class RWShard(Database):
             else:
                 return c.fetchone()[0].tobytes()
 
+    def delete(self, obj_id):
+        with self.db.cursor() as c:
+            c.execute("DELETE FROM objects WHERE key = %s", (obj_id,))
+            if c.rowcount == 0:
+                raise KeyError(obj_id)
+        self.db.commit()
+
     def all(self):
         with self.db.cursor() as c:
             c.execute("SELECT key,content FROM objects")

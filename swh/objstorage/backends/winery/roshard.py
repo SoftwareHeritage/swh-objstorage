@@ -292,6 +292,17 @@ class ROShard:
     def get(self, key):
         return self.throttler.throttle_get(self.shard.lookup, key)
 
+    @staticmethod
+    def delete(pool, shard_name, obj_id):
+        image_status = pool.image_mapped(shard_name)
+        if image_status == "ro":
+            raise PermissionError(
+                f"Cannot delete object from {shard_name}, mapped read-only"
+            )
+        if not image_status:
+            pool.image_map(shard_name, options="rw")
+        Shard.delete(pool.image_path(shard_name), obj_id)
+
 
 class ROShardCreator:
     """Helper for Read-Only shard creation.

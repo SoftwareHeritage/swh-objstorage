@@ -19,6 +19,7 @@ from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import (
     cleanup_rw_shard,
+    deleted_objects_cleaner,
     pack,
     rw_shard_cleaner,
     shard_packer,
@@ -266,9 +267,115 @@ def test_winery_add_and_pack(winery, mocker):
     assert packer.exitcode == 0
 
 
-def test_winery_delete(storage):
-    with pytest.raises(PermissionError):
-        storage.delete(None)
+def test_winery_delete_on_rwshard(winery):
+    shard = winery.base.locked_shard
+    content = b"SOMETHING"
+    obj_id = compute_hash(content, "sha256")
+    winery.add(content=content, obj_id=obj_id)
+    assert winery.base.locked_shard == shard
+    assert winery.get(obj_id) == content
+    winery.delete(obj_id)
+    with pytest.raises(exc.ObjNotFoundError):
+        winery.get(obj_id)
+
+
+@pytest.mark.shard_max_size(1)
+@pytest.mark.pack_immediately(True)
+def test_winery_delete_on_roshard(winery, file_backed_pool):
+    shard = winery.base.locked_shard
+    content = b"SOMETHING"
+    obj_id = compute_hash(content, "sha256")
+    winery.add(content=content, obj_id=obj_id)
+    assert winery.base.locked_shard != shard
+    assert winery.packers
+    for packer in winery.packers:
+        packer.join()
+    assert winery.get(obj_id) == content
+    # This will only mark as deleted in SharedBase
+    winery.delete(obj_id)
+    assert len(list(winery.base.deleted_objects())) == 1
+    # We still should not be able to access it
+    with pytest.raises(exc.ObjNotFoundError):
+        winery.get(obj_id)
+    # The content is still present in the roshard image at this point
+    image_path = file_backed_pool.image_path(shard)
+    with open(image_path, "rb") as image:
+        assert b"SOMETHING" in image.read()
+    # Perform cleanup
+    file_backed_pool.image_unmap(shard)
+    file_backed_pool.image_map(shard, "rw")
+    deleted_objects_cleaner(winery.base, file_backed_pool, stop_running=lambda: False)
+    assert len(list(winery.base.deleted_objects())) == 0
+    with open(image_path, "rb") as image:
+        assert b"SOMETHING" not in image.read()
+
+
+@pytest.mark.shard_max_size(20)
+@pytest.mark.pack_immediately(True)
+def test_winery_deleted_objects_cleaner_handles_exception(
+    winery, file_backed_pool, mocker
+):
+    from swh.objstorage.backends.winery import objstorage as winery_objstorage
+
+    from ..backends.winery.roshard import ROShard
+
+    # Add two objects
+    shard = winery.base.locked_shard
+    content1 = b"PINOT GRIS"
+    obj_id1 = compute_hash(content1, "sha256")
+    winery.add(content=content1, obj_id=obj_id1)
+    content2 = b"CHARDONNAY"
+    obj_id2 = compute_hash(content2, "sha256")
+    winery.add(content=content2, obj_id=obj_id2)
+
+    # This should be enough bytes to trigger packing
+    for packer in winery.packers:
+        packer.join()
+
+    # We should only have one roshard
+    assert len(file_backed_pool.image_list()) == 1
+
+    # This will only mark as deleted in SharedBase for the time being
+    winery.delete(obj_id1)
+    winery.delete(obj_id2)
+    assert len(list(winery.base.deleted_objects())) == 2
+
+    # The content is still present in the roshard image at this point
+    image_path = file_backed_pool.image_path(shard)
+
+    # Setup so we get an exception on the second object
+    already_called = False
+    orig_roshard_delete = ROShard.delete
+
+    def roshard_delete_side_effect(pool, shard_name, obj_id):
+        nonlocal already_called
+        print(already_called)
+        if already_called:
+            raise OSError("Unable to write to pool")
+        orig_roshard_delete(pool, shard_name, obj_id)
+        already_called = True
+        return None
+
+    mocker.patch.object(
+        winery_objstorage.ROShard, "delete", side_effect=roshard_delete_side_effect
+    )
+
+    # Let’s run the cleaner
+    file_backed_pool.image_unmap(shard)
+    file_backed_pool.image_map(shard, "rw")
+    with pytest.raises(OSError):
+        winery_objstorage.deleted_objects_cleaner(
+            winery.base, file_backed_pool, stop_running=lambda: False
+        )
+
+    # We should only have one remaining object to delete
+    assert len(list(winery.base.deleted_objects())) == 1
+
+    # We should have only the content of one of the objects still in the roshard
+    with open(image_path, "rb") as image:
+        image_content = image.read()
+        presences = [content1 in image_content, content2 in image_content]
+        assert sorted(presences) == [False, True]
 
 
 def test_winery_get_shard_info(winery):

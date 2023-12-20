@@ -43,6 +43,7 @@ class ShardState(Enum):
 class SignatureState(Enum):
     INFLIGHT = "inflight"
     PRESENT = "present"
+    DELETED = "deleted"
 
 
 class SharedBase(Database):
@@ -125,6 +126,14 @@ class SharedBase(Database):
         EXCEPTION
           WHEN undefined_column THEN NULL;
         END $$;
+        """,
+            """\
+        ALTER TYPE signature_state ADD VALUE IF NOT EXISTS 'deleted' AFTER 'present';
+        """,
+            """\
+        CREATE INDEX IF NOT EXISTS signature2shard_deleted
+            ON signature2shard(signature, shard)
+         WHERE state = 'deleted'
         """,
         ]
 
@@ -458,3 +467,27 @@ class SharedBase(Database):
                 (obj_id, self.locked_shard_id),
             )
         self.db.commit()
+
+    def delete(self, obj_id):
+        with self.db.cursor() as c:
+            c.execute(
+                "UPDATE signature2shard SET state = 'deleted' WHERE signature = %s",
+                (obj_id,),
+            )
+        self.db.commit()
+
+    def deleted_objects(self, cur=None) -> Iterator[Tuple[bytes, str, ShardState]]:
+        if not cur:
+            cur = self.db.cursor()
+        cur.execute(
+            """SELECT signature, shards.name, shards.state
+                 FROM signature2shard objs, shards
+                WHERE objs.state = 'deleted'
+                  AND shards.id = objs.shard
+            """
+        )
+        for signature, name, state in cur.fetchall():
+            yield bytes(signature), name, ShardState(state)
+
+    def clean_delete_object(self, cur, obj_id) -> None:
+        cur.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))

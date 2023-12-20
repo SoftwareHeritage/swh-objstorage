@@ -302,6 +302,56 @@ def winery_rw_shard_cleaner(
     logger.info("RW shard cleaner exiting, %d shards cleaned", ret)
 
 
+@winery.command("clean-deleted-objects")
+@click.pass_context
+def winery_clean_deleted_objects(ctx):
+    """Clean deleted objects from Winery"""
+    import signal
+
+    from swh.objstorage.backends.winery.objstorage import deleted_objects_cleaner
+    from swh.objstorage.backends.winery.roshard import (
+        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+        Pool,
+    )
+    from swh.objstorage.backends.winery.sharedbase import SharedBase
+
+    config = ctx.obj["config"]["objstorage"]
+    base_dsn = config["base_dsn"]
+    shard_max_size = config["shard_max_size"]
+    rbd_pool_name = config.get("rbd_pool_name", "shards")
+    rbd_data_pool_name = config.get("rbd_data_pool_name")
+    rbd_use_sudo = config.get("rbd_use_sudo", True)
+    rbd_image_features_unsupported = tuple(
+        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
+    )
+
+    stop_on_next_iteration = False
+
+    def stop_running() -> bool:
+        """Stop running when a signal is received, or when there's nothing to do."""
+        return stop_on_next_iteration
+
+    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+        nonlocal stop_on_next_iteration
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        stop_on_next_iteration = True
+
+    signal.signal(signal.SIGINT, set_signal_received)
+    signal.signal(signal.SIGTERM, set_signal_received)
+
+    base = SharedBase(base_dsn=base_dsn)
+
+    pool = Pool(
+        shard_max_size=shard_max_size,
+        rbd_pool_name=rbd_pool_name,
+        rbd_data_pool_name=rbd_data_pool_name,
+        rbd_use_sudo=rbd_use_sudo,
+        rbd_image_features_unsupported=rbd_image_features_unsupported,
+    )
+
+    deleted_objects_cleaner(base, pool, stop_running)
+
+
 @objstorage_cli_group.command("import")
 @click.argument("directory", required=True, nargs=-1)
 @click.pass_context
