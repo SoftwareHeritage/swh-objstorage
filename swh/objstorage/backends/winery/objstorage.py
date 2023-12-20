@@ -13,7 +13,12 @@ from swh.objstorage import exc
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
-from .roshard import DEFAULT_IMAGE_FEATURES_UNSUPPORTED, ROShard, ROShardCreator
+from .roshard import (
+    DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    ROShard,
+    ROShardCreator,
+    ShardNotMapped,
+)
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -81,15 +86,19 @@ class WineryReader(WineryBase):
         self.ro_shards = {}
         self.rw_shards = {}
 
-    def roshard(self, name):
+    def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
-            shard = ROShard(name, **self.args)
+            try:
+                shard = ROShard(name, **self.args)
+            except ShardNotMapped:
+                return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:
+                self.rw_shards[name].uninit()
                 del self.rw_shards[name]
         return self.ro_shards[name]
 
-    def rwshard(self, name):
+    def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
             shard = RWShard(name, **self.args)
             self.rw_shards[name] = shard
@@ -100,13 +109,14 @@ class WineryReader(WineryBase):
         if shard_info is None:
             raise exc.ObjNotFoundError(obj_id)
         name, state = shard_info
-        if state.readonly:
-            shard = self.roshard(name)
-            content = shard.get(obj_id)
-            del shard
-        else:
-            shard = self.rwshard(name)
-            content = shard.get(obj_id)
+        content: Optional[bytes] = None
+        if state.image_available:
+            roshard = self.roshard(name)
+            if roshard:
+                content = roshard.get(obj_id)
+        if content is None:
+            rwshard = self.rwshard(name)
+            content = rwshard.get(obj_id)
         if content is None:
             raise exc.ObjNotFoundError(obj_id)
         return content

@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
 
 
+class ShardNotMapped(Exception):
+    pass
+
+
 class Pool(object):
     """Manage a Ceph RBD pool for Winery shards.
 
@@ -259,6 +263,13 @@ class Pool(object):
 class ROShard:
     def __init__(self, name, **kwargs):
         self.pool = Pool.from_kwargs(**kwargs)
+        image_status = self.pool.image_mapped(name)
+
+        if image_status != "ro":
+            raise ShardNotMapped(
+                f"RBD image for {name} isn't mapped{' read-only' if image_status=='rw' else ''}"
+            )
+
         self.throttler = Throttler(**kwargs)
         self.name = name
         self.path = self.pool.image_path(self.name)
