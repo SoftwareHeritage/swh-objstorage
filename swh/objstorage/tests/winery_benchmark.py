@@ -307,6 +307,8 @@ class RWWorker(Worker):
         return True
 
     def finalize(self):
+        self.winery.uninit()
+
         if not self.block_until_packed:
             return
         logger.info(
