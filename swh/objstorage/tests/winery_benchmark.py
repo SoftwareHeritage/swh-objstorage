@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import asyncio
+from collections import Counter
 import concurrent.futures
 import logging
 from multiprocessing import current_process
@@ -24,6 +25,7 @@ from swh.objstorage.backends.winery.objstorage import (
     shard_packer,
 )
 from swh.objstorage.backends.winery.roshard import Pool
+from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -415,5 +417,30 @@ class Bench(object):
                         self.workers_per_kind[kind] -= 1
 
             logger.info("Bench.run: finished")
+
+        if isinstance(self.storage_config, dict):
+            args = {**self.storage_config, "readonly": True}
+        else:
+            assert isinstance(
+                self.storage_config, WineryObjStorage
+            ), f"winery_benchmark passed unexpected {self.storage_config.__class__.__name__}"
+            args = {**self.storage_config.winery.args, "readonly": True}
+
+        winery = WineryReader(**args)
+
+        logger.info("Bench.run: statistics...")
+
+        shards = dict(winery.base.list_shards())
+        shard_counts = Counter(shards.values())
+        logger.info(" shard counts by state: %s", shard_counts)
+
+        logger.info(" read-write shard stats:")
+
+        for shard_name, state in shards.items():
+            if state not in {ShardState.STANDBY, ShardState.WRITING}:
+                continue
+
+            shard = winery.rwshard(shard_name)
+            logger.info("  shard %s: total_size: %s", shard_name, shard.size)
 
         return self.count
