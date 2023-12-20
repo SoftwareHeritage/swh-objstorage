@@ -123,6 +123,20 @@ class SharedBase(Database):
         if locked is not None:
             self._locked_shard = locked
         else:
+            if logger.isEnabledFor(logging.DEBUG):
+                import traceback
+
+                stack = traceback.extract_stack()
+                for item in stack[::-1]:
+                    if item.filename != __file__:
+                        logger.debug(
+                            "Creating new shard from file %s, line %d, function %s: %s",
+                            item.filename,
+                            item.lineno,
+                            item.name,
+                            item.line,
+                        )
+                        break
             self._locked_shard = self.create_shard(new_state=ShardState.WRITING)
 
         return
