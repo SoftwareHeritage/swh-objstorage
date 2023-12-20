@@ -38,19 +38,18 @@ def work(
     storage: Union[ObjStorageInterface, Dict[str, Any]],
     worker_args: Optional[Dict[WorkerKind, Any]] = None,
 ) -> WorkerKind:
-    if isinstance(storage, dict):
-        if kind == "ro":
-            storage = {**storage, "readonly": True}
-        storage = get_objstorage("winery", **storage)
-
     if not worker_args:
         worker_args = {}
 
     kind_args = worker_args.get(kind, {})
 
     if kind == "ro":
+        if isinstance(storage, dict):
+            storage = get_objstorage(cls="winery", **{**storage, "readonly": True})
         return ROWorker(storage, **kind_args).run()
     elif kind == "rw":
+        if isinstance(storage, dict):
+            storage = get_objstorage(cls="winery", **storage)
         return RWWorker(storage, **kind_args).run()
     elif kind == "pack":
         return PackWorker(**kind_args).run()
