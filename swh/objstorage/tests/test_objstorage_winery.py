@@ -299,10 +299,10 @@ def test_winery_sleep_exponential(mocker, min_duration, factor, max_duration, ex
         factor=factor,
         max_duration=max_duration,
         message="Message",
-    )()
+    )
 
-    for _ in expected:
-        sleep()
+    for i, _ in enumerate(expected):
+        sleep(i)
 
     assert calls == expected
 
@@ -428,13 +428,12 @@ def test_winery_standalone_packer_never_stop_packing(
     class NoShardLeft(Exception):
         pass
 
-    called = 0
+    called = []
 
-    def wait_five_times() -> None:
-        nonlocal called
-        called += 1
-        if called >= 5:
-            raise NoShardLeft(called)
+    def wait_five_times(attempt) -> None:
+        called.append(attempt)
+        if attempt >= 4:
+            raise NoShardLeft(attempt)
 
     with pytest.raises(NoShardLeft):
         shard_packer(
@@ -443,26 +442,26 @@ def test_winery_standalone_packer_never_stop_packing(
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
-            wait_for_shard_factory=lambda: wait_five_times,
+            wait_for_shard=wait_five_times,
             rbd_pool_name=ceph_pool.pool_name,
         )
 
-    assert called == 5
+    assert called == list(range(5))
 
     shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
     assert shard_counts == {ShardState.PACKED: 4, ShardState.WRITING: 1}
 
-    called = 0
+    called = []
 
     with pytest.raises(NoShardLeft):
         rw_shard_cleaner(
             base_dsn=postgresql_dsn,
             shard_dsn=postgresql_dsn,
             min_mapped_hosts=0,
-            wait_for_shard_factory=lambda: wait_five_times,
+            wait_for_shard=wait_five_times,
         )
 
-    assert called == 5
+    assert called == list(range(5))
 
     shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
     assert shard_counts == {ShardState.READONLY: 4, ShardState.WRITING: 1}

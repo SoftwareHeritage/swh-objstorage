@@ -12,24 +12,15 @@ logger = logging.getLogger(__name__)
 
 def sleep_exponential(
     min_duration: float, factor: float, max_duration: float, message: str
-) -> Callable[[], Callable[[], None]]:
+) -> Callable[[int], None]:
     """Return a function that returns a callback that sleeps `min_duration`,
     then increases that by `factor` at every call, up to `max_duration`."""
     if min(min_duration, max_duration) <= 0:
         raise ValueError("Cannot sleep for a negative amount of time")
 
-    def sleep_factory() -> Callable[[], None]:
-        duration = min(min_duration, max_duration)
+    def sleep(attempt: int):
+        duration = min(max_duration, min_duration * factor**attempt)
+        logger.debug("%s. Waiting for %s", message, duration)
+        time.sleep(duration)
 
-        def sleep():
-            nonlocal duration
-            logger.debug("%s. Waiting for %s", message, duration)
-            time.sleep(duration)
-
-            duration *= factor
-            if duration >= max_duration:
-                duration = max_duration
-
-        return sleep
-
-    return sleep_factory
+    return sleep

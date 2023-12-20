@@ -252,7 +252,7 @@ def shard_packer(
     ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     rbd_use_sudo: bool = True,
     rbd_create_images: bool = True,
-    rbd_wait_for_image_factory: Callable[[], Callable[[], None]] = sleep_exponential(
+    rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
         min_duration=5,
         factor=2,
         max_duration=60,
@@ -260,7 +260,7 @@ def shard_packer(
     ),
     output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop,
-    wait_for_shard_factory: Callable[[], Callable[[], None]] = sleep_exponential(
+    wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
         factor=2,
         max_duration=60,
@@ -278,26 +278,28 @@ def shard_packer(
       throttle_read: reads per second
       throttle_write: writes per second
       rbd_create_images: create images directly (or wait for RBD mapper)
-      rbd_wait_for_image_factory: generate a callback used to wait
-        for an image (if rbd_create_images=False)
+      rbd_wait_for_image: sleep function called to wait for an image (when
+       `rbd_create_images`=`False`)
       rbd_*: passed directly to :class:`roshard.Pool`
       output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
-      wait_for_shard_factory: generate a callback called when no
-        shards are available to be packed
+      wait_for_shard: sleep function called when no shards are available to be packed
     """
     base = SharedBase(base_dsn=base_dsn)
 
-    wait_for_shard = wait_for_shard_factory()
     shards_packed = 0
+    waited_for_shards = 0
     while not stop_packing(shards_packed):
         shard_to_pack = base.lock_one_shard(
             current_state=ShardState.FULL, new_state=ShardState.PACKING
         )
 
         if not shard_to_pack:
-            wait_for_shard()
+            wait_for_shard(waited_for_shards)
+            waited_for_shards += 1
             continue
+
+        waited_for_shards = 0
 
         name, _ = shard_to_pack
         logger.info("shard_packer: Locked shard %s to pack", name)
@@ -312,7 +314,7 @@ def shard_packer(
             throttle_write=throttle_write,
             rbd_use_sudo=rbd_use_sudo,
             rbd_create_images=rbd_create_images,
-            rbd_wait_for_image=rbd_wait_for_image_factory(),
+            rbd_wait_for_image=rbd_wait_for_image,
             rbd_pool_name=rbd_pool_name,
             rbd_data_pool_name=rbd_data_pool_name,
             rbd_image_features_unsupported=rbd_image_features_unsupported,
@@ -320,7 +322,6 @@ def shard_packer(
         if not ret:
             raise ValueError("Packing shard %s failed" % name)
         shards_packed += 1
-        wait_for_shard = wait_for_shard_factory()
 
     return shards_packed
 
@@ -330,7 +331,7 @@ def rw_shard_cleaner(
     shard_dsn: str,
     min_mapped_hosts: int,
     stop_cleaning: Callable[[int], bool] = never_stop,
-    wait_for_shard_factory: Callable[[], Callable[[], None]] = sleep_exponential(
+    wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
         factor=2,
         max_duration=60,
@@ -347,12 +348,12 @@ def rw_shard_cleaner(
       min_mapped_hosts: how many hosts should have mapped the image read-only before
         cleaning it
       stop_cleaning: callback to determine whether the cleaner should exit
-      wait_for_shard_factory: callback called when no shards are available to be cleaned
+      wait_for_shard: sleep function called when no shards are available to be cleaned
     """
     base = SharedBase(base_dsn=base_dsn)
 
-    wait_for_shard = wait_for_shard_factory()
     shards_cleaned = 0
+    waited_for_shards = 0
     while not stop_cleaning(shards_cleaned):
         shard_to_clean = base.lock_one_shard(
             current_state=ShardState.PACKED,
@@ -361,8 +362,11 @@ def rw_shard_cleaner(
         )
 
         if not shard_to_clean:
-            wait_for_shard()
+            wait_for_shard(waited_for_shards)
+            waited_for_shards += 1
             continue
+
+        waited_for_shards = 0
 
         name, _ = shard_to_clean
         logger.info("rw_shard_cleaner: Locked shard %s to clean", name)
@@ -376,6 +380,5 @@ def rw_shard_cleaner(
         if not ret:
             raise ValueError("Cleaning shard %s failed" % name)
         shards_cleaned += 1
-        wait_for_shard = wait_for_shard_factory()
 
     return shards_cleaned

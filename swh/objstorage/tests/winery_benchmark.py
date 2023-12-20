@@ -74,13 +74,6 @@ class Worker:
         raise NotImplementedError
 
 
-def wait_factory():
-    def waiter():
-        time.sleep(1)
-
-    return waiter
-
-
 class PackWorker:
     def __init__(
         self,
@@ -106,7 +99,7 @@ class PackWorker:
     def stop_packing(self, shards_count: int) -> bool:
         return shards_count >= 1 or self.waited > 60
 
-    def wait_for_shard(self):
+    def wait_for_shard(self, attempt: int) -> None:
         time.sleep(0.1)
         self.waited += 1
 
@@ -119,10 +112,10 @@ class PackWorker:
             throttle_write=self.throttle_write,
             rbd_pool_name=self.rbd_pool_name,
             rbd_create_images=self.rbd_create_images,
-            rbd_wait_for_image_factory=self.wait_for_shard,
+            rbd_wait_for_image=self.wait_for_shard,
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
-            wait_for_shard_factory=lambda: self.wait_for_shard,
+            wait_for_shard=self.wait_for_shard,
         )
         return "pack"
 
@@ -144,18 +137,18 @@ class RBDWorker:
         self.started = time.monotonic()
         self.waited = 0
 
-    def wait_for_shard(self):
+    def wait_for_shard(self, attempt: int) -> None:
         time.sleep(1)
         self.waited += 1
 
-    def stop_running(self):
+    def stop_running(self) -> bool:
         return time.monotonic() > self.started + self.duration or self.waited > 5
 
     def run(self) -> Literal["rbd"]:
         self.pool.manage_images(
             base_dsn=self.base_dsn,
             manage_rw_images=True,
-            wait_for_image_factory=lambda: self.wait_for_shard,
+            wait_for_image=self.wait_for_shard,
             stop_running=self.stop_running,
         )
         return "rbd"
@@ -176,10 +169,10 @@ class RWShardCleanerWorker:
         self.started = time.monotonic()
         self.waited = 0
 
-    def stop_cleaning(self, num_cleaned):
+    def stop_cleaning(self, num_cleaned: int) -> bool:
         return num_cleaned >= 1 or self.waited > 5
 
-    def wait_for_shard(self):
+    def wait_for_shard(self, attempt: int) -> None:
         time.sleep(1)
         self.waited += 1
 
@@ -189,7 +182,7 @@ class RWShardCleanerWorker:
             shard_dsn=self.shard_dsn,
             min_mapped_hosts=self.min_mapped_hosts,
             stop_cleaning=self.stop_cleaning,
-            wait_for_shard_factory=lambda: self.wait_for_shard,
+            wait_for_shard=self.wait_for_shard,
         )
         return "rw_shard_cleaner"
 

@@ -150,7 +150,7 @@ class Pool(object):
         self,
         base_dsn: str,
         manage_rw_images: bool,
-        wait_for_image_factory: Callable[[], Callable[[], None]],
+        wait_for_image: Callable[[int], None],
         stop_running: Callable[[], bool],
     ) -> None:
         """Manage RBD image creation and mapping automatically.
@@ -158,15 +158,15 @@ class Pool(object):
         Arguments:
           base_dsn: the DSN of the connection to the SharedBase
           manage_rw_images: whether RW images should be created and mapped
-          wait_for_image_factory: returns a `wait_for_image` function which is called
-            at each loop iteration, if no images had to be mapped recently
+          wait_for_image: function which is called at each loop iteration, with
+            an attempt number, if no images had to be mapped recently
           stop_running: callback that returns True when the manager should stop running
         """
         base = SharedBase(base_dsn=base_dsn)
 
         mapped_images: Dict[str, Literal["ro", "rw"]] = {}
 
-        wait_for_image = wait_for_image_factory()
+        attempt = 0
         while not stop_running():
             did_something = False
             logger.debug("Listing shards")
@@ -221,10 +221,10 @@ class Pool(object):
 
             if not did_something:
                 # Sleep using the current value
-                wait_for_image()
+                wait_for_image(attempt)
+                attempt += 1
             else:
-                # Reset the sleep function
-                wait_for_image = wait_for_image_factory()
+                attempt = 0
 
 
 class ROShard:
@@ -259,12 +259,12 @@ class ROShardCreator:
         name: str,
         count: int,
         rbd_create_images: bool = True,
-        rbd_wait_for_image: Callable[[], None] = sleep_exponential(
+        rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
             min_duration=5,
             factor=2,
             max_duration=60,
             message="Waiting for RBD image mapping",
-        )(),
+        ),
         **kwargs,
     ):
         self.pool = Pool.from_kwargs(**kwargs)
@@ -279,8 +279,10 @@ class ROShardCreator:
         if self.rbd_create_images:
             self.pool.image_create(self.name)
         else:
+            attempt = 0
             while not os.path.exists(self.path):
-                self.rbd_wait_for_image()
+                self.rbd_wait_for_image(attempt)
+                attempt += 1
 
         self.shard = ShardCreator(self.path, self.count)
         logger.debug("ROShard %s: created", self.name)
