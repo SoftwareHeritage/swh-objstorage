@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -486,7 +486,9 @@ def test_winery_ceph_pool(needs_ceph):
     )
     pool.remove()
     pool.pool_create()
+    assert pool.image_mapped(name) is None
     pool.image_create(name)
+    assert pool.image_mapped(name) == "rw"
     p = pool.image_path(name)
     assert p.endswith(name)
     something = "SOMETHING"
@@ -494,8 +496,15 @@ def test_winery_ceph_pool(needs_ceph):
     assert open(p).read(len(something)) == something
     assert pool.image_list() == [name]
     pool.image_remap_ro(name)
+    if pool.image_mapped(name) == "rw":
+        raise ValueError(
+            "Remapping image read-only kept write permissions. "
+            "Are the udev rules properly installed?"
+        )
+    assert pool.image_mapped(name) == "ro"
     pool.images_remove()
     assert pool.image_list() == []
+    assert pool.image_mapped(name) is None
     pool.remove()
     assert pool.image_list() == []
 

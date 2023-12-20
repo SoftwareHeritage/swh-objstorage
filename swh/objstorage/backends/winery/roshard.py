@@ -6,7 +6,7 @@
 from collections import Counter
 import logging
 import math
-import os.path
+import os
 import socket
 import subprocess
 import time
@@ -98,6 +98,14 @@ class Pool(object):
         else:
             return True
 
+    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw"]]:
+        """Check whether the image is already mapped, read-only or read-write"""
+        try:
+            image_stat = os.stat(self.image_path(image))
+        except FileNotFoundError:
+            return None
+        return "rw" if (image_stat.st_mode & 0o222) != 0 else "ro"
+
     def image_list(self):
         try:
             images = self.rbd("ls")
@@ -185,15 +193,36 @@ class Pool(object):
                 if mapped_state == "ro":
                     continue
                 elif shard_state.image_available:
-                    logger.debug(
-                        "Detected %s shard %s, mapping RBD image read-only",
-                        shard_state.name,
-                        shard_name,
-                    )
-                    self.image_remap_ro(shard_name)
-                    base.record_shard_mapped(name=shard_name, host=socket.gethostname())
+                    check_mapped = self.image_mapped(shard_name)
+                    if check_mapped == "ro":
+                        logger.debug(
+                            "Detected %s shard %s, already mapped read-only",
+                            shard_state.name,
+                            shard_name,
+                        )
+                    elif check_mapped == "rw":
+                        logger.debug(
+                            "Detected %s shard %s, remapping read-only",
+                            shard_state.name,
+                            shard_name,
+                        )
+                        self.image_remap_ro(shard_name)
+                        base.record_shard_mapped(
+                            name=shard_name, host=socket.gethostname()
+                        )
+                        did_something = True
+                    else:
+                        logger.debug(
+                            "Detected %s shard %s, mapping read-only",
+                            shard_state.name,
+                            shard_name,
+                        )
+                        self.image_map(shard_name, options="ro")
+                        base.record_shard_mapped(
+                            name=shard_name, host=socket.gethostname()
+                        )
+                        did_something = True
                     mapped_images[shard_name] = "ro"
-                    did_something = True
                 elif manage_rw_images:
                     if os.path.exists(self.image_path(shard_name)):
                         # Image already mapped, nothing to do
