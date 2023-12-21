@@ -151,7 +151,18 @@ def pack_immediately(request) -> bool:
 
 
 @pytest.fixture
-def storage(shard_max_size, pack_immediately, rbd_pool_name, postgresql_dsn):
+def clean_immediately(request) -> bool:
+    marker = request.node.get_closest_marker("clean_immediately")
+    if marker is None:
+        return True
+    else:
+        return marker.args[0]
+
+
+@pytest.fixture
+def storage(
+    shard_max_size, pack_immediately, clean_immediately, rbd_pool_name, postgresql_dsn
+):
     storage = get_objstorage(
         cls="winery",
         base_dsn=postgresql_dsn,
@@ -160,6 +171,7 @@ def storage(shard_max_size, pack_immediately, rbd_pool_name, postgresql_dsn):
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
         pack_immediately=pack_immediately,
+        clean_immediately=clean_immediately,
         rbd_pool_name=rbd_pool_name,
     )
     logger.debug("Instantiated storage %s on rbd pool %s", storage, rbd_pool_name)
@@ -243,6 +255,7 @@ def test_winery_base_record_shard_mapped(winery):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
+@pytest.mark.clean_immediately(False)
 def test_winery_pack(winery, ceph_pool):
     shard = winery.base.locked_shard
     content = b"SOMETHING"
@@ -423,6 +436,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+@pytest.mark.clean_immediately(False)
 def test_winery_cli_packer(ceph_pool, storage, tmp_path, cli_runner):
     # create 4 shards
     for i in range(16):
@@ -502,6 +516,74 @@ def test_winery_cli_rbd(ceph_pool, storage, tmp_path, cli_runner):
 
     for shard in filled:
         assert ceph_pool.image_mapped(shard) == "ro"
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(True)
+@pytest.mark.clean_immediately(False)
+def test_winery_cli_rw_shard_cleaner(
+    ceph_pool, postgresql_dsn, storage, tmp_path, cli_runner
+):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    for packer in storage.winery.packers:
+        packer.join()
+        assert packer.exitcode == 0
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.PACKED
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    with open(tmp_path / "config.yml", "w") as f:
+        yaml.safe_dump(
+            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
+        )
+
+    db_admin = DatabaseAdmin(postgresql_dsn)
+
+    databases = set(db_admin.list_databases())
+    for shard in filled:
+        assert shard in databases
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        ("objstorage", "winery", "rw-shard-cleaner", "--stop-instead-of-waiting"),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    # No hosts have mapped the shard as remapped, so the cleaner has done nothing
+    databases = set(db_admin.list_databases())
+    for shard in filled:
+        assert shard in databases
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        (
+            "objstorage",
+            "winery",
+            "rw-shard-cleaner",
+            "--stop-instead-of-waiting",
+            "--min-mapped-hosts=0",
+        ),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    # Now we've forced action
+    databases = set(db_admin.list_databases())
+    for shard in filled:
+        assert shard not in databases
 
 
 @pytest.mark.shard_max_size(1024)

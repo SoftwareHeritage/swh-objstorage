@@ -233,6 +233,73 @@ def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
     logger.info("Image manager exiting")
 
 
+@winery.command("rw-shard-cleaner")
+@click.option("--stop-after-shards", type=click.INT, default=None)
+@click.option("--stop-instead-of-waiting", is_flag=True)
+@click.option(
+    "--min-mapped-hosts",
+    type=click.INT,
+    default=1,
+    help="Number of hosts on which the image should be mapped read-only before cleanup",
+)
+@click.pass_context
+def winery_rw_shard_cleaner(
+    ctx,
+    stop_after_shards: Optional[int] = None,
+    stop_instead_of_waiting: bool = False,
+    min_mapped_hosts: int = 1,
+):
+    """Run a winery RBD image manager process"""
+    import signal
+
+    from swh.objstorage.backends.winery.objstorage import rw_shard_cleaner
+    from swh.objstorage.backends.winery.sleep import sleep_exponential
+
+    config = ctx.obj["config"]["objstorage"]
+
+    stop_on_next_iteration = False
+
+    def stop_cleaning(num_shards: int) -> bool:
+        """Stop running when requested, or when the max number of shards was reached."""
+        return (
+            stop_after_shards is not None and num_shards >= stop_after_shards
+        ) or stop_on_next_iteration
+
+    def wait_for_shard(attempt: int):
+        nonlocal stop_on_next_iteration
+        if stop_instead_of_waiting:
+            stop_on_next_iteration = True
+            return
+
+        return sleep_exponential(
+            min_duration=1,
+            max_duration=60,
+            factor=2,
+            message="No shards to clean up",
+        )(attempt)
+
+    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+        nonlocal stop_on_next_iteration
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        stop_on_next_iteration = True
+
+    base_dsn = config["base_dsn"]
+    shard_dsn = config["base_dsn"]
+
+    signal.signal(signal.SIGINT, set_signal_received)
+    signal.signal(signal.SIGTERM, set_signal_received)
+
+    ret = rw_shard_cleaner(
+        base_dsn=base_dsn,
+        shard_dsn=shard_dsn,
+        min_mapped_hosts=min_mapped_hosts,
+        stop_cleaning=stop_cleaning,
+        wait_for_shard=wait_for_shard,
+    )
+
+    logger.info("RW shard cleaner exiting, %d shards cleaned", ret)
+
+
 @objstorage_cli_group.command("import")
 @click.argument("directory", required=True, nargs=-1)
 @click.pass_context

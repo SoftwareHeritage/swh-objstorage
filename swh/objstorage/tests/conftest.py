@@ -7,6 +7,11 @@ def pytest_configure(config):
         "markers", "pack_immediately(bool): whether winery should pack immediately"
     )
     config.addinivalue_line(
+        "markers",
+        "clean_immediately(bool): whether the winery packer should clean rw "
+        "shards immediately",
+    )
+    config.addinivalue_line(
         "markers", "use_benchmark_flags: use the --winery-bench-* CLI flags"
     )
 
