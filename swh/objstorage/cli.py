@@ -163,6 +163,76 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
     logger.info("Packed %s shards", ret)
 
 
+@winery.command("rbd")
+@click.option("--stop-instead-of-waiting", is_flag=True)
+@click.pass_context
+def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
+    """Run a winery RBD image manager process"""
+    import signal
+
+    from swh.objstorage.backends.winery.roshard import (
+        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+        Pool,
+    )
+    from swh.objstorage.backends.winery.sleep import sleep_exponential
+
+    config = ctx.obj["config"]["objstorage"]
+
+    stop_on_next_iteration = False
+
+    def stop_running() -> bool:
+        """Stop running when a signal is received, or when there's nothing to do."""
+        return stop_on_next_iteration
+
+    def wait_for_image(attempt: int):
+        nonlocal stop_on_next_iteration
+        if stop_instead_of_waiting:
+            stop_on_next_iteration = True
+            return
+
+        return sleep_exponential(
+            min_duration=1,
+            max_duration=60,
+            factor=2,
+            message="No new RBD images",
+        )(attempt)
+
+    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+        nonlocal stop_on_next_iteration
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        stop_on_next_iteration = True
+
+    base_dsn = config["base_dsn"]
+    shard_max_size = config["shard_max_size"]
+    rbd_pool_name = config.get("rbd_pool_name", "shards")
+    rbd_data_pool_name = config.get("rbd_data_pool_name")
+    rbd_use_sudo = config.get("rbd_use_sudo", True)
+    rbd_image_features_unsupported = tuple(
+        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
+    )
+    rbd_manage_rw_images = config.get("rbd_manage_rw_images", True)
+
+    signal.signal(signal.SIGINT, set_signal_received)
+    signal.signal(signal.SIGTERM, set_signal_received)
+
+    pool = Pool(
+        shard_max_size=shard_max_size,
+        rbd_pool_name=rbd_pool_name,
+        rbd_data_pool_name=rbd_data_pool_name,
+        rbd_use_sudo=rbd_use_sudo,
+        rbd_image_features_unsupported=rbd_image_features_unsupported,
+    )
+
+    pool.manage_images(
+        base_dsn=base_dsn,
+        manage_rw_images=rbd_manage_rw_images,
+        wait_for_image=wait_for_image,
+        stop_running=stop_running,
+    )
+
+    logger.info("Image manager exiting")
+
+
 @objstorage_cli_group.command("import")
 @click.argument("directory", required=True, nargs=-1)
 @click.pass_context

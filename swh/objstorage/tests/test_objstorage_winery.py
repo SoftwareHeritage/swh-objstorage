@@ -458,6 +458,54 @@ def test_winery_cli_packer(ceph_pool, storage, tmp_path, cli_runner):
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+def test_winery_cli_rbd(ceph_pool, storage, tmp_path, cli_runner):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.FULL
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    with open(tmp_path / "config.yml", "w") as f:
+        yaml.safe_dump(
+            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
+        )
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        ("objstorage", "winery", "rbd", "--stop-instead-of-waiting"),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    for shard in filled:
+        assert ceph_pool.image_mapped(shard) == "rw"
+
+    for shard in filled:
+        storage.winery.base.set_shard_state(name=shard, new_state=ShardState.PACKED)
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        ("objstorage", "winery", "rbd", "--stop-instead-of-waiting"),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    for shard in filled:
+        assert ceph_pool.image_mapped(shard) == "ro"
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
 def test_winery_standalone_packer_never_stop_packing(
     ceph_pool, postgresql_dsn, shard_max_size, storage
 ):
