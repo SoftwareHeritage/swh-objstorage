@@ -13,6 +13,7 @@ import time
 from types import TracebackType
 from typing import Callable, Dict, Iterable, Optional, Tuple, Type
 
+from systemd.daemon import notify
 from typing_extensions import Literal
 
 from swh.perfecthash import Shard, ShardCreator
@@ -179,6 +180,7 @@ class Pool(object):
         mapped_images: Dict[str, Literal["ro", "rw"]] = {}
 
         attempt = 0
+        notified_systemd = False
         while not stop_running():
             did_something = False
             logger.debug("Listing shards")
@@ -191,6 +193,12 @@ class Pool(object):
                     time.monotonic() - start,
                 )
                 logger.debug("Mapped images: %s", Counter(mapped_images.values()))
+
+            notify(
+                f"STATUS="
+                "Enumerated {len(shards)} shards, "
+                f"mapped {len(mapped_images)} images"
+            )
 
             for shard_name, shard_state in shards:
                 mapped_state = mapped_images.get(shard_name)
@@ -252,12 +260,17 @@ class Pool(object):
                 else:
                     logger.debug("%s shard %s, skipping", shard_state.name, shard_name)
 
-            if not did_something:
+            if not notified_systemd:
+                # The first iteration has happened, all known shards should be ready
+                notify("READY=1")
+                notified_systemd = True
+
+            if did_something:
+                attempt = 0
+            else:
                 # Sleep using the current value
                 wait_for_image(attempt)
                 attempt += 1
-            else:
-                attempt = 0
 
 
 class ROShard:
