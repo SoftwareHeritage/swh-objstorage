@@ -95,7 +95,7 @@ class Pool(object):
 
         return self.run("rbd", f"--pool={self.pool_name}", *arguments)
 
-    def image_exists(self, image):
+    def image_exists(self, image: str):
         try:
             self.rbd("info", image)
         except subprocess.CalledProcessError:
@@ -121,10 +121,10 @@ class Pool(object):
                 raise
         return [image.strip() for image in images]
 
-    def image_path(self, image):
+    def image_path(self, image: str) -> str:
         return f"/dev/rbd/{self.pool_name}/{image}"
 
-    def image_create(self, image):
+    def image_create(self, image: str):
         self.rbd(
             "create",
             f"--size={self.image_size}",
@@ -140,14 +140,14 @@ class Pool(object):
             )
         self.image_map(image, "rw")
 
-    def image_map(self, image, options):
+    def image_map(self, image: str, options: str):
         self.rbd("device", "map", "-o", options, image)
 
-    def image_remap_ro(self, image):
+    def image_remap_ro(self, image: str):
         self.image_unmap(image)
         self.image_map(image, "ro")
 
-    def image_unmap(self, image):
+    def image_unmap(self, image: str):
         if os.path.exists(self.image_path(image)):
             try:
                 self.rbd("device", "unmap", self.image_path(image))
