@@ -142,6 +142,7 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
     rbd_image_features_unsupported = tuple(
         config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
     )
+    rbd_create_images = config.get("rbd_create_images", True)
 
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
@@ -156,6 +157,7 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         rbd_data_pool_name=rbd_data_pool_name,
         rbd_image_features_unsupported=rbd_image_features_unsupported,
         rbd_use_sudo=rbd_use_sudo,
+        rbd_create_images=rbd_create_images,
         output_dir=output_dir,
         stop_packing=stop_packing,
     )
