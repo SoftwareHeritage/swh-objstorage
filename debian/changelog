@@ -1,3 +1,11 @@
+swh-objstorage (2.6.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 2.6.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2024-01-08 11:50:46 +0100)
+  * Upstream changes:     - v2.6.0     - Winery improvements
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 08 Jan 2024 11:05:03 +0000
+
 swh-objstorage (2.5.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 2.5.0     - (tagged by David Douard
