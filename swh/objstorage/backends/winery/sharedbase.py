@@ -5,7 +5,7 @@
 
 from enum import Enum
 import logging
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Set, Tuple
 import uuid
 
 import psycopg2
@@ -24,15 +24,20 @@ class ShardState(Enum):
     FULL = "full"
     PACKING = "packing"
     PACKED = "packed"
+    CLEANING = "cleaning"
     READONLY = "readonly"
 
     @property
     def locked(self):
-        return self not in {self.STANDBY, self.FULL}
+        return self not in {self.STANDBY, self.FULL, self.PACKED, self.READONLY}
 
     @property
-    def readonly_available(self):
-        return self in {self.PACKED, self.READONLY}
+    def image_available(self):
+        return self in {self.PACKED, self.CLEANING, self.READONLY}
+
+    @property
+    def readonly(self):
+        return self in {self.CLEANING, self.READONLY}
 
 
 class SharedBase(Database):
@@ -66,14 +71,24 @@ class SharedBase(Database):
           WHEN duplicate_object THEN null;
         END $$;
             """,
+            "ALTER TYPE shard_state ADD VALUE IF NOT EXISTS 'cleaning' AFTER 'packed';",
             """
         CREATE TABLE IF NOT EXISTS shards(
             id BIGSERIAL PRIMARY KEY,
             state shard_state NOT NULL DEFAULT 'standby',
             locker_ts TIMESTAMPTZ,
             locker UUID,
-            name CHAR(32) NOT NULL UNIQUE
+            name CHAR(32) NOT NULL UNIQUE,
+            mapped_on_hosts_when_packed TEXT[] NOT NULL DEFAULT '{}'
         )
+        """,
+            """\
+        ALTER TABLE shards
+            ADD COLUMN
+              IF NOT EXISTS
+              mapped_on_hosts_when_packed TEXT[]
+              NOT NULL
+              DEFAULT '{}'
         """,
             """
         CREATE TABLE IF NOT EXISTS signature2shard(
@@ -108,14 +123,34 @@ class SharedBase(Database):
         if locked is not None:
             self._locked_shard = locked
         else:
+            if logger.isEnabledFor(logging.DEBUG):
+                import traceback
+
+                stack = traceback.extract_stack()
+                for item in stack[::-1]:
+                    if item.filename != __file__:
+                        logger.debug(
+                            "Creating new shard from file %s, line %d, function %s: %s",
+                            item.filename,
+                            item.lineno,
+                            item.name,
+                            item.line,
+                        )
+                        break
             self._locked_shard = self.create_shard(new_state=ShardState.WRITING)
 
         return
 
     def lock_one_shard(
-        self, current_state: ShardState, new_state: ShardState
+        self,
+        current_state: ShardState,
+        new_state: ShardState,
+        min_mapped_hosts: int = 0,
     ) -> Optional[Tuple[str, int]]:
-        """Lock one shard in `current_state`, putting it into `new_state`"""
+        """Lock one shard in `current_state`, putting it into `new_state`. Only
+        lock a shard if it has more than `min_mapped_hosts` hosts that have
+        registered as having mapped the shard.
+        """
 
         if not new_state.locked:
             raise ValueError(f"{new_state} is not a locked state")
@@ -127,11 +162,13 @@ class SharedBase(Database):
                     """\
                     SELECT name
                     FROM shards
-                    WHERE state = %s
+                    WHERE
+                      state = %s
+                      AND COALESCE(ARRAY_LENGTH(mapped_on_hosts_when_packed, 1), 0) >= %s
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
                     """,
-                    (current_state.value,),
+                    (current_state.value, min_mapped_hosts),
                 )
                 result = c.fetchone()
                 if result is None:
@@ -301,11 +338,48 @@ class SharedBase(Database):
                 return None
             return (row[0], ShardState(row[1]))
 
+    def get_shard_state(self, name: str) -> Optional[ShardState]:
+        with self.db.cursor() as c:
+            c.execute("SELECT state FROM shards WHERE name = %s", (name,))
+            row = c.fetchone()
+            if not row:
+                return None
+            return ShardState(row[0])
+
     def list_shards(self) -> Iterator[Tuple[str, ShardState]]:
         with self.db.cursor() as c:
             c.execute("SELECT name, state FROM shards")
             for row in c:
                 yield row[0], ShardState(row[1])
+
+    def record_shard_mapped(self, host: str, name: Optional[str] = None) -> Set[str]:
+        if not name:
+            if not self._locked_shard:
+                raise ValueError("Can't set shard state, no shard specified or locked")
+            name = self._locked_shard[0]
+
+        with self.db:
+            with self.db.cursor() as c:
+                c.execute(
+                    """SELECT mapped_on_hosts_when_packed
+                       FROM shards
+                       WHERE name = %s
+                       FOR UPDATE SKIP LOCKED""",
+                    (name,),
+                )
+                row = c.fetchone()
+                if not row:
+                    raise ValueError("Can't update shard %s" % name)
+                hosts = set(row[0])
+                if host not in hosts:
+                    hosts.add(host)
+                    c.execute(
+                        """UPDATE shards
+                           SET mapped_on_hosts_when_packed = %s
+                           WHERE name = %s""",
+                        (list(hosts), name),
+                    )
+                return hosts
 
     def contains(self, obj_id) -> Optional[int]:
         with self.db.cursor() as c:

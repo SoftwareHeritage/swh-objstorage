@@ -63,6 +63,7 @@ swh/objstorage/backends/winery/objstorage.py
 swh/objstorage/backends/winery/roshard.py
 swh/objstorage/backends/winery/rwshard.py
 swh/objstorage/backends/winery/sharedbase.py
+swh/objstorage/backends/winery/sleep.py
 swh/objstorage/backends/winery/stats.py
 swh/objstorage/backends/winery/throttler.py
 swh/objstorage/multiplexer/__init__.py

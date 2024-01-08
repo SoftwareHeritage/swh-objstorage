@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.objstorage
-Version: 2.5.0
+Version: 2.6.0
 Summary: Software Heritage object storage
 Author-email: Software Heritage developers <swh-devel@inria.fr>
 Project-URL: Homepage, https://gitlab.softwareheritage.org/swh/devel/swh-objstorage
@@ -30,6 +30,7 @@ Provides-Extra: libcloud
 Requires-Dist: apache-libcloud; extra == "libcloud"
 Provides-Extra: winery
 Requires-Dist: psycopg2; extra == "winery"
+Requires-Dist: systemd-python; extra == "winery"
 Provides-Extra: testing
 Requires-Dist: moto[s3,server]; extra == "testing"
 Requires-Dist: pytest; extra == "testing"
@@ -43,6 +44,7 @@ Requires-Dist: pytest-postgresql<4.0.0; extra == "testing"
 Requires-Dist: azure-storage-blob!=12.9.0,>=12.0; extra == "testing"
 Requires-Dist: apache-libcloud; extra == "testing"
 Requires-Dist: psycopg2; extra == "testing"
+Requires-Dist: systemd-python; extra == "testing"
 
 Software Heritage - Object storage
 ==================================
