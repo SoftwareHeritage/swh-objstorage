@@ -5,8 +5,7 @@
 
 import logging
 from multiprocessing import Process
-import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from typing_extensions import Literal
 
@@ -14,9 +13,15 @@ from swh.objstorage import exc
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
-from .roshard import ROShard, ROShardCreator
+from .roshard import (
+    DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    ROShard,
+    ROShardCreator,
+    ShardNotMapped,
+)
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
+from .sleep import sleep_exponential
 from .stats import Stats
 
 logger = logging.getLogger(__name__)
@@ -81,15 +86,19 @@ class WineryReader(WineryBase):
         self.ro_shards = {}
         self.rw_shards = {}
 
-    def roshard(self, name):
+    def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
-            shard = ROShard(name, **self.args)
+            try:
+                shard = ROShard(name, **self.args)
+            except ShardNotMapped:
+                return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:
+                self.rw_shards[name].uninit()
                 del self.rw_shards[name]
         return self.ro_shards[name]
 
-    def rwshard(self, name):
+    def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
             shard = RWShard(name, **self.args)
             self.rw_shards[name] = shard
@@ -100,19 +109,20 @@ class WineryReader(WineryBase):
         if shard_info is None:
             raise exc.ObjNotFoundError(obj_id)
         name, state = shard_info
-        if state.readonly_available:
-            shard = self.roshard(name)
-            content = shard.get(obj_id)
-            del shard
-        else:
-            shard = self.rwshard(name)
-            content = shard.get(obj_id)
+        content: Optional[bytes] = None
+        if state.image_available:
+            roshard = self.roshard(name)
+            if roshard:
+                content = roshard.get(obj_id)
+        if content is None:
+            rwshard = self.rwshard(name)
+            content = rwshard.get(obj_id)
         if content is None:
             raise exc.ObjNotFoundError(obj_id)
         return content
 
 
-def pack(shard, shared_base=None, **kwargs):
+def pack(shard, shared_base=None, clean_immediately=False, **kwargs):
     stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
 
@@ -138,16 +148,35 @@ def pack(shard, shared_base=None, **kwargs):
         uninit_base = True
     shared_base.shard_packing_ends(shard)
     rw.uninit()
-    rw.drop()
-    shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    if clean_immediately:
+        cleanup_rw_shard(shard, shared_base=shared_base, **kwargs)
     if uninit_base:
         shared_base.uninit()
+    return True
+
+
+def cleanup_rw_shard(shard, shared_base=None, **kwargs):
+    rw = RWShard(shard, **{"shard_max_size": 0, **kwargs})
+
+    uninit_base = False
+    try:
+        if not shared_base:
+            shared_base = SharedBase(**kwargs)
+            uninit_base = True
+
+        rw.drop()
+        shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
+    finally:
+        if shared_base and uninit_base:
+            shared_base.uninit()
+
     return True
 
 
 class WineryWriter(WineryReader):
     def __init__(self, **kwargs):
         self.pack_immediately = kwargs.get("pack_immediately", True)
+        self.clean_immediately = kwargs.get("clean_immediately", True)
         super().__init__(**kwargs)
         self.shards_filled = []
         self.packers = []
@@ -190,7 +219,14 @@ class WineryWriter(WineryReader):
 
     def pack(self):
         self.base.shard_packing_starts(self.shard.name)
-        p = Process(target=pack, args=(self.shard.name,), kwargs=self.args)
+        p = Process(
+            target=pack,
+            kwargs={
+                "shard": self.shard.name,
+                "clean_immediately": self.clean_immediately,
+                **self.args,
+            },
+        )
         self.uninit()
         p.start()
         self.packers.append(p)
@@ -202,35 +238,15 @@ class WineryWriter(WineryReader):
             p.join()
 
 
-def never_stop_packing(_: int) -> bool:
+def never_stop(_: int) -> bool:
     return False
 
 
 def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
-    def stop_packing(shards_packed: int):
+    def stop(shards_packed: int):
         return shards_packed >= max_shards_packed
 
-    return stop_packing
-
-
-def sleep_exponential(min_duration: float, factor: float, max_duration: float):
-    """Return a function that sleeps `min_duration`,
-    then increases that by `factor` at every call, up to `max_duration`."""
-    duration = min(min_duration, max_duration)
-
-    if duration <= 0:
-        raise ValueError("Cannot sleep for a negative amount of time")
-
-    def sleep():
-        nonlocal duration
-        logger.debug("No shards to pack, waiting for %s", duration)
-        time.sleep(duration)
-
-        duration *= factor
-        if duration >= max_duration:
-            duration = max_duration
-
-    return sleep
+    return stop
 
 
 def shard_packer(
@@ -239,10 +255,26 @@ def shard_packer(
     shard_max_size: int,
     throttle_read: int,
     throttle_write: int,
+    rbd_pool_name: str = "shards",
+    rbd_data_pool_name: Optional[str] = None,
+    rbd_image_features_unsupported: Tuple[
+        str, ...
+    ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+    rbd_use_sudo: bool = True,
+    rbd_create_images: bool = True,
+    rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="Waiting for RBD image mapping",
+    ),
     output_dir: Optional[str] = None,
-    stop_packing: Callable[[int], bool] = never_stop_packing,
-    wait_for_shard: Callable[[], None] = sleep_exponential(
-        min_duration=5, factor=2, max_duration=60
+    stop_packing: Callable[[int], bool] = never_stop,
+    wait_for_shard: Callable[[int], None] = sleep_exponential(
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="No shards to pack",
     ),
 ) -> int:
     """Pack shards until the `stop_packing` function returns True.
@@ -255,21 +287,29 @@ def shard_packer(
       shard_max_size: Max size of a shard (used to size new shards)
       throttle_read: reads per second
       throttle_write: writes per second
+      rbd_create_images: create images directly (or wait for RBD mapper)
+      rbd_wait_for_image: sleep function called to wait for an image (when
+       `rbd_create_images`=`False`)
+      rbd_*: passed directly to :class:`roshard.Pool`
       output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
-      wait_for_shard: callback called when no shards are available to be packed
+      wait_for_shard: sleep function called when no shards are available to be packed
     """
     base = SharedBase(base_dsn=base_dsn)
 
     shards_packed = 0
+    waited_for_shards = 0
     while not stop_packing(shards_packed):
         shard_to_pack = base.lock_one_shard(
             current_state=ShardState.FULL, new_state=ShardState.PACKING
         )
 
         if not shard_to_pack:
-            wait_for_shard()
+            wait_for_shard(waited_for_shards)
+            waited_for_shards += 1
             continue
+
+        waited_for_shards = 0
 
         name, _ = shard_to_pack
         logger.info("shard_packer: Locked shard %s to pack", name)
@@ -282,9 +322,73 @@ def shard_packer(
             shared_base=base,
             throttle_read=throttle_read,
             throttle_write=throttle_write,
+            rbd_use_sudo=rbd_use_sudo,
+            rbd_create_images=rbd_create_images,
+            rbd_wait_for_image=rbd_wait_for_image,
+            rbd_pool_name=rbd_pool_name,
+            rbd_data_pool_name=rbd_data_pool_name,
+            rbd_image_features_unsupported=rbd_image_features_unsupported,
         )
         if not ret:
             raise ValueError("Packing shard %s failed" % name)
         shards_packed += 1
 
     return shards_packed
+
+
+def rw_shard_cleaner(
+    base_dsn: str,
+    shard_dsn: str,
+    min_mapped_hosts: int,
+    stop_cleaning: Callable[[int], bool] = never_stop,
+    wait_for_shard: Callable[[int], None] = sleep_exponential(
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="No shards to clean up",
+    ),
+) -> int:
+    """Clean up RW shards until the `stop_cleaning` function returns True.
+
+    When no shards are available for packing, call the `wait_for_shard` function.
+
+    Arguments:
+      base_dsn: PostgreSQL dsn for the shared database
+      shard_dsn: PostgreSQL dsn for the individual shard databases
+      min_mapped_hosts: how many hosts should have mapped the image read-only before
+        cleaning it
+      stop_cleaning: callback to determine whether the cleaner should exit
+      wait_for_shard: sleep function called when no shards are available to be cleaned
+    """
+    base = SharedBase(base_dsn=base_dsn)
+
+    shards_cleaned = 0
+    waited_for_shards = 0
+    while not stop_cleaning(shards_cleaned):
+        shard_to_clean = base.lock_one_shard(
+            current_state=ShardState.PACKED,
+            new_state=ShardState.CLEANING,
+            min_mapped_hosts=min_mapped_hosts,
+        )
+
+        if not shard_to_clean:
+            wait_for_shard(waited_for_shards)
+            waited_for_shards += 1
+            continue
+
+        waited_for_shards = 0
+
+        name, _ = shard_to_clean
+        logger.info("rw_shard_cleaner: Locked shard %s to clean", name)
+
+        ret = cleanup_rw_shard(
+            name,
+            base_dsn=base_dsn,
+            shard_dsn=shard_dsn,
+            shared_base=base,
+        )
+        if not ret:
+            raise ValueError("Cleaning shard %s failed" % name)
+        shards_cleaned += 1
+
+    return shards_cleaned

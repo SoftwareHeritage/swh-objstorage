@@ -4,8 +4,10 @@
 # See top-level LICENSE file for more information
 
 import asyncio
+from collections import Counter
 import concurrent.futures
 import logging
+from multiprocessing import current_process
 import os
 import random
 import sys
@@ -19,8 +21,11 @@ from swh.objstorage.backends.winery.objstorage import (
     WineryObjStorage,
     WineryReader,
     WineryWriter,
+    rw_shard_cleaner,
     shard_packer,
 )
+from swh.objstorage.backends.winery.roshard import Pool
+from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -28,30 +33,41 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
-WorkerKind = Literal["ro", "rw", "pack"]
+WorkerKind = Literal["ro", "rw", "pack", "rbd", "rw_shard_cleaner"]
 
 
 def work(
     kind: WorkerKind,
     storage: Union[ObjStorageInterface, Dict[str, Any]],
     worker_args: Optional[Dict[WorkerKind, Any]] = None,
+    worker_id: int = 0,
 ) -> WorkerKind:
-    if isinstance(storage, dict):
-        if kind == "ro":
-            storage = {**storage, "readonly": True}
-        storage = get_objstorage("winery", **storage)
-
     if not worker_args:
         worker_args = {}
 
     kind_args = worker_args.get(kind, {})
 
+    process_name = f"Worker-{kind}-{worker_id}"
+    process = current_process()
+    if process and process.name != "MainProcess":
+        process.name = process_name
+
+    logger.info("Started process %s", process_name)
+
     if kind == "ro":
+        if isinstance(storage, dict):
+            storage = get_objstorage(cls="winery", **{**storage, "readonly": True})
         return ROWorker(storage, **kind_args).run()
     elif kind == "rw":
+        if isinstance(storage, dict):
+            storage = get_objstorage(cls="winery", **storage)
         return RWWorker(storage, **kind_args).run()
     elif kind == "pack":
         return PackWorker(**kind_args).run()
+    elif kind == "rbd":
+        return RBDWorker(**kind_args).run()
+    elif kind == "rw_shard_cleaner":
+        return RWShardCleanerWorker(**kind_args).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -76,6 +92,8 @@ class PackWorker:
         shard_max_size: int,
         throttle_read: int,
         throttle_write: int,
+        rbd_create_images: bool = True,
+        rbd_pool_name: str = "shards",
         output_dir: Optional[str] = None,
     ):
         self.base_dsn = base_dsn
@@ -84,13 +102,15 @@ class PackWorker:
         self.output_dir = output_dir
         self.throttle_read = throttle_read
         self.throttle_write = throttle_write
+        self.rbd_create_images = rbd_create_images
+        self.rbd_pool_name = rbd_pool_name
         self.waited = 0
 
     def stop_packing(self, shards_count: int) -> bool:
-        return shards_count >= 1 or self.waited > 5
+        return shards_count >= 1 or self.waited > 60
 
-    def wait_for_shard(self):
-        time.sleep(1)
+    def wait_for_shard(self, attempt: int) -> None:
+        time.sleep(0.1)
         self.waited += 1
 
     def run(self) -> Literal["pack"]:
@@ -100,11 +120,81 @@ class PackWorker:
             shard_max_size=self.shard_max_size,
             throttle_read=self.throttle_read,
             throttle_write=self.throttle_write,
+            rbd_pool_name=self.rbd_pool_name,
+            rbd_create_images=self.rbd_create_images,
+            rbd_wait_for_image=self.wait_for_shard,
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
             wait_for_shard=self.wait_for_shard,
         )
         return "pack"
+
+
+class RBDWorker:
+    def __init__(
+        self,
+        base_dsn: str,
+        rbd_pool_name: str,
+        shard_max_size: int,
+        duration: int = 10,
+    ):
+        self.base_dsn = base_dsn
+        self.pool = Pool(
+            shard_max_size=shard_max_size,
+            rbd_pool_name=rbd_pool_name,
+        )
+        self.duration = duration
+        self.started = time.monotonic()
+        self.waited = 0
+
+    def wait_for_shard(self, attempt: int) -> None:
+        time.sleep(1)
+        self.waited += 1
+
+    def stop_running(self) -> bool:
+        return time.monotonic() > self.started + self.duration or self.waited > 5
+
+    def run(self) -> Literal["rbd"]:
+        self.pool.manage_images(
+            base_dsn=self.base_dsn,
+            manage_rw_images=True,
+            wait_for_image=self.wait_for_shard,
+            stop_running=self.stop_running,
+        )
+        return "rbd"
+
+
+class RWShardCleanerWorker:
+    def __init__(
+        self,
+        base_dsn: str,
+        shard_dsn: str,
+        min_mapped_hosts: int = 1,
+        duration: int = 10,
+    ):
+        self.base_dsn = base_dsn
+        self.shard_dsn = shard_dsn
+        self.min_mapped_hosts = min_mapped_hosts
+        self.duration = duration
+        self.started = time.monotonic()
+        self.waited = 0
+
+    def stop_cleaning(self, num_cleaned: int) -> bool:
+        return num_cleaned >= 1 or self.waited > 5
+
+    def wait_for_shard(self, attempt: int) -> None:
+        time.sleep(1)
+        self.waited += 1
+
+    def run(self) -> Literal["rw_shard_cleaner"]:
+        rw_shard_cleaner(
+            base_dsn=self.base_dsn,
+            shard_dsn=self.shard_dsn,
+            min_mapped_hosts=self.min_mapped_hosts,
+            stop_cleaning=self.stop_cleaning,
+            wait_for_shard=self.wait_for_shard,
+        )
+        return "rw_shard_cleaner"
 
 
 class ROWorker(Worker):
@@ -228,6 +318,8 @@ class RWWorker(Worker):
         return True
 
     def finalize(self):
+        self.winery.uninit()
+
         if not self.block_until_packed:
             return
         logger.info(
@@ -252,12 +344,13 @@ class Bench(object):
         self.duration = duration
         self.workers_per_kind = workers_per_kind
         self.worker_args = worker_args or {}
+        self.start = 0
 
     def timer_start(self):
-        self.start = time.time()
+        self.start = time.monotonic()
 
     def timeout(self) -> bool:
-        return time.time() - self.start > self.duration
+        return time.monotonic() - self.start > self.duration
 
     async def run(self) -> int:
         self.timer_start()
@@ -269,16 +362,21 @@ class Bench(object):
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=workers_count
         ) as executor:
-            logger.info("Bench.run: running")
+            logger.info("Running winery benchmark")
 
             self.count = 0
             workers: "Set[asyncio.Future[WorkerKind]]" = set()
 
             def create_worker(kind: WorkerKind) -> "asyncio.Future[WorkerKind]":
                 self.count += 1
-                logger.info("Bench.run: launched %s worker number %s", kind, self.count)
+                logger.info("launched %s worker number %s", kind, self.count)
                 return loop.run_in_executor(
-                    executor, work, kind, self.storage_config, self.worker_args
+                    executor,
+                    work,
+                    kind,
+                    self.storage_config,
+                    self.worker_args,
+                    self.count,
                 )
 
             for kind, count in self.workers_per_kind.items():
@@ -286,7 +384,12 @@ class Bench(object):
                     workers.add(create_worker(kind))
 
             while len(workers) > 0:
-                logger.info("Bench.run: waiting for %s workers", len(workers))
+                logger.info(
+                    "Waiting for %s workers",
+                    ", ".join(
+                        f"{v} {k}" for k, v in self.workers_per_kind.items() if v
+                    ),
+                )
                 current = workers
                 done, pending = await asyncio.wait(
                     current, return_when=asyncio.FIRST_COMPLETED
@@ -304,12 +407,40 @@ class Bench(object):
                         for exc in exceptions:
                             logger.error("Worker raised an exception", exc_info=exc)
                         raise exceptions[0]
+
                 for task in done:
                     kind = task.result()
-                    logger.info("Bench.run: worker %s complete", kind)
+                    logger.info("worker %s complete", kind)
                     if not self.timeout():
                         workers.add(create_worker(kind))
+                    else:
+                        self.workers_per_kind[kind] -= 1
 
             logger.info("Bench.run: finished")
+
+        if isinstance(self.storage_config, dict):
+            args = {**self.storage_config, "readonly": True}
+        else:
+            assert isinstance(
+                self.storage_config, WineryObjStorage
+            ), f"winery_benchmark passed unexpected {self.storage_config.__class__.__name__}"
+            args = {**self.storage_config.winery.args, "readonly": True}
+
+        winery = WineryReader(**args)
+
+        logger.info("Bench.run: statistics...")
+
+        shards = dict(winery.base.list_shards())
+        shard_counts = Counter(shards.values())
+        logger.info(" shard counts by state: %s", shard_counts)
+
+        logger.info(" read-write shard stats:")
+
+        for shard_name, state in shards.items():
+            if state not in {ShardState.STANDBY, ShardState.WRITING}:
+                continue
+
+            shard = winery.rwshard(shard_name)
+            logger.info("  shard %s: total_size: %s", shard_name, shard.size)
 
         return self.count
