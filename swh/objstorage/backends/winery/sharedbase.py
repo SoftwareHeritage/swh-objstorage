@@ -40,6 +40,11 @@ class ShardState(Enum):
         return self in {self.CLEANING, self.READONLY}
 
 
+class SignatureState(Enum):
+    INFLIGHT = "inflight"
+    PRESENT = "present"
+
+
 class SharedBase(Database):
     def __init__(self, **kwargs) -> None:
         DatabaseAdmin(kwargs["base_dsn"], "sharedbase").create_database()
@@ -90,12 +95,36 @@ class SharedBase(Database):
               NOT NULL
               DEFAULT '{}'
         """,
+            f"""\
+        DO $$ BEGIN
+          CREATE TYPE signature_state AS ENUM (
+            {", ".join("'%s'" % value.value for value in SignatureState)}
+          );
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+        """,
             """
         CREATE TABLE IF NOT EXISTS signature2shard(
             signature BYTEA PRIMARY KEY,
-            inflight BOOLEAN NOT NULL,
+            state signature_state NOT NULL DEFAULT 'inflight',
             shard BIGINT NOT NULL REFERENCES shards(id)
         )
+        """,
+            """\
+        DO $$ BEGIN
+            ALTER TABLE signature2shard
+                ALTER COLUMN inflight TYPE signature_state USING (
+                    CASE
+                      WHEN inflight THEN 'inflight'::signature_state
+                      ELSE 'present'::signature_state
+                    END),
+                ALTER COLUMN inflight SET DEFAULT 'inflight';
+            ALTER TABLE signature2shard
+                RENAME COLUMN inflight TO state;
+        EXCEPTION
+          WHEN undefined_column THEN NULL;
+        END $$;
         """,
         ]
 
@@ -385,7 +414,7 @@ class SharedBase(Database):
         with self.db.cursor() as c:
             c.execute(
                 "SELECT shard FROM signature2shard WHERE "
-                "signature = %s AND inflight = FALSE",
+                "signature = %s AND state = 'present'",
                 (obj_id,),
             )
             row = c.fetchone()
@@ -403,8 +432,8 @@ class SharedBase(Database):
         try:
             with self.db.cursor() as c:
                 c.execute(
-                    "INSERT INTO signature2shard (signature, shard, inflight) "
-                    "VALUES (%s, %s, TRUE)",
+                    "INSERT INTO signature2shard (signature, shard, state) "
+                    "VALUES (%s, %s, 'inflight')",
                     (obj_id, self.locked_shard_id),
                 )
             self.db.commit()
@@ -413,7 +442,7 @@ class SharedBase(Database):
             with self.db.cursor() as c:
                 c.execute(
                     "SELECT shard FROM signature2shard WHERE "
-                    "signature = %s AND inflight = TRUE",
+                    "signature = %s AND state = 'inflight'",
                     (obj_id,),
                 )
                 row = c.fetchone()
@@ -424,7 +453,7 @@ class SharedBase(Database):
     def add_phase_2(self, obj_id):
         with self.db.cursor() as c:
             c.execute(
-                "UPDATE signature2shard SET inflight = FALSE "
+                "UPDATE signature2shard SET state = 'present' "
                 "WHERE signature = %s AND shard = %s",
                 (obj_id, self.locked_shard_id),
             )

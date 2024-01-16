@@ -224,7 +224,7 @@ class ROWorker(Worker):
         with self.storage.winery.base.db.cursor() as c:
             while True:
                 c.execute(
-                    "SELECT signature FROM signature2shard WHERE inflight = FALSE "
+                    "SELECT signature FROM signature2shard WHERE state = 'present' "
                     "ORDER BY random() LIMIT %s",
                     (self.max_request,),
                 )
