@@ -48,7 +48,7 @@ from .winery_benchmark import (
     WorkerKind,
     work,
 )
-from .winery_testing_helpers import PoolHelper
+from .winery_testing_helpers import FileBackedPool, PoolHelper
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,34 @@ def ceph_pool(remove_pool, remove_images, rbd_pool_name, needs_ceph):
         pool.remove()
     else:
         logger.info("Not removing pool")
+
+
+@pytest.fixture
+def file_backed_pool(mocker, tmp_path, shard_max_size, rbd_pool_name):
+    FileBackedPool.set_base_directory(tmp_path)
+    mocker.patch(
+        "swh.objstorage.backends.winery.roshard.Pool",
+        new=FileBackedPool,
+    )
+    mocker.patch(
+        "swh.objstorage.tests.winery_benchmark.Pool",
+        new=FileBackedPool,
+    )
+    pool = FileBackedPool(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
+    pool.image_unmap_all()
+    yield pool
+
+
+def pytest_generate_tests(metafunc):
+    if "image_pool" in metafunc.fixturenames:
+        metafunc.parametrize(
+            "image_pool", ["ceph_pool", "file_backed_pool"], indirect=True
+        )
+
+
+@pytest.fixture
+def image_pool(request):
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture
@@ -256,7 +284,7 @@ def test_winery_base_record_shard_mapped(winery):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 @pytest.mark.clean_immediately(False)
-def test_winery_pack(winery, ceph_pool):
+def test_winery_pack(winery, image_pool):
     shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
@@ -273,7 +301,7 @@ def test_winery_pack(winery, ceph_pool):
 
 @pytest.mark.shard_max_size(1024 * 1024)
 @pytest.mark.pack_immediately(True)
-def test_winery_writer_pack_immediately_true(ceph_pool, storage):
+def test_winery_writer_pack_immediately_true(image_pool, storage):
     shard = storage.winery.base.locked_shard
 
     for i in range(1024):
@@ -344,7 +372,7 @@ def test_winery_sleep_exponential_negative():
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
-def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, storage):
+def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, storage):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -368,7 +396,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(1),
-            rbd_pool_name=ceph_pool.pool_name,
+            rbd_pool_name=image_pool.pool_name,
         )
         == 1
     )
@@ -407,7 +435,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(3),
-            rbd_pool_name=ceph_pool.pool_name,
+            rbd_pool_name=image_pool.pool_name,
         )
         == 3
     )
@@ -437,7 +465,7 @@ def test_winery_standalone_packer(shard_max_size, ceph_pool, postgresql_dsn, sto
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
 @pytest.mark.clean_immediately(False)
-def test_winery_cli_packer(ceph_pool, storage, tmp_path, cli_runner):
+def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -472,7 +500,7 @@ def test_winery_cli_packer(ceph_pool, storage, tmp_path, cli_runner):
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
-def test_winery_cli_rbd(ceph_pool, storage, tmp_path, cli_runner):
+def test_winery_cli_rbd(image_pool, storage, tmp_path, cli_runner):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -501,7 +529,7 @@ def test_winery_cli_rbd(ceph_pool, storage, tmp_path, cli_runner):
     assert result.exit_code == 0
 
     for shard in filled:
-        assert ceph_pool.image_mapped(shard) == "rw"
+        assert image_pool.image_mapped(shard) == "rw"
 
     for shard in filled:
         storage.winery.base.set_shard_state(name=shard, new_state=ShardState.PACKED)
@@ -515,14 +543,14 @@ def test_winery_cli_rbd(ceph_pool, storage, tmp_path, cli_runner):
     assert result.exit_code == 0
 
     for shard in filled:
-        assert ceph_pool.image_mapped(shard) == "ro"
+        assert image_pool.image_mapped(shard) == "ro"
 
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(True)
 @pytest.mark.clean_immediately(False)
 def test_winery_cli_rw_shard_cleaner(
-    ceph_pool, postgresql_dsn, storage, tmp_path, cli_runner
+    image_pool, postgresql_dsn, storage, tmp_path, cli_runner
 ):
     # create 4 shards
     for i in range(16):
@@ -589,7 +617,7 @@ def test_winery_cli_rw_shard_cleaner(
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
 def test_winery_standalone_packer_never_stop_packing(
-    ceph_pool, postgresql_dsn, shard_max_size, storage
+    image_pool, postgresql_dsn, shard_max_size, storage
 ):
     # create 4 shards
     for i in range(16):
@@ -623,7 +651,7 @@ def test_winery_standalone_packer_never_stop_packing(
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
             wait_for_shard=wait_five_times,
-            rbd_pool_name=ceph_pool.pool_name,
+            rbd_pool_name=image_pool.pool_name,
         )
 
     assert called == list(range(5))
@@ -648,7 +676,7 @@ def test_winery_standalone_packer_never_stop_packing(
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_get_object(winery, ceph_pool):
+def test_winery_get_object(winery, image_pool):
     shard = winery.base.locked_shard
     content = b"SOMETHING"
     obj_id = compute_hash(content, "sha256")
@@ -690,7 +718,7 @@ def test_winery_ceph_pool(needs_ceph):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_ro_rw(storage, ceph_pool, tmpdir):
+def test_winery_bench_work_ro_rw(storage, image_pool, tmpdir):
     #
     # rw worker creates a shard
     #
@@ -709,25 +737,25 @@ def test_winery_bench_work_ro_rw(storage, ceph_pool, tmpdir):
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_pack(storage, ceph_pool):
+def test_winery_bench_work_pack(storage, image_pool):
     pack_args = {
         "base_dsn": storage.winery.args["base_dsn"],
         "shard_dsn": storage.winery.args["shard_dsn"],
         "shard_max_size": storage.winery.args["shard_max_size"],
         "throttle_read": storage.winery.args["throttle_read"],
         "throttle_write": storage.winery.args["throttle_write"],
-        "rbd_pool_name": ceph_pool.pool_name,
+        "rbd_pool_name": image_pool.pool_name,
     }
     assert work("pack", storage, {"pack": pack_args}) == "pack"
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_rbd(storage, ceph_pool):
+def test_winery_bench_work_rbd(storage, image_pool):
     rbd_args = {
         "base_dsn": storage.winery.args["base_dsn"],
         "shard_max_size": storage.winery.args["shard_max_size"],
         "duration": 1,
-        "rbd_pool_name": ceph_pool.pool_name,
+        "rbd_pool_name": image_pool.pool_name,
     }
     assert work("rbd", storage, {"rbd": rbd_args}) == "rbd"
 
@@ -761,7 +789,7 @@ def test_winery_bench_rw_object_limit(storage):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 @pytest.mark.pack_immediately(True)
-def test_winery_bench_rw_block_until_packed(storage, ceph_pool):
+def test_winery_bench_rw_block_until_packed(storage, image_pool):
     worker = RWWorker(storage, single_shard=True, block_until_packed=False)
 
     assert worker.run() == "rw"
@@ -777,7 +805,7 @@ def test_winery_bench_rw_block_until_packed(storage, ceph_pool):
 
 @pytest.mark.shard_max_size(1024 * 1024)
 @pytest.mark.pack_immediately(True)
-def test_winery_bench_rw_block_until_packed_multiple_shards(storage, ceph_pool):
+def test_winery_bench_rw_block_until_packed_multiple_shards(storage, image_pool):
     # 1000 objects will create multiple shards when the limit is 1MB
     worker = RWWorker(
         storage, object_limit=1000, single_shard=False, block_until_packed=False
@@ -865,6 +893,8 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     )
 
 
+# Only run this one on a Ceph image pool as we won’t be running “real”
+# benchmarks using the file-backed backend.
 @pytest.mark.use_benchmark_flags
 def test_winery_bench_real(bench_options, ceph_pool):
     count = call_async(Bench(**asdict(bench_options)).run)

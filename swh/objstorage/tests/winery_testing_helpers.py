@@ -5,8 +5,10 @@
 
 import atexit
 import logging
+import os
+from pathlib import Path
 from subprocess import CalledProcessError
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from swh.objstorage.backends.winery.roshard import (
     DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
@@ -127,3 +129,68 @@ class PoolHelper(Pool):
             self.ceph("osd", "pool", "set", self.data_pool_name, setting, value)
 
         self.ceph("osd", "pool", "create", self.pool_name)
+
+
+class FileBackedPool(Pool):
+    """File-backed pool for Winery shards mimicking a Ceph RBD pool.
+
+    Unmapped images are represented by setting the file permission to 0o000.
+    """
+
+    base_directory: Optional[Path] = None
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        assert (
+            FileBackedPool.base_directory is not None
+        ), "set_base_directory() should have been called first"
+        self.pool_dir = FileBackedPool.base_directory / self.pool_name
+        self.pool_dir.mkdir(exist_ok=True)
+
+    @classmethod
+    def set_base_directory(cls, base_directory: Path) -> None:
+        cls.base_directory = base_directory
+
+    @classmethod
+    def from_kwargs(cls, **kwargs) -> "Pool":
+        """Create a Pool from a set of arbitrary keyword arguments"""
+        return cls(**{k: kwargs[k] for k in Pool.POOL_CONFIG if k in kwargs})
+
+    def run(self, *cmd: str) -> Iterable[str]:
+        raise NotImplementedError
+
+    def rbd(self, *arguments: str) -> Iterable[str]:
+        raise NotImplementedError
+
+    def image_exists(self, image: str) -> bool:
+        return (self.pool_dir / image).is_file()
+
+    def image_list(self) -> List[str]:
+        return [entry.name for entry in self.pool_dir.iterdir() if entry.is_file()]
+
+    def image_path(self, image: str) -> str:
+        return str(self.pool_dir / image)
+
+    def image_create(self, image: str) -> None:
+        path = self.image_path(image)
+        open(path, "w").close()
+        os.truncate(path, self.image_size * 1024 * 1024)
+        self.image_map(image, "rw")
+
+    def image_map(self, image: str, options: str) -> None:
+        if "ro" in options:
+            os.chmod(self.image_path(image), 0o400)
+        else:
+            os.chmod(self.image_path(image), 0o600)
+
+    def image_unmap(self, image: str) -> None:
+        os.chmod(self.image_path(image), 0o000)
+
+    def image_unmap_all(self) -> None:
+        for entry in self.pool_dir.iterdir():
+            if entry.is_file():
+                entry.chmod(0o000)
