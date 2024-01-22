@@ -1,5 +1,7 @@
 import sys
 
+import pytest
+
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "shard_max_size: winery backend")
@@ -13,6 +15,13 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "use_benchmark_flags: use the --winery-bench-* CLI flags"
+    )
+    config.addinivalue_line(
+        "markers",
+        (
+            "all_compression_methods: "
+            "test all compression methods instead of only the most common ones"
+        ),
     )
 
 
@@ -106,3 +115,15 @@ def pytest_addoption(parser):
         help="Maximum number of bytes per second write",
         default=100 * 1024 * 1024,
     )
+    parser.addoption(
+        "--all-compression-methods",
+        action="store_true",
+        default=False,
+        help="Test all compression methods",
+    )
+
+
+def pytest_runtest_setup(item):
+    if item.get_closest_marker("all_compression_methods"):
+        if not item.config.getoption("--all-compression-methods"):
+            pytest.skip("`--all-compression-methods` has not been specified")

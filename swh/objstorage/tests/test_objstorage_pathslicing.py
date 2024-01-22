@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import DEFAULT, patch
 
+import pytest
+
 from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage.constants import ID_DIGEST_LENGTH
@@ -144,13 +146,16 @@ class TestPathSlicingObjStorageGzip(TestPathSlicingObjStorage):
     compression = "gzip"
 
 
+@pytest.mark.all_compression_methods
 class TestPathSlicingObjStorageZlib(TestPathSlicingObjStorage):
     compression = "zlib"
 
 
+@pytest.mark.all_compression_methods
 class TestPathSlicingObjStorageBz2(TestPathSlicingObjStorage):
     compression = "bz2"
 
 
+@pytest.mark.all_compression_methods
 class TestPathSlicingObjStorageLzma(TestPathSlicingObjStorage):
     compression = "lzma"

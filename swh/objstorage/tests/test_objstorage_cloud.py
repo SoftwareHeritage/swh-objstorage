@@ -148,6 +148,7 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         pass
 
 
+@pytest.mark.all_compression_methods
 class TestCloudObjStorageBz2(TestCloudObjStorage):
     compression = "bz2"
 
@@ -156,10 +157,12 @@ class TestCloudObjStorageGzip(TestCloudObjStorage):
     compression = "gzip"
 
 
+@pytest.mark.all_compression_methods
 class TestCloudObjStorageLzma(TestCloudObjStorage):
     compression = "lzma"
 
 
+@pytest.mark.all_compression_methods
 class TestCloudObjStorageZlib(TestCloudObjStorage):
     compression = "zlib"
 

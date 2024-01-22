@@ -269,14 +269,17 @@ class TestMockedAzureCloudObjStorageGzip(TestMockedAzureCloudObjStorage):
     compression = "gzip"
 
 
+@pytest.mark.all_compression_methods
 class TestMockedAzureCloudObjStorageZlib(TestMockedAzureCloudObjStorage):
     compression = "zlib"
 
 
+@pytest.mark.all_compression_methods
 class TestMockedAzureCloudObjStorageLzma(TestMockedAzureCloudObjStorage):
     compression = "lzma"
 
 
+@pytest.mark.all_compression_methods
 class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
     compression = "bz2"
 
