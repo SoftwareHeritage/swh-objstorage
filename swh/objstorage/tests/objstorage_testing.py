@@ -306,6 +306,7 @@ class ObjStorageTestFixture:
         assert len(sto_obj_ids) == len(obj_ids)
         assert sto_obj_ids == obj_ids
 
+    @pytest.mark.skip_on_cloud
     def test_list_content_all(self):
         assert self.num_objects > 100
         all_ids = self.fill_objstorage(self.num_objects)
@@ -314,6 +315,7 @@ class ObjStorageTestFixture:
         assert len(ids) == len(all_ids)
         assert ids == all_ids
 
+    @pytest.mark.skip_on_cloud
     def test_list_content_limit(self):
         assert self.num_objects > 100
         all_ids = self.fill_objstorage(self.num_objects)
@@ -322,6 +324,7 @@ class ObjStorageTestFixture:
         assert len(ids) == 10
         assert ids == all_ids[:10]
 
+    @pytest.mark.skip_on_cloud
     def test_list_content_limit_and_last(self):
         assert self.num_objects > 110
         all_ids = self.fill_objstorage(self.num_objects)

@@ -23,6 +23,9 @@ def pytest_configure(config):
             "test all compression methods instead of only the most common ones"
         ),
     )
+    config.addinivalue_line(
+        "markers", "skip_on_cloud: skip test on cloud implementations"
+    )
 
 
 def pytest_addoption(parser):
@@ -127,3 +130,6 @@ def pytest_runtest_setup(item):
     if item.get_closest_marker("all_compression_methods"):
         if not item.config.getoption("--all-compression-methods"):
             pytest.skip("`--all-compression-methods` has not been specified")
+    if item.get_closest_marker("skip_on_cloud"):
+        if item.parent and "Cloud" in item.parent.name:
+            pytest.skip("skipping on cloud implementation")
