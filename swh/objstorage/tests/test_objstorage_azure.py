@@ -133,11 +133,17 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         )
 
         container_url = f"{base_url}/{account_name}"
+        # note the stripping of the scheme for the BlobSecondaryEndpoint is NOT
+        # a mistake; looks like azurite requires this secondary endpoint to not
+        # come with the scheme (although I've not seen this documented, so not
+        # sure if it's by design or a bug).
+        secondary_url = container_url.replace("http://127.0.0.1", "localhost")
         cls._connection_string = (
             f"DefaultEndpointsProtocol=https;"
             f"AccountName={account_name};"
             f"AccountKey={account_key};"
             f"BlobEndpoint={container_url};"
+            f"BlobSecondaryEndpoint={secondary_url};"
         )
 
     @classmethod
@@ -159,6 +165,19 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
             container_name=self._container_name,
             compression=self.compression,
         )
+
+    def test_download_url(self):
+        content_p, obj_id_p = self.hash_content(b"contains_present")
+        self.storage.add(content_p, obj_id=obj_id_p)
+        assert self.storage.download_url(obj_id_p).startswith("http://127.0.0.1:")
+        storage2 = get_objstorage(
+            "azure",
+            connection_string=self._connection_string,
+            container_name=self._container_name,
+            compression=self.compression,
+            use_secondary_endpoint_for_downloads=True,
+        )
+        assert storage2.download_url(obj_id_p).startswith("http://localhost:")
 
 
 class TestAzuriteCloudObjStorageGzip(TestAzuriteCloudObjStorage):

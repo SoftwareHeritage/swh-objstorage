@@ -49,3 +49,27 @@ retrieve objects from. I an other terminal:
    (swh-objstorage) ~/swh$ swh-objstorage -C remote.yml import .
    INFO:swh.core.config:Loading config file remote.yml
    Imported 1369 files for a volume of 722837 bytes in 2 seconds
+
+
+Test dependencies
+-----------------
+
+Some tests do require non-python dependencies to be installed on the machine:
+
+- Ceph: the `ceph` executable can be used to run winery tests. When the ceph
+  binary is available, the winery tests will try to create a real ceph Rados
+  Block Device (rbd) pool to run.
+
+- Azurite: the ``azurite`` tool is needed for Azure backend tests. Since it's a
+  npm package, you can install it using:
+
+  .. code-block:: console
+
+     npm install -g azurite
+
+  Note: you may want to configure your npm setup so it uses ``~/.local`` as
+  prefix for global installations:
+
+  .. code-block:: console
+
+     npm config set prefix '~/.local/'

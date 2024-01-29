@@ -99,12 +99,16 @@ class AzureCloudObjStorage(ObjStorage):
       container_name: (deprecated) the name of the container under which objects are
         stored
       compression: the compression algorithm used to compress objects in storage
+      use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
+        url to generate download URLs. To configure the secondary endpoint, use
+        the BlobSecondaryEndpoint entry of the connection string.
 
     Notes:
       The container url should contain the credentials via a "Shared Access
       Signature". The :func:`get_container_url` helper can be used to generate
       such a URL from the account's access keys. The ``account_name``,
       ``api_secret_key`` and ``container_name`` arguments are deprecated.
+
     """
 
     PRIMARY_HASH: Literal["sha1"] = "sha1"
@@ -117,6 +121,7 @@ class AzureCloudObjStorage(ObjStorage):
         container_name: Optional[str] = None,
         connection_string: Optional[str] = None,
         compression="gzip",
+        use_secondary_endpoint_for_downloads=False,
         **kwargs,
     ):
         if container_url is None and connection_string is None:
@@ -148,6 +153,7 @@ class AzureCloudObjStorage(ObjStorage):
         self.container_url = container_url
         self.connection_string = connection_string
         self.compression = compression
+        self.use_secondary = use_secondary_endpoint_for_downloads
 
     def get_container_client(self, hex_obj_id):
         """Get the container client for the container that contains the object with
@@ -364,7 +370,10 @@ class AzureCloudObjStorage(ObjStorage):
                 expiry=datetime.now() + (expiry or timedelta(hours=24)),
                 content_disposition=content_disposition,
             )
-            return f"{client.primary_endpoint}?{signature}"
+            if self.use_secondary:
+                return f"{client.secondary_endpoint}?{signature}"
+            else:
+                return f"{client.primary_endpoint}?{signature}"
 
 
 class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
