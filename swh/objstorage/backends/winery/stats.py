@@ -68,8 +68,7 @@ class Stats:
                 "bytes_read",
             ]
         )
-        self._stats_fd.write(f"{int(time.monotonic())},{ll}\n")
-        self._stats_fd.flush()
+        self._stats_fd.write(f"{int(time.time())},{ll}\n")
 
     def _stats_maybe_print(self):
         now = time.monotonic()
