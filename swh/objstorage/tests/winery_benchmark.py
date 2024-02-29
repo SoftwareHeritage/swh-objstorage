@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, Optional, Set, Union
 
 import psycopg
+import psycopg_pool
 from typing_extensions import Literal
 
 from swh.objstorage.backends.winery.objstorage import (
@@ -91,6 +92,10 @@ def work(
         return RWShardCleanerWorker(
             application_name=application_name, **kind_args
         ).run()
+    elif kind == "stats":
+        return StatsPrinter(application_name=application_name, **kind_args).run(
+            time_remaining=time_remaining
+        )
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -229,6 +234,94 @@ class RWShardCleanerWorker:
             application_name=self.application_name,
         )
         return "rw_shard_cleaner"
+
+
+class StatsPrinter:
+    def __init__(
+        self,
+        base_dsn: str,
+        shard_dsn: str,
+        shard_max_size: int,
+        application_name: Optional[str] = None,
+        interval: int = 5 * 60,
+    ):
+        self.base_dsn = base_dsn
+        self.shard_dsn = shard_dsn
+        self.shard_max_size = shard_max_size
+        self.interval = datetime.timedelta(seconds=interval)
+        self.application_name = application_name or "Winery Benchmark Stats Printer"
+        self.objects_per_shard: Dict[str, int] = {}
+
+    def get_winery_reader(self) -> WineryReader:
+        return WineryReader(
+            base_dsn=self.base_dsn,
+            shard_dsn=self.shard_dsn,
+            shard_max_size=self.shard_max_size,
+            application_name=self.application_name,
+        )
+
+    def run(self, time_remaining: datetime.timedelta) -> Literal["stats"]:
+        try:
+            return self._run(time_remaining)
+        except Exception:
+            logger.exception("StatsPrinter.run raised exception")
+            return "stats"
+
+    def _run(self, time_remaining: datetime.timedelta) -> Literal["stats"]:
+        sleep = min(time_remaining, self.interval).total_seconds()
+        if sleep > 1:
+            time.sleep(sleep)
+
+        winery = self.get_winery_reader()
+        shards = list(winery.base.list_shards())
+        shard_counts: Counter[ShardState] = Counter()
+
+        printed_rw_header = False
+
+        for shard_name, _ in shards:
+            # Get a fresh version of the state again to try and avoid a race
+            state = winery.base.get_shard_state(shard_name)
+            shard_counts[state] += 1
+            if state not in {ShardState.STANDBY, ShardState.WRITING}:
+                if shard_name not in self.objects_per_shard:
+                    self.objects_per_shard[shard_name] = winery.base.count_objects(
+                        shard_name
+                    )
+            else:
+                if not printed_rw_header:
+                    logger.info("read-write shard stats:")
+                    printed_rw_header = True
+
+                objects = winery.base.count_objects(shard_name)
+                try:
+                    shard = winery.rwshard(shard_name)
+                    size = shard.size
+                except psycopg_pool.PoolTimeout:
+                    logger.info(
+                        "Shard %s got eaten by the rw shard cleaner, sorry", shard_name
+                    )
+                    size = 0
+                logger.info(
+                    " shard %s (state: %s): objects: %s, total_size: %.1f GiB (%2.1f%%)",
+                    shard_name,
+                    state.name,
+                    objects,
+                    size / (1024 * 1024 * 1024),
+                    100 * size / self.shard_max_size,
+                )
+
+        logger.info(
+            "Read-only shard stats: count: %s, objects: %s, total_size (est.): %.1f GiB",
+            len(self.objects_per_shard),
+            sum(self.objects_per_shard.values()),
+            (len(self.objects_per_shard) * self.shard_max_size) / (1024 * 1024 * 1024),
+        )
+        logger.info(
+            "Shard counts: %s",
+            ", ".join(f"{state.name}: {shard_counts[state]}" for state in ShardState),
+        )
+
+        return "stats"
 
 
 class ROWorker(Worker):
@@ -492,30 +585,5 @@ class Bench(object):
                         self.workers_per_kind[kind] -= 1
 
             logger.info("Bench.run: finished")
-
-        if isinstance(self.storage_config, dict):
-            args = {**self.storage_config, "readonly": True}
-        else:
-            assert isinstance(
-                self.storage_config, WineryObjStorage
-            ), f"winery_benchmark passed unexpected {self.storage_config.__class__.__name__}"
-            args = {**self.storage_config.winery.args, "readonly": True}
-
-        winery = WineryReader(**args)
-
-        logger.info("Bench.run: statistics...")
-
-        shards = dict(winery.base.list_shards())
-        shard_counts = Counter(shards.values())
-        logger.info(" shard counts by state: %s", shard_counts)
-
-        logger.info(" read-write shard stats:")
-
-        for shard_name, state in shards.items():
-            if state not in {ShardState.STANDBY, ShardState.WRITING}:
-                continue
-
-            shard = winery.rwshard(shard_name)
-            logger.info("  shard %s: total_size: %s", shard_name, shard.size)
 
         return self.count

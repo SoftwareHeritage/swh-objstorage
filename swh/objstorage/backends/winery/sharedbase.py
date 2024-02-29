@@ -411,6 +411,27 @@ class SharedBase(Database):
             for row in c:
                 yield row[0], ShardState(row[1])
 
+    def count_objects(self, name: Optional[str] = None) -> Optional[int]:
+        if not name:
+            if not self._locked_shard:
+                raise ValueError("Can't count objects, no shard specified or locked")
+            name = self._locked_shard[0]
+
+        with self.pool.connection() as db:
+            c = db.execute(
+                """SELECT shard, COUNT(*)
+                         FROM signature2shard
+                         WHERE state = 'present'
+                           AND shard = (SELECT id FROM shards WHERE name = %s)
+                         GROUP BY shard
+                """,
+                (name,),
+            )
+            row = c.fetchone()
+            if not row:
+                return 0
+            return row[1]
+
     def record_shard_mapped(self, host: str, name: Optional[str] = None) -> Set[str]:
         if not name:
             if not self._locked_shard:

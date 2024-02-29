@@ -47,6 +47,7 @@ from .winery_benchmark import (
     ROWorker,
     RWShardCleanerWorker,
     RWWorker,
+    StatsPrinter,
     WorkerKind,
     work,
 )
@@ -990,6 +991,9 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     workers_per_kind: Dict[WorkerKind, int] = {
         "ro": pytestconfig.getoption("--winery-bench-ro-workers"),
         "rw": pytestconfig.getoption("--winery-bench-rw-workers"),
+        "stats": (
+            1 if pytestconfig.getoption("--winery-bench-stats-interval") > 0 else 0
+        ),
     }
     worker_args: Dict[WorkerKind, Dict] = {
         "ro": {
@@ -1006,6 +1010,12 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
             "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
             "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
             "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
+        },
+        "stats": {
+            "base_dsn": postgresql_dsn,
+            "shard_dsn": postgresql_dsn,
+            "shard_max_size": shard_max_size,
+            "interval": pytestconfig.getoption("--winery-bench-stats-interval"),
         },
         "rw_shard_cleaner": {
             "base_dsn": postgresql_dsn,
@@ -1076,6 +1086,15 @@ def test_winery_bench_fake(bench_options, mocker):
             logger.info("running rw_shard_cleaner for %s", bench_options.duration)
             return "rw_shard_cleaner"
 
+    class _StatsPrinter(StatsPrinter):
+        def run(self, time_remaining: datetime.timedelta):
+            logger.info(
+                "running stats for %s, remaining: %s",
+                bench_options.duration,
+                time_remaining,
+            )
+            return "stats"
+
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.PackWorker", _PackWorker)
@@ -1084,6 +1103,7 @@ def test_winery_bench_fake(bench_options, mocker):
         "swh.objstorage.tests.winery_benchmark.RWShardCleanerWorker",
         _RWShardCleanerWorker,
     )
+    mocker.patch("swh.objstorage.tests.winery_benchmark.StatsPrinter", _StatsPrinter)
     mocker.patch(
         "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
     )

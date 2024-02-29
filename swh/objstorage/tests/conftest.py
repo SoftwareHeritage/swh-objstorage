@@ -101,6 +101,12 @@ def pytest_addoption(parser):
         default=10 * 1024 * 1024,
     )
     parser.addoption(
+        "--winery-bench-stats-interval",
+        type=int,
+        help="Interval between stat computations (seconds)",
+        default=5 * 60,
+    )
+    parser.addoption(
         "--winery-bench-ro-worker-max-request",
         type=int,
         help="Number of requests a ro worker performs",
