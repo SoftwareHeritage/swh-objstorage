@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import collections
 import logging
 import os
 import time
@@ -19,30 +20,30 @@ class Stats:
         self._stats_active = True
         if not os.path.exists(d):
             os.makedirs(d)
+        self._stats = collections.Counter()
         self._stats_filename = f"{d}/{os.getpid()}.csv"
-        self._stats_fd = open(self.stats_filename, "w")
-        self._stats_fd.write(
-            # time in seconds since epoch
-            "time,"
-            # total number of objects written at this point in time
-            "object_write_count,"
-            # total number of bytes written at this point in time
-            "bytes_write,"
-            # total number of objects read at this point in time
-            "object_read_count,"
-            # total number of bytes read at this point in time
-            "bytes_read"
-            "\n"
-        )
-        self._stats_fd.flush()
+        self._stats_fd = open(self.stats_filename, "a")
+        if self._stats_fd.tell() == 0:
+            # We created the file, write the CSV header
+            self._stats_fd.write(
+                # time in seconds since epoch
+                "time,"
+                # total number of objects written at this point in time
+                "object_write_count,"
+                # total number of bytes written at this point in time
+                "bytes_write,"
+                # total number of objects read at this point in time
+                "object_read_count,"
+                # total number of bytes read at this point in time
+                "bytes_read"
+                "\n"
+            )
+        else:
+            # The PID was recycled, print an empty stats line at the end of the file to mark it
+            self._stats_print()
+
         self._stats_last_write = time.monotonic()
         self._stats_flush_interval = 5
-        self._stats = {
-            "object_write_count": 0,
-            "bytes_write": 0,
-            "object_read_count": 0,
-            "bytes_read": 0,
-        }
 
     @property
     def stats_active(self):
