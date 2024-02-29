@@ -50,7 +50,7 @@ class RWShard(Database):
         CREATE TABLE IF NOT EXISTS objects(
           key BYTEA PRIMARY KEY,
           content BYTEA
-        )
+        ) WITH (autovacuum_enabled = false)
         """,
         ]
 
