@@ -5,6 +5,7 @@
 
 from collections import Counter
 from dataclasses import asdict, dataclass
+import datetime
 import logging
 import os
 import shutil
@@ -832,7 +833,10 @@ def test_winery_bench_work_ro_rw(storage, image_pool, tmpdir):
     locked_shard = storage.winery.base.locked_shard
     shards_info = list(storage.winery.base.list_shards())
     assert shards_info == [(locked_shard, ShardState.WRITING)]
-    assert work("rw", storage) == "rw"
+    assert (
+        work("rw", storage=storage, time_remaining=datetime.timedelta(seconds=300))
+        == "rw"
+    )
     shards_info = dict(storage.winery.base.list_shards())
     assert len(shards_info) == 2
     assert shards_info[locked_shard].image_available
@@ -840,7 +844,15 @@ def test_winery_bench_work_ro_rw(storage, image_pool, tmpdir):
     # ro worker reads a shard
     #
     args = {**storage.winery.args, "readonly": True}
-    assert work("ro", args, {"ro": {"max_request": 1}}) == "ro"
+    assert (
+        work(
+            "ro",
+            storage=args,
+            worker_args={"ro": {"max_request": 1}},
+            time_remaining=datetime.timedelta(seconds=300),
+        )
+        == "ro"
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -853,7 +865,15 @@ def test_winery_bench_work_pack(storage, image_pool):
         "throttle_write": storage.winery.args["throttle_write"],
         "rbd_pool_name": image_pool.pool_name,
     }
-    assert work("pack", storage, {"pack": pack_args}) == "pack"
+    assert (
+        work(
+            "pack",
+            storage=storage,
+            worker_args={"pack": pack_args},
+            time_remaining=datetime.timedelta(seconds=300),
+        )
+        == "pack"
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -864,7 +884,15 @@ def test_winery_bench_work_rbd(storage, image_pool):
         "duration": 1,
         "rbd_pool_name": image_pool.pool_name,
     }
-    assert work("rbd", storage, {"rbd": rbd_args}) == "rbd"
+    assert (
+        work(
+            "rbd",
+            storage=storage,
+            worker_args={"rbd": rbd_args},
+            time_remaining=datetime.timedelta(seconds=300),
+        )
+        == "rbd"
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
@@ -874,7 +902,12 @@ def test_winery_bench_work_rw_shard_cleaner(storage):
         "shard_dsn": storage.winery.args["shard_dsn"],
     }
     assert (
-        work("rw_shard_cleaner", storage, {"rw_shard_cleaner": rbd_args})
+        work(
+            "rw_shard_cleaner",
+            storage=storage,
+            worker_args={"rw_shard_cleaner": rbd_args},
+            time_remaining=datetime.timedelta(seconds=300),
+        )
         == "rw_shard_cleaner"
     )
 
@@ -887,7 +920,7 @@ def test_winery_bench_rw_object_limit(storage):
         storage, object_limit=object_limit, single_shard=False, block_until_packed=False
     )
 
-    assert worker.run() == "rw"
+    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
 
     with storage.winery.base.pool.connection() as db:
         c = db.execute("SELECT count(*) from signature2shard")
@@ -899,7 +932,7 @@ def test_winery_bench_rw_object_limit(storage):
 def test_winery_bench_rw_block_until_packed(storage, image_pool):
     worker = RWWorker(storage, single_shard=True, block_until_packed=False)
 
-    assert worker.run() == "rw"
+    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
 
     packed = 0
     for packer in storage.winery.packers:
@@ -918,7 +951,7 @@ def test_winery_bench_rw_block_until_packed_multiple_shards(storage, image_pool)
         storage, object_limit=1000, single_shard=False, block_until_packed=False
     )
 
-    assert worker.run() == "rw"
+    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
 
     packed = 0
     for packer in storage.winery.packers:
@@ -1011,13 +1044,21 @@ def test_winery_bench_real(bench_options, ceph_pool):
 @pytest.mark.use_benchmark_flags
 def test_winery_bench_fake(bench_options, mocker):
     class _ROWorker(ROWorker):
-        def run(self):
-            logger.info("running ro for %s", bench_options.duration)
+        def run(self, time_remaining: datetime.timedelta):
+            logger.info(
+                "running ro for %s, time remaining: %s",
+                bench_options.duration,
+                time_remaining,
+            )
             return "ro"
 
     class _RWWorker(RWWorker):
-        def run(self):
-            logger.info("running rw for %s", bench_options.duration)
+        def run(self, time_remaining: datetime.timedelta):
+            logger.info(
+                "running rw for %s, time remaining: %s",
+                bench_options.duration,
+                time_remaining,
+            )
             return "rw"
 
     class _PackWorker(PackWorker):

@@ -6,6 +6,7 @@
 import asyncio
 from collections import Counter
 import concurrent.futures
+import datetime
 import logging
 from multiprocessing import current_process
 import os
@@ -33,12 +34,13 @@ from swh.objstorage.objstorage import compute_hash
 
 logger = logging.getLogger(__name__)
 
-WorkerKind = Literal["ro", "rw", "pack", "rbd", "rw_shard_cleaner"]
+WorkerKind = Literal["ro", "rw", "pack", "rbd", "rw_shard_cleaner", "stats"]
 
 
 def work(
     kind: WorkerKind,
     storage: Union[ObjStorageInterface, Dict[str, Any]],
+    time_remaining: datetime.timedelta,
     worker_args: Optional[Dict[WorkerKind, Any]] = None,
     worker_id: int = 0,
 ) -> WorkerKind:
@@ -67,7 +69,7 @@ def work(
                         "readonly": True,
                     },
                 )
-            return ROWorker(storage, **kind_args).run()
+            return ROWorker(storage, **kind_args).run(time_remaining=time_remaining)
         finally:
             if isinstance(storage, WineryObjStorage):
                 storage.winery.uninit()
@@ -77,7 +79,7 @@ def work(
                 storage = get_objstorage(
                     cls="winery", application_name=application_name, **storage
                 )
-            return RWWorker(storage, **kind_args).run()
+            return RWWorker(storage, **kind_args).run(time_remaining=time_remaining)
         finally:
             if isinstance(storage, WineryObjStorage):
                 storage.winery.uninit()
@@ -101,7 +103,7 @@ class Worker:
         self.stats = Stats(storage.winery.args.get("output_dir"))
         self.storage = storage
 
-    def run(self) -> WorkerKind:
+    def run(self, time_remaining: datetime.timedelta) -> WorkerKind:
         raise NotImplementedError
 
 
@@ -240,9 +242,9 @@ class ROWorker(Worker):
         self.winery: WineryReader = self.storage.winery
         self.max_request = max_request
 
-    def run(self) -> Literal["ro"]:
+    def run(self, time_remaining: datetime.timedelta) -> Literal["ro"]:
         try:
-            self._ro()
+            self._ro(time_remaining)
         except psycopg.OperationalError:
             # It may happen when the database is dropped, just
             # conclude the read loop gracefully and move on
@@ -252,7 +254,8 @@ class ROWorker(Worker):
 
         return "ro"
 
-    def _ro(self):
+    def _ro(self, time_remaining: datetime.timedelta):
+        end = time.monotonic() + time_remaining.total_seconds()
         with self.storage.winery.base.pool.connection() as db:
             while True:
                 c = db.execute(
@@ -262,19 +265,23 @@ class ROWorker(Worker):
                 )
                 if c.rowcount > 0:
                     break
+                if time.monotonic() > end:
+                    break
                 logger.info("Worker(ro, %s): empty, waiting", os.getpid())
                 time.sleep(1)
             logger.info(
                 "Worker(ro, %s): requesting %s objects", os.getpid(), c.rowcount
             )
-            start = time.time()
+            start = time.monotonic()
             for row in c:
+                if time.monotonic() > end:
+                    break
                 obj_id = row[0]
                 content = self.storage.get(obj_id)
                 assert content is not None
                 if self.stats.stats_active:
                     self.stats.stats_read(obj_id, content)
-            elapsed = time.time() - start
+            elapsed = time.monotonic() - start
             logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
 
     def finalize(self):
@@ -326,12 +333,13 @@ class RWWorker(Worker):
             80 * 1024 + 1,
         ]
 
-    def run(self) -> Literal["rw"]:
+    def run(self, time_remaining: datetime.timedelta) -> Literal["rw"]:
+        end = time.monotonic() + time_remaining.total_seconds()
         self.payloads_define()
         random_content = open("/dev/urandom", "rb")
         logger.info("Worker(rw, %s): start", os.getpid())
-        start = time.time()
-        while self.keep_going():
+        start = time.monotonic()
+        while self.keep_going() and time.monotonic() < end:
             content = random_content.read(random.choice(self.payloads))
             obj_id = compute_hash(content, "sha256")
             self.storage.add(content=content, obj_id=obj_id)
@@ -339,7 +347,7 @@ class RWWorker(Worker):
                 self.stats.stats_write(obj_id, content)
             self.count += 1
         self.finalize()
-        elapsed = time.time() - start
+        elapsed = time.monotonic() - start
         logger.info("Worker(rw, %s): finished (%.2fs)", os.getpid(), elapsed)
 
         return "rw"
@@ -387,6 +395,9 @@ class Bench(object):
     def timeout(self) -> bool:
         return time.monotonic() - self.start > self.duration
 
+    def time_remaining(self) -> datetime.timedelta:
+        return datetime.timedelta(seconds=self.start + self.duration - time.monotonic())
+
     async def run(self) -> int:
         self.timer_start()
 
@@ -410,6 +421,7 @@ class Bench(object):
                     work,
                     kind,
                     self.storage_config,
+                    self.time_remaining(),
                     self.worker_args,
                     self.count,
                 )
