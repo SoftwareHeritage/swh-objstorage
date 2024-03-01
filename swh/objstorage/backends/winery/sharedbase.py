@@ -8,8 +8,8 @@ import logging
 from typing import Iterator, Optional, Set, Tuple
 import uuid
 
-import psycopg2
-import psycopg2.errors
+import psycopg
+import psycopg.errors
 
 from .database import Database, DatabaseAdmin
 
@@ -193,7 +193,7 @@ class SharedBase(Database):
         if not new_state.locked:
             raise ValueError(f"{new_state} is not a locked state")
 
-        with self.db:
+        with self.db.transaction():
             # run the next two statements in a transaction
             with self.db.cursor() as c:
                 c.execute(
@@ -226,7 +226,7 @@ class SharedBase(Database):
                             shard_name,
                         ),
                     )
-                except psycopg2.Error:
+                except psycopg.Error:
                     logger.exception(
                         "SharedBase %s: shard %s failed to lock",
                         WRITER_UUID,
@@ -317,7 +317,7 @@ class SharedBase(Database):
             return res
 
     def shard_packing_starts(self, name: str):
-        with self.db:
+        with self.db.transaction():
             with self.db.cursor() as c:
                 c.execute(
                     "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
@@ -344,7 +344,7 @@ class SharedBase(Database):
                 )
 
     def shard_packing_ends(self, name):
-        with self.db:
+        with self.db.transaction():
             with self.db.cursor() as c:
                 c.execute(
                     "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
@@ -396,7 +396,7 @@ class SharedBase(Database):
                 raise ValueError("Can't set shard state, no shard specified or locked")
             name = self._locked_shard[0]
 
-        with self.db:
+        with self.db.transaction():
             with self.db.cursor() as c:
                 c.execute(
                     """SELECT mapped_on_hosts_when_packed
@@ -447,7 +447,7 @@ class SharedBase(Database):
                 )
             self.db.commit()
             return self.locked_shard_id
-        except psycopg2.errors.UniqueViolation:
+        except psycopg.errors.UniqueViolation:
             with self.db.cursor() as c:
                 c.execute(
                     "SELECT shard FROM signature2shard WHERE "

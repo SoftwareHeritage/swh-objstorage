@@ -6,8 +6,8 @@
 
 import logging
 
-import psycopg2
-import psycopg2.errors
+import psycopg
+import psycopg.errors
 
 from .database import Database, DatabaseAdmin
 
@@ -69,19 +69,22 @@ class RWShard(Database):
                 c.execute(
                     "INSERT INTO objects (key, content) VALUES (%s, %s)",
                     (obj_id, content),
+                    binary=True,
                 )
             self.db.commit()
             self.size += len(content)
-        except psycopg2.errors.UniqueViolation:
+        except psycopg.errors.UniqueViolation:
             pass
 
     def get(self, obj_id):
         with self.db.cursor() as c:
-            c.execute("SELECT content FROM objects WHERE key = %s", (obj_id,))
+            c.execute(
+                "SELECT content FROM objects WHERE key = %s", (obj_id,), binary=True
+            )
             if c.rowcount == 0:
                 return None
             else:
-                return c.fetchone()[0].tobytes()
+                return c.fetchone()[0]
 
     def delete(self, obj_id):
         with self.db.cursor() as c:
@@ -92,9 +95,8 @@ class RWShard(Database):
 
     def all(self):
         with self.db.cursor() as c:
-            c.execute("SELECT key,content FROM objects")
-            for row in c:
-                yield row[0].tobytes(), row[1].tobytes()
+            c.execute("SELECT key,content FROM objects", binary=True)
+            yield from c
 
     def count(self):
         with self.db.cursor() as c:

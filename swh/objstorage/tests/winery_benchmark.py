@@ -14,7 +14,7 @@ import sys
 import time
 from typing import Any, Dict, Optional, Set, Union
 
-import psycopg2
+import psycopg
 from typing_extensions import Literal
 
 from swh.objstorage.backends.winery.objstorage import (
@@ -213,7 +213,7 @@ class ROWorker(Worker):
     def run(self) -> Literal["ro"]:
         try:
             self._ro()
-        except psycopg2.OperationalError:
+        except psycopg.OperationalError:
             # It may happen when the database is dropped, just
             # conclude the read loop gracefully and move on
             pass
@@ -237,7 +237,7 @@ class ROWorker(Worker):
             )
             start = time.time()
             for row in c:
-                obj_id = row[0].tobytes()
+                obj_id = row[0]
                 content = self.storage.get(obj_id)
                 assert content is not None
                 if self.stats.stats_active:

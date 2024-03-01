@@ -8,9 +8,8 @@ from contextlib import contextmanager
 import logging
 import time
 
-import psycopg2
-import psycopg2.errors
-import psycopg2.extras
+import psycopg
+import psycopg.errors
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +21,7 @@ class DatabaseAdmin:
 
     @contextmanager
     def admin_cursor(self):
-        db = psycopg2.connect(dsn=self.dsn, dbname="postgres")
-        # https://wiki.postgresql.org/wiki/Psycopg2_Tutorial
-        # If you want to drop the database you would need to
-        # change the isolation level of the database.
-        db.set_isolation_level(0)
+        db = psycopg.connect(conninfo=self.dsn, dbname="postgres")
         db.autocommit = True
         c = db.cursor()
         try:
@@ -44,7 +39,10 @@ class DatabaseAdmin:
             if c.rowcount == 0:
                 try:
                     c.execute(f"CREATE DATABASE {self.dbname}")
-                except psycopg2.errors.UniqueViolation:
+                except (
+                    psycopg.errors.UniqueViolation,
+                    psycopg.errors.DuplicateDatabase,
+                ):
                     # someone else created the database, it is fine
                     pass
 
@@ -80,7 +78,7 @@ class DatabaseAdmin:
                 try:
                     c.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
                     return
-                except psycopg2.errors.ObjectInUse:
+                except psycopg.errors.ObjectInUse:
                     logger.warning(f"{self.dbname} database drop fails, waiting 10s")
                     time.sleep(10)
                     continue
@@ -114,7 +112,7 @@ class Database(abc.ABC):
 
     def create_tables(self):
         logger.debug("database %s: create tables", self.dbname)
-        db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
+        db = psycopg.connect(conninfo=self.dsn, dbname=self.dbname)
         db.autocommit = True
         c = db.cursor()
         c.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
@@ -124,7 +122,6 @@ class Database(abc.ABC):
         db.close()  # so the pg_advisory_lock is released
 
     def connect_database(self):
-        db = psycopg2.connect(dsn=self.dsn, dbname=self.dbname)
-        psycopg2.extras.register_uuid(conn_or_curs=db)
+        db = psycopg.connect(conninfo=self.dsn, dbname=self.dbname)
         db.autocommit = True
         return db
