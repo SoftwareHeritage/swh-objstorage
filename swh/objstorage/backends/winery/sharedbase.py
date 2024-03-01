@@ -135,6 +135,10 @@ class SharedBase(Database):
             ON signature2shard(signature, shard)
          WHERE state = 'deleted'
         """,
+            """\
+        CREATE INDEX IF NOT EXISTS signature2shard_shard_state
+            ON signature2shard(shard, state)
+        """,
         ]
 
     @property
