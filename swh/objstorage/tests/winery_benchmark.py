@@ -255,34 +255,60 @@ class ROWorker(Worker):
         return "ro"
 
     def _ro(self, time_remaining: datetime.timedelta):
-        end = time.monotonic() + time_remaining.total_seconds()
-        with self.storage.winery.base.pool.connection() as db:
-            while True:
+        cutoff = time.time() + time_remaining.total_seconds()
+        remaining = self.max_request
+
+        start = time.monotonic()
+        tablesample = 0.1
+        random_cutoff = 0.1
+        while remaining:
+            if time.time() > cutoff:
+                break
+            with self.storage.winery.base.pool.connection() as db:
+                limit = min(remaining, 1000)
                 c = db.execute(
-                    "SELECT signature FROM signature2shard WHERE state = 'present' "
-                    "ORDER BY random() LIMIT %s",
-                    (self.max_request,),
+                    """
+                    WITH selected AS (
+                      SELECT signature, random() r
+                      FROM signature2shard TABLESAMPLE BERNOULLI (%s)
+                      WHERE state = 'present' and random() < %s
+                      LIMIT %s)
+                    SELECT signature FROM selected ORDER BY r
+                    """,
+                    (
+                        tablesample,
+                        random_cutoff,
+                        limit,
+                    ),
                 )
-                if c.rowcount > 0:
-                    break
-                if time.monotonic() > end:
-                    break
-                logger.info("Worker(ro, %s): empty, waiting", os.getpid())
-                time.sleep(1)
-            logger.info(
-                "Worker(ro, %s): requesting %s objects", os.getpid(), c.rowcount
-            )
-            start = time.monotonic()
-            for row in c:
-                if time.monotonic() > end:
-                    break
-                obj_id = row[0]
-                content = self.storage.get(obj_id)
-                assert content is not None
-                if self.stats.stats_active:
-                    self.stats.stats_read(obj_id, content)
-            elapsed = time.monotonic() - start
-            logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
+
+                if c.rowcount == 0:
+                    logger.info(
+                        "Worker(ro, %s): empty (tablesample=%s, random_cutoff=%s), sleeping",
+                        os.getpid(),
+                        tablesample,
+                        random_cutoff,
+                    )
+                    tablesample = min(tablesample * 10, 100)
+                    random_cutoff = min(random_cutoff * 3, 1)
+                    time.sleep(1)
+                    continue
+                elif c.rowcount == limit:
+                    tablesample = max(tablesample / 10, 0.1)
+                    random_cutoff = max(random_cutoff / 3, 0.1)
+
+                for (obj_id,) in c:
+                    remaining -= 1
+                    if time.time() > cutoff:
+                        remaining = 0
+                        break
+                    content = self.storage.get(obj_id={"sha256": obj_id})
+                    assert content is not None
+                    if self.stats.stats_active:
+                        self.stats.stats_read(obj_id, content)
+
+        elapsed = time.monotonic() - start
+        logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
 
     def finalize(self):
         self.storage.winery.uninit()
