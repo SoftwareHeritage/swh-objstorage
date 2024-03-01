@@ -107,14 +107,33 @@ class PoolHelper(Pool):
             )
 
     def pool_create(self):
-        self.ceph(
-            "osd",
-            "erasure-code-profile",
-            "set",
-            "--force",
-            self.erasure_code_profile,
-            *(f"{k}={v}" for k, v in self.erasure_code_profile_settings.items()),
-        )
+        try:
+            output = self.ceph(
+                "osd",
+                "erasure-code-profile",
+                "get",
+                self.erasure_code_profile,
+            )
+        except CalledProcessError:
+            self.ceph(
+                "osd",
+                "erasure-code-profile",
+                "set",
+                self.erasure_code_profile,
+                *(f"{k}={v}" for k, v in self.erasure_code_profile_settings.items()),
+            )
+        else:
+            current_settings = dict(line.split("=", 1) for line in output)
+            for k, v in self.erasure_code_profile_settings.items():
+                if (current_setting := current_settings[k]) != str(v):
+                    logger.warning(
+                        "For erasure coding profile %s, setting %s=%s != requested %s",
+                        self.erasure_code_profile,
+                        k,
+                        current_setting,
+                        v,
+                    )
+
         self.ceph(
             "osd",
             "pool",
