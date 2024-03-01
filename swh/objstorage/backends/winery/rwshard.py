@@ -95,8 +95,11 @@ class RWShard(Database):
 
     def all(self):
         with self.db.cursor() as c:
-            c.execute("SELECT key,content FROM objects", binary=True)
-            yield from c
+            with c.copy(
+                "COPY objects (key, content) TO STDOUT (FORMAT BINARY)"
+            ) as copy:
+                copy.set_types(["bytea", "bytea"])
+                yield from copy.rows()
 
     def count(self):
         with self.db.cursor() as c:
