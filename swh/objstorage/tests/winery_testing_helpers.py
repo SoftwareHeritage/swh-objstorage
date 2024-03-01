@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_ERASURE_CODE_PROFILE = {
-    "name": "winery",
+    "name": "winery-test-profile",
     "k": "4",
     "m": "2",
     "crush-failure-domain": "host",
