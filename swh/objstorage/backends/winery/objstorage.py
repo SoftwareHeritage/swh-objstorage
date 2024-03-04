@@ -288,6 +288,7 @@ def shard_packer(
     shard_max_size: int,
     throttle_read: int,
     throttle_write: int,
+    application_name: Optional[str] = None,
     rbd_pool_name: str = "shards",
     rbd_data_pool_name: Optional[str] = None,
     rbd_image_features_unsupported: Tuple[
@@ -320,6 +321,7 @@ def shard_packer(
       shard_max_size: Max size of a shard (used to size new shards)
       throttle_read: reads per second
       throttle_write: writes per second
+      application_name: the application name sent to PostgreSQL
       rbd_create_images: create images directly (or wait for RBD mapper)
       rbd_wait_for_image: sleep function called to wait for an image (when
        `rbd_create_images`=`False`)
@@ -328,7 +330,9 @@ def shard_packer(
       stop_packing: callback to determine whether the packer should exit
       wait_for_shard: sleep function called when no shards are available to be packed
     """
-    base = SharedBase(base_dsn=base_dsn)
+    application_name = application_name or "Winery Shard Packer"
+
+    base = SharedBase(base_dsn=base_dsn, application_name=application_name)
 
     shards_packed = 0
     waited_for_shards = 0
@@ -355,6 +359,7 @@ def shard_packer(
             shared_base=base,
             throttle_read=throttle_read,
             throttle_write=throttle_write,
+            application_name=application_name,
             rbd_use_sudo=rbd_use_sudo,
             rbd_create_images=rbd_create_images,
             rbd_wait_for_image=rbd_wait_for_image,
@@ -373,6 +378,7 @@ def rw_shard_cleaner(
     base_dsn: str,
     shard_dsn: str,
     min_mapped_hosts: int,
+    application_name: Optional[str] = None,
     stop_cleaning: Callable[[int], bool] = never_stop,
     wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
@@ -390,10 +396,12 @@ def rw_shard_cleaner(
       shard_dsn: PostgreSQL dsn for the individual shard databases
       min_mapped_hosts: how many hosts should have mapped the image read-only before
         cleaning it
+      application_name: the application name sent to PostgreSQL
       stop_cleaning: callback to determine whether the cleaner should exit
       wait_for_shard: sleep function called when no shards are available to be cleaned
     """
-    base = SharedBase(base_dsn=base_dsn)
+    application_name = application_name or "Winery RW shard cleaner"
+    base = SharedBase(base_dsn=base_dsn, application_name=application_name)
 
     shards_cleaned = 0
     waited_for_shards = 0
@@ -419,6 +427,7 @@ def rw_shard_cleaner(
             base_dsn=base_dsn,
             shard_dsn=shard_dsn,
             shared_base=base,
+            application_name=application_name,
         )
         if not ret:
             raise ValueError("Cleaning shard %s failed" % name)

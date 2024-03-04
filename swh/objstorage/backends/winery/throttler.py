@@ -98,7 +98,11 @@ class IOThrottler(Database):
     """
 
     def __init__(self, name, **kwargs):
-        super().__init__(kwargs["base_dsn"], "throttler")
+        super().__init__(
+            dsn=kwargs["base_dsn"],
+            dbname="throttler",
+            application_name=kwargs.get("application_name", "SWH Winery Throttler"),
+        )
         self.name = name
         self.init_db()
         self.last_sync = 0

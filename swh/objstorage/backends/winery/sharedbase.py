@@ -48,8 +48,16 @@ class SignatureState(Enum):
 
 class SharedBase(Database):
     def __init__(self, **kwargs) -> None:
-        DatabaseAdmin(kwargs["base_dsn"], "sharedbase").create_database()
-        super().__init__(kwargs["base_dsn"], "sharedbase")
+        DatabaseAdmin(
+            dsn=kwargs["base_dsn"],
+            dbname="sharedbase",
+            application_name=kwargs.get("application_name"),
+        ).create_database()
+        super().__init__(
+            dsn=kwargs["base_dsn"],
+            dbname="sharedbase",
+            application_name=kwargs.get("application_name"),
+        )
         self.create_tables()
         self.db = self.connect_database()
         self._locked_shard: Optional[Tuple[str, int]] = None

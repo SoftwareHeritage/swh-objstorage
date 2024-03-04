@@ -15,10 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 class RWShard(Database):
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, application_name=None, **kwargs):
         self._name = name
-        DatabaseAdmin(kwargs["base_dsn"], self.name).create_database()
-        super().__init__(kwargs["shard_dsn"], self.name)
+        self.application_name = application_name
+        if application_name is None:
+            self.application_name = f"SWH Winery RW Shard {name}"
+        DatabaseAdmin(
+            kwargs["base_dsn"],
+            self.name,
+            application_name=f"Admin {self.application_name}",
+        ).create_database()
+        super().__init__(kwargs["shard_dsn"], self.name, self.application_name)
         self.create_tables()
         self.db = self.connect_database()
         self.size = self.total_size()

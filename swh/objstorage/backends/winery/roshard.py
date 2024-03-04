@@ -165,6 +165,7 @@ class Pool(object):
         manage_rw_images: bool,
         wait_for_image: Callable[[int], None],
         stop_running: Callable[[], bool],
+        application_name: Optional[str] = None,
     ) -> None:
         """Manage RBD image creation and mapping automatically.
 
@@ -174,8 +175,10 @@ class Pool(object):
           wait_for_image: function which is called at each loop iteration, with
             an attempt number, if no images had to be mapped recently
           stop_running: callback that returns True when the manager should stop running
+          application_name: the application name sent to PostgreSQL
         """
-        base = SharedBase(base_dsn=base_dsn)
+        application_name = application_name or "Winery RBD image manager"
+        base = SharedBase(base_dsn=base_dsn, application_name=application_name)
 
         mapped_images: Dict[str, Literal["ro", "rw"]] = {}
 

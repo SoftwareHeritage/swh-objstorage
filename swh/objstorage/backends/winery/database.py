@@ -15,13 +15,19 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseAdmin:
-    def __init__(self, dsn, dbname=None):
+    def __init__(self, dsn, dbname=None, application_name=None):
         self.dsn = dsn
         self.dbname = dbname
+        self.application_name = application_name
 
     @contextmanager
     def admin_cursor(self):
-        db = psycopg.connect(conninfo=self.dsn, dbname="postgres")
+        db = psycopg.connect(
+            conninfo=self.dsn,
+            dbname="postgres",
+            application_name=self.application_name,
+            fallback_application_name="SWH Winery Admin",
+        )
         db.autocommit = True
         c = db.cursor()
         try:
@@ -94,9 +100,10 @@ class DatabaseAdmin:
 
 
 class Database(abc.ABC):
-    def __init__(self, dsn, dbname):
+    def __init__(self, dsn, dbname, application_name=None):
         self.dsn = dsn
         self.dbname = dbname
+        self.application_name = application_name
 
     @property
     @abc.abstractmethod
@@ -122,6 +129,11 @@ class Database(abc.ABC):
         db.close()  # so the pg_advisory_lock is released
 
     def connect_database(self):
-        db = psycopg.connect(conninfo=self.dsn, dbname=self.dbname)
+        db = psycopg.connect(
+            conninfo=self.dsn,
+            dbname=self.dbname,
+            application_name=self.application_name,
+            fallback_application_name="SWH Winery",
+        )
         db.autocommit = True
         return db

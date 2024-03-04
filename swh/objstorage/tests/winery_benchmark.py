@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2022  The Software Heritage developers
+# Copyright (C) 2021-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -54,10 +54,19 @@ def work(
 
     logger.info("Started process %s", process_name)
 
+    application_name = f"Winery Benchmark {process_name}"
+
     if kind == "ro":
         try:
             if isinstance(storage, dict):
-                storage = get_objstorage(cls="winery", **{**storage, "readonly": True})
+                storage = get_objstorage(
+                    cls="winery",
+                    application_name=application_name,
+                    **{
+                        **storage,
+                        "readonly": True,
+                    },
+                )
             return ROWorker(storage, **kind_args).run()
         finally:
             if isinstance(storage, WineryObjStorage):
@@ -65,17 +74,21 @@ def work(
     elif kind == "rw":
         try:
             if isinstance(storage, dict):
-                storage = get_objstorage(cls="winery", **storage)
+                storage = get_objstorage(
+                    cls="winery", application_name=application_name, **storage
+                )
             return RWWorker(storage, **kind_args).run()
         finally:
             if isinstance(storage, WineryObjStorage):
                 storage.winery.uninit()
     elif kind == "pack":
-        return PackWorker(**kind_args).run()
+        return PackWorker(application_name=application_name, **kind_args).run()
     elif kind == "rbd":
-        return RBDWorker(**kind_args).run()
+        return RBDWorker(application_name=application_name, **kind_args).run()
     elif kind == "rw_shard_cleaner":
-        return RWShardCleanerWorker(**kind_args).run()
+        return RWShardCleanerWorker(
+            application_name=application_name, **kind_args
+        ).run()
     else:
         raise ValueError("Unknown worker kind: %s" % kind)
 
@@ -100,6 +113,7 @@ class PackWorker:
         shard_max_size: int,
         throttle_read: int,
         throttle_write: int,
+        application_name: Optional[str] = None,
         rbd_create_images: bool = True,
         rbd_pool_name: str = "shards",
         output_dir: Optional[str] = None,
@@ -112,6 +126,7 @@ class PackWorker:
         self.throttle_write = throttle_write
         self.rbd_create_images = rbd_create_images
         self.rbd_pool_name = rbd_pool_name
+        self.application_name = application_name
         self.waited = 0
 
     def stop_packing(self, shards_count: int) -> bool:
@@ -134,6 +149,7 @@ class PackWorker:
             output_dir=self.output_dir,
             stop_packing=self.stop_packing,
             wait_for_shard=self.wait_for_shard,
+            application_name=self.application_name,
         )
         return "pack"
 
@@ -144,6 +160,7 @@ class RBDWorker:
         base_dsn: str,
         rbd_pool_name: str,
         shard_max_size: int,
+        application_name: Optional[str] = None,
         duration: int = 10,
     ):
         self.base_dsn = base_dsn
@@ -153,6 +170,7 @@ class RBDWorker:
         )
         self.duration = duration
         self.started = time.monotonic()
+        self.application_name = application_name
         self.waited = 0
 
     def wait_for_shard(self, attempt: int) -> None:
@@ -168,6 +186,7 @@ class RBDWorker:
             manage_rw_images=True,
             wait_for_image=self.wait_for_shard,
             stop_running=self.stop_running,
+            application_name=self.application_name,
         )
         return "rbd"
 
@@ -178,11 +197,13 @@ class RWShardCleanerWorker:
         base_dsn: str,
         shard_dsn: str,
         min_mapped_hosts: int = 1,
+        application_name: Optional[str] = None,
         duration: int = 10,
     ):
         self.base_dsn = base_dsn
         self.shard_dsn = shard_dsn
         self.min_mapped_hosts = min_mapped_hosts
+        self.application_name = application_name
         self.duration = duration
         self.started = time.monotonic()
         self.waited = 0
@@ -201,6 +222,7 @@ class RWShardCleanerWorker:
             min_mapped_hosts=self.min_mapped_hosts,
             stop_cleaning=self.stop_cleaning,
             wait_for_shard=self.wait_for_shard,
+            application_name=self.application_name,
         )
         return "rw_shard_cleaner"
 
