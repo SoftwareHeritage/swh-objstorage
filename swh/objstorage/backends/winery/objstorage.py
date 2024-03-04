@@ -124,6 +124,15 @@ class WineryReader(WineryBase):
             raise exc.ObjNotFoundError(obj_id)
         return content
 
+    def uninit(self):
+        for shard in self.rw_shards.values():
+            shard.uninit()
+        self.rw_shards = {}
+        for shard in self.ro_shards.values():
+            shard.close()
+        self.ro_shards = {}
+        super().uninit()
+
 
 def pack(shard, shared_base=None, clean_immediately=False, **kwargs):
     stats = Stats(kwargs.get("output_dir"))

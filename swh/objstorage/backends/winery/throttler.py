@@ -126,6 +126,9 @@ class IOThrottler(Database):
         self.db.commit()
         self.sync_interval = 60
 
+    def uninit(self):
+        self.db.close()
+
     @property
     def lock(self):
         return 9485433  # an arbitrary unique number
@@ -201,3 +204,7 @@ class Throttler:
     def throttle_add(self, fun, obj_id, content):
         self.write.add(len(obj_id) + len(content))
         return fun(obj_id, content)
+
+    def uninit(self):
+        self.read.uninit()
+        self.write.uninit()

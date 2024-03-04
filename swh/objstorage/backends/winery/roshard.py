@@ -286,11 +286,28 @@ class ROShard:
         self.throttler = Throttler(**kwargs)
         self.name = name
         self.path = self.pool.image_path(self.name)
-        self.shard = Shard(self.path)
+        self.shard = None
+        self.open()
         logger.debug("ROShard %s: loaded", self.name)
 
+    def open(self):
+        self.shard = Shard(self.path)
+
     def get(self, key):
+        if not self.shard:
+            self.open()
+
         return self.throttler.throttle_get(self.shard.lookup, key)
+
+    def close(self):
+        if self.shard:
+            self.shard.close()
+        self.shard = None
+
+    def __del__(self):
+        self.close()
+        self.throttler.uninit()
+        super().__del__()
 
     @staticmethod
     def delete(pool, shard_name, obj_id):
@@ -362,6 +379,8 @@ class ROShardCreator:
         self.shard.__exit__(exc_type, exc_val, exc_tb)
         if self.rbd_create_images and not exc_type:
             self.pool.image_remap_ro(self.name)
+        if not exc_type:
+            self.throttler.uninit()
 
     def add(self, content, obj_id):
         return self.throttler.throttle_add(self.shard.write, obj_id, content)

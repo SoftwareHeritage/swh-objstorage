@@ -55,13 +55,21 @@ def work(
     logger.info("Started process %s", process_name)
 
     if kind == "ro":
-        if isinstance(storage, dict):
-            storage = get_objstorage(cls="winery", **{**storage, "readonly": True})
-        return ROWorker(storage, **kind_args).run()
+        try:
+            if isinstance(storage, dict):
+                storage = get_objstorage(cls="winery", **{**storage, "readonly": True})
+            return ROWorker(storage, **kind_args).run()
+        finally:
+            if isinstance(storage, WineryObjStorage):
+                storage.winery.uninit()
     elif kind == "rw":
-        if isinstance(storage, dict):
-            storage = get_objstorage(cls="winery", **storage)
-        return RWWorker(storage, **kind_args).run()
+        try:
+            if isinstance(storage, dict):
+                storage = get_objstorage(cls="winery", **storage)
+            return RWWorker(storage, **kind_args).run()
+        finally:
+            if isinstance(storage, WineryObjStorage):
+                storage.winery.uninit()
     elif kind == "pack":
         return PackWorker(**kind_args).run()
     elif kind == "rbd":
@@ -216,7 +224,9 @@ class ROWorker(Worker):
         except psycopg.OperationalError:
             # It may happen when the database is dropped, just
             # conclude the read loop gracefully and move on
-            pass
+            logger.exception("RO worker got exception...")
+        finally:
+            self.finalize()
 
         return "ro"
 
@@ -244,6 +254,9 @@ class ROWorker(Worker):
                     self.stats.stats_read(obj_id, content)
             elapsed = time.time() - start
             logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
+
+    def finalize(self):
+        self.storage.winery.uninit()
 
 
 class RWWorker(Worker):
