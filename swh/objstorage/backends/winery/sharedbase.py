@@ -68,6 +68,7 @@ class SharedBase(Database):
         if self._locked_shard is not None:
             self.set_shard_state(new_state=ShardState.STANDBY)
         self._locked_shard = None
+        super().uninit()
 
     @property
     def lock(self):

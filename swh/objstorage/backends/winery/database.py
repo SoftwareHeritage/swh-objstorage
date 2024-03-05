@@ -6,13 +6,24 @@
 import abc
 from contextlib import contextmanager
 import logging
+import os
 import time
+from typing import Dict, Set, Tuple
 
 import psycopg
 import psycopg.errors
 from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
+
+POOLS: Dict[Tuple[int, str, str, str], ConnectionPool] = {}
+"""Maps a tuple (pid, conninfo, dbname, application_name) to the matching ConnectionPool"""
+
+DATABASES_CREATED: Set[Tuple[str, str]] = set()
+"""Set of (conninfo, dbname) entries for databases that we know have been created"""
+
+TABLES_CREATED: Set[Tuple[str, str]] = set()
+"""Set of (conninfo, dbname) entries for databases for which we know tables have been created"""
 
 
 class DatabaseAdmin:
@@ -37,6 +48,9 @@ class DatabaseAdmin:
             c.close()
 
     def create_database(self):
+        if (self.dsn, self.dbname) in DATABASES_CREATED:
+            return
+
         logger.debug("database %s: create", self.dbname)
         with self.admin_cursor() as c:
             c.execute(
@@ -53,8 +67,10 @@ class DatabaseAdmin:
                     # someone else created the database, it is fine
                     pass
 
+        DATABASES_CREATED.add((self.dsn, self.dbname))
+
     def drop_database(self):
-        logger.debug("database %s: drop", self.dbname)
+        logger.debug("database %s/%s: drop", self.dsn, self.dbname)
         with self.admin_cursor() as c:
             c.execute(
                 "SELECT pg_terminate_backend(pg_stat_activity.pid)"
@@ -84,12 +100,16 @@ class DatabaseAdmin:
             for i in range(60):
                 try:
                     c.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
-                    return
+                    break
                 except psycopg.errors.ObjectInUse:
                     logger.warning(f"{self.dbname} database drop fails, waiting 10s")
                     time.sleep(10)
                     continue
-            raise Exception(f"database drop failed on {self.dbname}")
+            else:
+                raise Exception(f"database drop failed on {self.dbname}")
+
+        DATABASES_CREATED.discard((self.dsn, self.dbname))
+        TABLES_CREATED.discard((self.dsn, self.dbname))
 
     def list_databases(self):
         with self.admin_cursor() as c:
@@ -105,20 +125,24 @@ class Database(abc.ABC):
         self.dsn = dsn
         self.dbname = dbname
         self.application_name = application_name
-        self.pool = ConnectionPool(
-            conninfo=self.dsn,
-            kwargs={
-                "dbname": self.dbname,
-                "application_name": self.application_name,
-                "fallback_application_name": "SWH Winery",
-                "autocommit": True,
-            },
-            min_size=0,
-            max_size=4,
-            open=True,
-            max_idle=5,
-            check=ConnectionPool.check_connection,
-        )
+        pool_key = (os.getpid(), self.dsn, self.dbname, self.application_name)
+        if pool_key not in POOLS:
+            POOLS[pool_key] = ConnectionPool(
+                conninfo=self.dsn,
+                kwargs={
+                    "dbname": self.dbname,
+                    "application_name": self.application_name,
+                    "fallback_application_name": "SWH Winery",
+                    "autocommit": True,
+                },
+                min_size=0,
+                max_size=4,
+                open=True,
+                max_idle=5,
+                check=ConnectionPool.check_connection,
+            )
+
+        self.pool = POOLS[pool_key]
 
     @property
     @abc.abstractmethod
@@ -132,10 +156,19 @@ class Database(abc.ABC):
         "Return the list of CREATE TABLE statements for all tables in the database"
         raise NotImplementedError("Database.database_tables")
 
+    def uninit(self):
+        pass
+
     def create_tables(self):
+        if (self.dsn, self.dbname) in TABLES_CREATED:
+            return
+
         logger.debug("database %s: create tables", self.dbname)
+        logger.debug("pool stats: %s", self.pool.get_stats())
         with self.pool.connection() as db:
             db.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
             for table in self.database_tables:
                 db.execute(table)
             db.execute("SELECT pg_advisory_unlock(%s)", (self.lock,))
+
+        TABLES_CREATED.add((self.dsn, self.dbname))

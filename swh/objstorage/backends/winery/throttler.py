@@ -128,9 +128,6 @@ class IOThrottler(Database):
             )
         self.sync_interval = 60
 
-    def uninit(self):
-        self.pool.close()
-
     @property
     def lock(self):
         return 9485433  # an arbitrary unique number
@@ -139,12 +136,13 @@ class IOThrottler(Database):
     def database_tables(self):
         return [
             f"""
-        CREATE TABLE IF NOT EXISTS t_{self.name}(
+        CREATE TABLE IF NOT EXISTS t_{name} (
             id SERIAL PRIMARY KEY,
             updated TIMESTAMP NOT NULL,
             bytes INTEGER NOT NULL
         )
-        """,
+       """
+            for name in ("read", "write")
         ]
 
     def download_info(self):

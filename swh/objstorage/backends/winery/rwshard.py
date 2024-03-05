@@ -30,9 +30,6 @@ class RWShard(Database):
         self.size = self.total_size()
         self.limit = kwargs["shard_max_size"]
 
-    def uninit(self):
-        self.pool.close()
-
     @property
     def lock(self):
         return 452343  # an arbitrary unique number
