@@ -85,7 +85,7 @@ class Pool(object):
         sudo = ("sudo",) if self.use_sudo else ()
         cmd = sudo + cmd
 
-        logger.info(" ".join(repr(item) if " " in item else item for item in cmd))
+        logger.debug(" ".join(repr(item) if " " in item else item for item in cmd))
         result = subprocess.check_output(cmd, encoding="utf-8", stderr=subprocess.PIPE)
 
         return result.splitlines()
