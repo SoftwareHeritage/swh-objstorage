@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import ExitStack
 from enum import Enum
 import logging
 from typing import Iterator, Optional, Set, Tuple
@@ -59,7 +60,6 @@ class SharedBase(Database):
             application_name=kwargs.get("application_name"),
         )
         self.create_tables()
-        self.db = self.connect_database()
         self._locked_shard: Optional[Tuple[str, int]] = None
 
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
@@ -205,9 +205,9 @@ class SharedBase(Database):
         if not new_state.locked:
             raise ValueError(f"{new_state} is not a locked state")
 
-        with self.db.transaction():
-            # run the next two statements in a transaction
-            with self.db.cursor() as c:
+        with self.pool.connection() as db, db.transaction():
+            with db.cursor() as c:
+                # run the next two statements in a transaction
                 c.execute(
                     """\
                     SELECT name
@@ -257,6 +257,7 @@ class SharedBase(Database):
         set_locker: bool = False,
         check_locker: bool = False,
         name: Optional[str] = None,
+        db: Optional[psycopg.Connection] = None,
     ):
         reset_locked_shard = False
         if not name:
@@ -265,8 +266,13 @@ class SharedBase(Database):
             name = self._locked_shard[0]
             reset_locked_shard = True
 
-        with self.db.cursor() as c:
-            c.execute(
+        with ExitStack() as stack:
+            if not db:
+                db = stack.enter_context(self.pool.connection())
+
+            assert isinstance(db, psycopg.Connection)
+
+            c = db.execute(
                 """\
                 UPDATE shards
                 SET
@@ -307,7 +313,7 @@ class SharedBase(Database):
         # database name.
         #
         name = "i" + name[1:]
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute(
                 """\
                 INSERT INTO shards
@@ -329,8 +335,8 @@ class SharedBase(Database):
             return res
 
     def shard_packing_starts(self, name: str):
-        with self.db.transaction():
-            with self.db.cursor() as c:
+        with self.pool.connection() as db, db.transaction():
+            with db.cursor() as c:
                 c.execute(
                     "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
                     (name,),
@@ -353,11 +359,12 @@ class SharedBase(Database):
                     new_state=ShardState.PACKING,
                     set_locker=True,
                     check_locker=False,
+                    db=db,
                 )
 
     def shard_packing_ends(self, name):
-        with self.db.transaction():
-            with self.db.cursor() as c:
+        with self.pool.connection() as db, db.transaction():
+            with db.cursor() as c:
                 c.execute(
                     "SELECT state FROM shards WHERE name=%s FOR UPDATE SKIP LOCKED",
                     (name,),
@@ -378,10 +385,11 @@ class SharedBase(Database):
                     new_state=ShardState.PACKED,
                     set_locker=False,
                     check_locker=False,
+                    db=db,
                 )
 
     def get_shard_info(self, id: int) -> Optional[Tuple[str, ShardState]]:
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("SELECT name, state FROM shards WHERE id = %s", (id,))
             row = c.fetchone()
             if not row:
@@ -389,7 +397,7 @@ class SharedBase(Database):
             return (row[0], ShardState(row[1]))
 
     def get_shard_state(self, name: str) -> Optional[ShardState]:
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("SELECT state FROM shards WHERE name = %s", (name,))
             row = c.fetchone()
             if not row:
@@ -397,7 +405,7 @@ class SharedBase(Database):
             return ShardState(row[0])
 
     def list_shards(self) -> Iterator[Tuple[str, ShardState]]:
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("SELECT name, state FROM shards")
             for row in c:
                 yield row[0], ShardState(row[1])
@@ -408,8 +416,8 @@ class SharedBase(Database):
                 raise ValueError("Can't set shard state, no shard specified or locked")
             name = self._locked_shard[0]
 
-        with self.db.transaction():
-            with self.db.cursor() as c:
+        with self.pool.connection() as db, db.transaction():
+            with db.cursor() as c:
                 c.execute(
                     """SELECT mapped_on_hosts_when_packed
                        FROM shards
@@ -432,7 +440,7 @@ class SharedBase(Database):
                 return hosts
 
     def contains(self, obj_id) -> Optional[int]:
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute(
                 "SELECT shard FROM signature2shard WHERE "
                 "signature = %s AND state = 'present'",
@@ -451,17 +459,16 @@ class SharedBase(Database):
 
     def add_phase_1(self, obj_id) -> Optional[int]:
         try:
-            with self.db.cursor() as c:
-                c.execute(
+            with self.pool.connection() as db:
+                db.execute(
                     "INSERT INTO signature2shard (signature, shard, state) "
                     "VALUES (%s, %s, 'inflight')",
                     (obj_id, self.locked_shard_id),
                 )
-            self.db.commit()
             return self.locked_shard_id
         except psycopg.errors.UniqueViolation:
-            with self.db.cursor() as c:
-                c.execute(
+            with self.pool.connection() as db:
+                c = db.execute(
                     "SELECT shard FROM signature2shard WHERE "
                     "signature = %s AND state = 'inflight'",
                     (obj_id,),
@@ -472,32 +479,32 @@ class SharedBase(Database):
                 return row[0]
 
     def add_phase_2(self, obj_id):
-        with self.db.cursor() as c:
-            c.execute(
+        with self.pool.connection() as db:
+            db.execute(
                 "UPDATE signature2shard SET state = 'present' "
                 "WHERE signature = %s AND shard = %s",
                 (obj_id, self.locked_shard_id),
             )
-        self.db.commit()
 
     def delete(self, obj_id):
-        with self.db.cursor() as c:
-            c.execute(
+        with self.pool.connection() as db:
+            db.execute(
                 "UPDATE signature2shard SET state = 'deleted' WHERE signature = %s",
                 (obj_id,),
             )
-        self.db.commit()
 
     def deleted_objects(self) -> Iterator[Tuple[bytes, str, ShardState]]:
-        cur = self.db.execute(
-            """SELECT signature, shards.name, shards.state
-            FROM signature2shard objs, shards
-            WHERE objs.state = 'deleted'
-            AND shards.id = objs.shard
-            """
-        )
-        for signature, name, state in cur.fetchall():
-            yield bytes(signature), name, ShardState(state)
+        with self.pool.connection() as db:
+            cur = db.execute(
+                """SELECT signature, shards.name, shards.state
+               FROM signature2shard objs, shards
+               WHERE objs.state = 'deleted'
+                 AND shards.id = objs.shard
+               """
+            )
+            for signature, name, state in cur.fetchall():
+                yield bytes(signature), name, ShardState(state)
 
-    def clean_delete_object(self, obj_id) -> None:
-        self.db.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))
+    def clean_deleted_object(self, obj_id) -> None:
+        with self.pool.connection() as db:
+            db.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))

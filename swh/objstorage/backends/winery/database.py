@@ -10,6 +10,7 @@ import time
 
 import psycopg
 import psycopg.errors
+from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,10 @@ class DatabaseAdmin:
         db = psycopg.connect(
             conninfo=self.dsn,
             dbname="postgres",
+            autocommit=True,
             application_name=self.application_name,
             fallback_application_name="SWH Winery Admin",
         )
-        db.autocommit = True
         c = db.cursor()
         try:
             yield c
@@ -104,6 +105,20 @@ class Database(abc.ABC):
         self.dsn = dsn
         self.dbname = dbname
         self.application_name = application_name
+        self.pool = ConnectionPool(
+            conninfo=self.dsn,
+            kwargs={
+                "dbname": self.dbname,
+                "application_name": self.application_name,
+                "fallback_application_name": "SWH Winery",
+                "autocommit": True,
+            },
+            min_size=0,
+            max_size=4,
+            open=True,
+            max_idle=5,
+            check=ConnectionPool.check_connection,
+        )
 
     @property
     @abc.abstractmethod
@@ -119,21 +134,8 @@ class Database(abc.ABC):
 
     def create_tables(self):
         logger.debug("database %s: create tables", self.dbname)
-        db = psycopg.connect(conninfo=self.dsn, dbname=self.dbname)
-        db.autocommit = True
-        c = db.cursor()
-        c.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
-        for table in self.database_tables:
-            c.execute(table)
-        c.close()
-        db.close()  # so the pg_advisory_lock is released
-
-    def connect_database(self):
-        db = psycopg.connect(
-            conninfo=self.dsn,
-            dbname=self.dbname,
-            application_name=self.application_name,
-            fallback_application_name="SWH Winery",
-        )
-        db.autocommit = True
-        return db
+        with self.pool.connection() as db:
+            db.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
+            for table in self.database_tables:
+                db.execute(table)
+            db.execute("SELECT pg_advisory_unlock(%s)", (self.lock,))

@@ -27,14 +27,11 @@ class RWShard(Database):
         ).create_database()
         super().__init__(kwargs["shard_dsn"], self.name, self.application_name)
         self.create_tables()
-        self.db = self.connect_database()
         self.size = self.total_size()
         self.limit = kwargs["shard_max_size"]
 
     def uninit(self):
-        if hasattr(self, "db"):
-            self.db.close()
-            del self.db
+        self.pool.close()
 
     @property
     def lock(self):
@@ -62,7 +59,7 @@ class RWShard(Database):
         ]
 
     def total_size(self):
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("SELECT SUM(LENGTH(content)) FROM objects")
             size = c.fetchone()[0]
             if size is None:
@@ -72,19 +69,18 @@ class RWShard(Database):
 
     def add(self, obj_id, content):
         try:
-            with self.db.cursor() as c:
+            with self.pool.connection() as db, db.cursor() as c:
                 c.execute(
                     "INSERT INTO objects (key, content) VALUES (%s, %s)",
                     (obj_id, content),
                     binary=True,
                 )
-            self.db.commit()
             self.size += len(content)
         except psycopg.errors.UniqueViolation:
             pass
 
     def get(self, obj_id):
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute(
                 "SELECT content FROM objects WHERE key = %s", (obj_id,), binary=True
             )
@@ -94,14 +90,13 @@ class RWShard(Database):
                 return c.fetchone()[0]
 
     def delete(self, obj_id):
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("DELETE FROM objects WHERE key = %s", (obj_id,))
             if c.rowcount == 0:
                 raise KeyError(obj_id)
-        self.db.commit()
 
     def all(self):
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             with c.copy(
                 "COPY objects (key, content) TO STDOUT (FORMAT BINARY)"
             ) as copy:
@@ -109,6 +104,6 @@ class RWShard(Database):
                 yield from copy.rows()
 
     def count(self):
-        with self.db.cursor() as c:
+        with self.pool.connection() as db, db.cursor() as c:
             c.execute("SELECT COUNT(*) FROM objects")
             return c.fetchone()[0]

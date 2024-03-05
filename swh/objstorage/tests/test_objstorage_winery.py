@@ -889,8 +889,8 @@ def test_winery_bench_rw_object_limit(storage):
 
     assert worker.run() == "rw"
 
-    with storage.winery.base.db.cursor() as c:
-        c.execute("SELECT count(*) from signature2shard")
+    with storage.winery.base.pool.connection() as db:
+        c = db.execute("SELECT count(*) from signature2shard")
         assert c.fetchone() == (object_limit,)
 
 

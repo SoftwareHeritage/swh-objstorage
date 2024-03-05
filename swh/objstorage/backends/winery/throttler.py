@@ -112,26 +112,24 @@ class IOThrottler(Database):
 
     def init_db(self):
         self.create_tables()
-        self.db = self.connect_database()
-        self.cursor = self.db.cursor()
-        self.cursor.execute(
-            f"INSERT INTO t_{self.name} (updated, bytes) VALUES (%s, %s) RETURNING id",
-            (datetime.datetime.now(), 0),
-        )
-        self.rowid = self.cursor.fetchone()[0]
-        self.cursor.execute(
-            f"SELECT * FROM t_{self.name} WHERE id = %s FOR UPDATE", (self.rowid,)
-        )
-        self.cursor.execute(
-            f"DELETE FROM t_{self.name} WHERE id IN ("
-            f"SELECT id FROM t_{self.name} WHERE updated < NOW() - INTERVAL '30 days' "
-            " FOR UPDATE SKIP LOCKED)"
-        )
-        self.db.commit()
+        with self.pool.connection() as db, db.transaction(), db.cursor() as cur:
+            cur.execute(
+                f"INSERT INTO t_{self.name} (updated, bytes) VALUES (%s, %s) RETURNING id",
+                (datetime.datetime.now(), 0),
+            )
+            self.rowid = cur.fetchone()[0]
+            cur.execute(
+                f"SELECT * FROM t_{self.name} WHERE id = %s FOR UPDATE", (self.rowid,)
+            )
+            cur.execute(
+                f"DELETE FROM t_{self.name} WHERE id IN ("
+                f"SELECT id FROM t_{self.name} WHERE updated < NOW() - INTERVAL '30 days' "
+                " FOR UPDATE SKIP LOCKED)"
+            )
         self.sync_interval = 60
 
     def uninit(self):
-        self.db.close()
+        self.pool.close()
 
     @property
     def lock(self):
@@ -150,20 +148,22 @@ class IOThrottler(Database):
         ]
 
     def download_info(self):
-        self.cursor.execute(
-            f"SELECT COUNT(*), SUM(bytes) FROM t_{self.name} "
-            "WHERE bytes > 0 AND updated > NOW() - INTERVAL '5 minutes'"
-        )
-        return self.cursor.fetchone()
+        with self.pool.connection() as db:
+            cur = db.execute(
+                f"SELECT COUNT(*), SUM(bytes) FROM t_{self.name} "
+                "WHERE bytes > 0 AND updated > NOW() - INTERVAL '5 minutes'"
+            )
+            return cur.fetchone()
 
     def upload_info(self):
         bytes = int(self.bandwidth.get())
         logger.debug("%d: upload %s/s", self.rowid, bytes)
-        self.cursor.execute(
-            f"UPDATE t_{self.name} SET updated = %s, bytes = %s WHERE id = %s",
-            (datetime.datetime.now(), bytes, self.rowid),
-        )
-        self.db.commit()
+
+        with self.pool.connection() as db:
+            db.execute(
+                f"UPDATE t_{self.name} SET updated = %s, bytes = %s WHERE id = %s",
+                (datetime.datetime.now(), bytes, self.rowid),
+            )
 
     def add(self, count):
         self.bucket.add(count)

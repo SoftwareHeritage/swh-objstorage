@@ -1,2 +1,2 @@
-psycopg[c]
+psycopg[c,pool]
 systemd-python

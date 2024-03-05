@@ -458,7 +458,7 @@ def deleted_objects_cleaner(
             break
         if shard_state.readonly:
             ROShard.delete(pool, shard_name, obj_id)
-        base.clean_delete_object(obj_id)
+        base.clean_deleted_object(obj_id)
         count += 1
 
     logger.info("Cleaned %d deleted objects", count)

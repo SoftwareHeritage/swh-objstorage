@@ -253,9 +253,9 @@ class ROWorker(Worker):
         return "ro"
 
     def _ro(self):
-        with self.storage.winery.base.db.cursor() as c:
+        with self.storage.winery.base.pool.connection() as db:
             while True:
-                c.execute(
+                c = db.execute(
                     "SELECT signature FROM signature2shard WHERE state = 'present' "
                     "ORDER BY random() LIMIT %s",
                     (self.max_request,),
