@@ -216,7 +216,7 @@ class Pool(object):
                             shard_name,
                         )
                     elif check_mapped == "rw":
-                        logger.debug(
+                        logger.info(
                             "Detected %s shard %s, remapping read-only",
                             shard_state.name,
                             shard_name,
