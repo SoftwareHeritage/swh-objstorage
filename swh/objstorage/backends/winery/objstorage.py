@@ -453,13 +453,12 @@ def deleted_objects_cleaner(
       stop_running: callback that returns True when the manager should stop running
     """
     count = 0
-    with base.db.cursor() as cur:
-        for obj_id, shard_name, shard_state in base.deleted_objects(cur):
-            if stop_running():
-                break
-            if shard_state.readonly:
-                ROShard.delete(pool, shard_name, obj_id)
-            base.clean_delete_object(cur, obj_id)
-            count += 1
-    base.db.commit()
+    for obj_id, shard_name, shard_state in base.deleted_objects():
+        if stop_running():
+            break
+        if shard_state.readonly:
+            ROShard.delete(pool, shard_name, obj_id)
+        base.clean_delete_object(obj_id)
+        count += 1
+
     logger.info("Cleaned %d deleted objects", count)

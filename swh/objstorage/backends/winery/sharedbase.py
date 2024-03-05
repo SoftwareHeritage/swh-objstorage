@@ -488,18 +488,16 @@ class SharedBase(Database):
             )
         self.db.commit()
 
-    def deleted_objects(self, cur=None) -> Iterator[Tuple[bytes, str, ShardState]]:
-        if not cur:
-            cur = self.db.cursor()
-        cur.execute(
+    def deleted_objects(self) -> Iterator[Tuple[bytes, str, ShardState]]:
+        cur = self.db.execute(
             """SELECT signature, shards.name, shards.state
-                 FROM signature2shard objs, shards
-                WHERE objs.state = 'deleted'
-                  AND shards.id = objs.shard
+            FROM signature2shard objs, shards
+            WHERE objs.state = 'deleted'
+            AND shards.id = objs.shard
             """
         )
         for signature, name, state in cur.fetchall():
             yield bytes(signature), name, ShardState(state)
 
-    def clean_delete_object(self, cur, obj_id) -> None:
-        cur.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))
+    def clean_delete_object(self, obj_id) -> None:
+        self.db.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))
