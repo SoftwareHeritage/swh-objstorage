@@ -135,6 +135,8 @@ class PackWorker:
         return shards_count >= 1 or self.waited > 60
 
     def wait_for_shard(self, attempt: int) -> None:
+        if self.waited > 60:
+            raise ValueError("Shard waited for too long")
         time.sleep(0.1)
         self.waited += 1
 
