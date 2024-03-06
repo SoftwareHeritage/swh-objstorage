@@ -1022,7 +1022,7 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
     if not pack_immediately:
         worker_args["rw"] = {"block_until_packed": False}
         workers_per_kind["pack"] = pytestconfig.getoption("--winery-bench-pack-workers")
-        workers_per_kind["rw_shard_cleaner"] = workers_per_kind["pack"]
+        workers_per_kind["rw_shard_cleaner"] = 1
         workers_per_kind["rbd"] = 1
 
     return WineryBenchOptions(
@@ -1073,8 +1073,8 @@ def test_winery_bench_fake(bench_options, mocker):
 
     class _RWShardCleanerWorker(RWShardCleanerWorker):
         def run(self):
-            logger.info("running rbd for %s", bench_options.duration)
-            return "rbd"
+            logger.info("running rw_shard_cleaner for %s", bench_options.duration)
+            return "rw_shard_cleaner"
 
     mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
     mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
