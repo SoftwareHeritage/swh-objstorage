@@ -222,6 +222,18 @@ class Pool(object):
                             shard_name,
                         )
                         self.image_remap_ro(shard_name)
+                        attempt = 0
+                        while self.image_mapped(shard_name) != "ro":
+                            attempt += 1
+                            time.sleep(0.1)
+                            if attempt % 100 == 0:
+                                logger.warning(
+                                    "Waiting for %s shard %s to be remapped "
+                                    "read-only (for %ds)",
+                                    shard_state.name,
+                                    shard_name,
+                                    attempt / 10,
+                                )
                         base.record_shard_mapped(
                             name=shard_name, host=socket.gethostname()
                         )
@@ -294,7 +306,10 @@ class ROShard:
         logger.debug("ROShard %s: loaded", self.name)
 
     def open(self):
-        self.shard = Shard(self.path)
+        try:
+            self.shard = Shard(self.path)
+        except FileNotFoundError:
+            raise ShardNotMapped(f"RBD image for {self.name} not found at {self.path}")
 
     def get(self, key):
         if not self.shard:
