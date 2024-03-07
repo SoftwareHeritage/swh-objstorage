@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import logging
 import os
 import time
-from typing import Dict, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 import psycopg
 import psycopg.errors
@@ -16,14 +16,77 @@ from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
-POOLS: Dict[Tuple[int, str, str, str], ConnectionPool] = {}
-"""Maps a tuple (pid, conninfo, dbname, application_name) to the matching ConnectionPool"""
-
 DATABASES_CREATED: Set[Tuple[str, str]] = set()
 """Set of (conninfo, dbname) entries for databases that we know have been created"""
 
 TABLES_CREATED: Set[Tuple[str, str]] = set()
 """Set of (conninfo, dbname) entries for databases for which we know tables have been created"""
+
+
+class PoolManager:
+    """Manage a set of connection pools"""
+
+    def __init__(self) -> None:
+        self.pools: Dict[Tuple[str, str, Optional[str]], ConnectionPool] = {}
+        self.refcounts: Dict[Tuple[str, str, Optional[str]], int] = {}
+
+        os.register_at_fork(after_in_child=self.reset_state)
+
+    def reset_state(self) -> None:
+        """Clean up the state after forking, ConnectionPools aren't multiprocess-safe"""
+        logger.debug("Fork detected, resetting PoolManager")
+        self.pools.clear()
+        self.refcounts.clear()
+
+    def get(
+        self, conninfo: str, dbname: str, application_name: Optional[str]
+    ) -> ConnectionPool:
+        """Get a reference to this connection pool"""
+        key = (conninfo, dbname, application_name)
+        if key not in self.pools:
+            logger.debug(
+                "Creating connection pool for %s, app=%s", dbname, application_name
+            )
+            self.refcounts[key] = 0
+            self.pools[key] = ConnectionPool(
+                conninfo=conninfo,
+                kwargs={
+                    "dbname": dbname,
+                    "application_name": application_name,
+                    "fallback_application_name": "SWH Winery",
+                    "autocommit": True,
+                },
+                name=(
+                    f"pool-{dbname}"
+                    + (f"-{application_name}" if application_name else "")
+                ),
+                min_size=0,
+                max_size=4,
+                open=True,
+                max_idle=5,
+                check=ConnectionPool.check_connection,
+            )
+            logger.debug("Connection pools managed: %s", len(self.pools))
+
+        self.refcounts[key] += 1
+        return self.pools[key]
+
+    def release(self, conninfo: str, dbname: str, application_name: str) -> None:
+        """Release a reference to this connection pool"""
+        key = (conninfo, dbname, application_name)
+        if key not in self.pools:
+            return
+
+        self.refcounts[key] -= 1
+        if self.refcounts[key] <= 0:
+            logger.debug("Closing pool for %s, app=%s", dbname, application_name)
+            del self.refcounts[key]
+            self.pools[key].close()
+            del self.pools[key]
+            logger.debug("Connection pools managed: %s", len(self.pools))
+
+
+POOLS = PoolManager()
 
 
 class DatabaseAdmin:
@@ -125,24 +188,17 @@ class Database(abc.ABC):
         self.dsn = dsn
         self.dbname = dbname
         self.application_name = application_name
-        pool_key = (os.getpid(), self.dsn, self.dbname, self.application_name)
-        if pool_key not in POOLS:
-            POOLS[pool_key] = ConnectionPool(
-                conninfo=self.dsn,
-                kwargs={
-                    "dbname": self.dbname,
-                    "application_name": self.application_name,
-                    "fallback_application_name": "SWH Winery",
-                    "autocommit": True,
-                },
-                min_size=0,
-                max_size=4,
-                open=True,
-                max_idle=5,
-                check=ConnectionPool.check_connection,
-            )
+        self._pool = None
 
-        self.pool = POOLS[pool_key]
+    @property
+    def pool(self):
+        if not self._pool:
+            self._pool = POOLS.get(
+                conninfo=self.dsn,
+                dbname=self.dbname,
+                application_name=self.application_name,
+            )
+        return self._pool
 
     @property
     @abc.abstractmethod
@@ -157,14 +213,23 @@ class Database(abc.ABC):
         raise NotImplementedError("Database.database_tables")
 
     def uninit(self):
-        pass
+        if self._pool:
+            self._pool = None
+            POOLS.release(
+                conninfo=self.dsn,
+                dbname=self.dbname,
+                application_name=self.application_name,
+            )
+
+    def __del__(self):
+        # Release the connection pool
+        self.uninit()
 
     def create_tables(self):
         if (self.dsn, self.dbname) in TABLES_CREATED:
             return
 
         logger.debug("database %s: create tables", self.dbname)
-        logger.debug("pool stats: %s", self.pool.get_stats())
         with self.pool.connection() as db:
             db.execute("SELECT pg_advisory_lock(%s)", (self.lock,))
             for table in self.database_tables:
