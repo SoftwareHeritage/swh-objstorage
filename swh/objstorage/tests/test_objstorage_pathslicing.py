@@ -9,7 +9,6 @@ import pytest
 from swh.model import hashutil
 from swh.objstorage import exc
 from swh.objstorage.constants import ID_DIGEST_LENGTH
-from swh.objstorage.factory import get_objstorage
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -18,14 +17,13 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
     compression = "none"
 
     @pytest.fixture(autouse=True)
-    def objstorage(self, tmpdir):
-        self.slicing = "0:2/2:4/4:6"
-        self.storage = get_objstorage(
-            "pathslicing",
-            root=str(tmpdir),
-            slicing=self.slicing,
-            compression=self.compression,
-        )
+    def swh_objstorage_config(self, tmpdir):
+        return {
+            "cls": "pathslicing",
+            "root": str(tmpdir),
+            "slicing": "0:2/2:4/4:6",
+            "compression": self.compression,
+        }
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)

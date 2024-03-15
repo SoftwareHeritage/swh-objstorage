@@ -17,6 +17,10 @@ from swh.objstorage.objstorage import compute_hash, decompressors
 class ObjStorageTestFixture:
     num_objects = 1200
 
+    @pytest.fixture(autouse=True)
+    def objstorage(self, swh_objstorage):
+        self.storage = swh_objstorage
+
     def fill_objstorage(self, num_objects):
         all_ids = []
         for i in range(num_objects):

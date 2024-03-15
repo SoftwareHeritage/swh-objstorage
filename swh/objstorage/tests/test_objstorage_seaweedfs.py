@@ -14,7 +14,6 @@ from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import Error
-from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compressors, compute_hash, decompressors
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
@@ -230,16 +229,15 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
     url = "http://127.0.0.1/test/"
     slicing = ""
 
-    @pytest.fixture(autouse=True)
-    def objstorage(self):
-        self.storage = get_objstorage(
-            cls="seaweedfs",
-            url=self.url,
-            compression=self.compression,
-            slicing=self.slicing,
-        )
+    @pytest.fixture
+    def swh_objstorage_config(self):
         self.mock = FilerRequestsMock(url=self.url)
-        yield self.storage
+        return {
+            "cls": "seaweedfs",
+            "url": self.url,
+            "compression": self.compression,
+            "slicing": self.slicing,
+        }
 
     def fill_objstorage(self, num_objects):
         # override default implelentation to speed things up a bit, shortcuting
@@ -314,8 +312,8 @@ class TestSeaweedObjStorageWithSmallBatch(TestSeaweedObjStorage):
     num_objects = 120
 
     @pytest.fixture(autouse=True)
-    def batchsize(self, objstorage):
-        objstorage.wf.batchsize = 1
+    def batchsize(self, swh_objstorage):
+        swh_objstorage.wf.batchsize = 1
 
 
 class TestSeaweedObjStorageWithSlicing1AndSmallBatch(

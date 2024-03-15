@@ -5,12 +5,10 @@
 
 import pytest
 
-from swh.objstorage.factory import get_objstorage
-
 from .objstorage_testing import ObjStorageTestFixture
 
 
 class TestInMemoryObjStorage(ObjStorageTestFixture):
-    @pytest.fixture(autouse=True)
-    def objstorage(self):
-        self.storage = get_objstorage(cls="memory")
+    @pytest.fixture
+    def swh_objstorage_config(self):
+        return {"cls": "memory"}

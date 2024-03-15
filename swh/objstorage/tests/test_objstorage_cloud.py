@@ -19,7 +19,6 @@ import pytest
 
 from swh.objstorage.backends.libcloud import CloudObjStorage
 from swh.objstorage.exc import Error
-from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -221,15 +220,14 @@ def moto_server():
 class TestMotoS3CloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    @pytest.fixture(autouse=True)
-    def objstorage(self, moto_server):
+    @pytest.fixture
+    def swh_objstorage_config(self, moto_server):
         moto_config, driver, container = moto_server
-        self.storage = get_objstorage(
-            "s3",
-            container_name=container.name,
-            compression=self.compression,
+        yield {
+            "cls": "s3",
+            "container_name": container.name,
+            "compression": self.compression,
             **moto_config,
-        )
-        yield
+        }
         for obj in driver.list_container_objects(container):
             driver.delete_object(obj)

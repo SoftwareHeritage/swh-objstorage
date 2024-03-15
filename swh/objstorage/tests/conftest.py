@@ -2,6 +2,8 @@ import sys
 
 import pytest
 
+pytest_plugins = ["swh.objstorage.pytest_plugin"]
+
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "shard_max_size: winery backend")

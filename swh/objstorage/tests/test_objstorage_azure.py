@@ -146,18 +146,18 @@ def azurite_connection_string(tmpdir_factory):
 class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    @pytest.fixture(autouse=True)
-    def objstorage(self, azurite_connection_string):
+    @pytest.fixture
+    def swh_objstorage_config(self, azurite_connection_string):
         self._container_name = secrets.token_hex(10)
         client = BlobServiceClient.from_connection_string(azurite_connection_string)
         client.create_container(self._container_name)
 
-        self.storage = get_objstorage(
-            "azure",
-            connection_string=azurite_connection_string,
-            container_name=self._container_name,
-            compression=self.compression,
-        )
+        return {
+            "cls": "azure",
+            "connection_string": azurite_connection_string,
+            "container_name": self._container_name,
+            "compression": self.compression,
+        }
 
     def test_download_url(self, azurite_connection_string):
         content_p, obj_id_p = self.hash_content(b"contains_present")
@@ -219,8 +219,8 @@ def get_MockContainerClient():
 class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    @pytest.fixture(autouse=True)
-    def objstorage(self, mocker):
+    @pytest.fixture
+    def swh_objstorage_config(self, mocker):
         ContainerClient = get_MockContainerClient()
         mocker.patch("swh.objstorage.backends.azure.ContainerClient", ContainerClient)
 
@@ -228,11 +228,11 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
             "swh.objstorage.backends.azure.AsyncContainerClient", ContainerClient
         )
 
-        self.storage = get_objstorage(
-            "azure",
-            container_url="https://bogus-container-url.example",
-            compression=self.compression,
-        )
+        return {
+            "cls": "azure",
+            "container_url": "https://bogus-container-url.example",
+            "compression": self.compression,
+        }
 
     def test_compression(self):
         content, obj_id = self.hash_content(b"test content is compressed")
@@ -291,8 +291,8 @@ class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
 
 
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
-    @pytest.fixture(autouse=True)
-    def objstorage(self, mocker):
+    @pytest.fixture
+    def swh_objstorage_config(self, mocker):
         self.ContainerClient = get_MockContainerClient()
         mocker.patch(
             "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
@@ -306,7 +306,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
         for prefix in "0123456789abcdef":
             self.accounts[prefix] = "https://bogus-container-url.example/" + prefix
 
-        self.storage = get_objstorage("azure-prefixed", accounts=self.accounts)
+        return {"cls": "azure-prefixed", "accounts": self.accounts}
 
     def test_prefixedazure_instantiation_missing_prefixes(self):
         del self.accounts["d"]
