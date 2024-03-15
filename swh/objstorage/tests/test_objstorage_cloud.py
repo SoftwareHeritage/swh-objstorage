@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023  The Software Heritage developers
+# Copyright (C) 2016-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,6 @@ from contextlib import closing
 import secrets
 import socket
 from typing import Optional
-import unittest
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.storage.providers import get_driver
@@ -103,12 +102,12 @@ class MockCloudObjStorage(CloudObjStorage):
         pass
 
 
-class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestCloudObjStorage(ObjStorageTestFixture):
     compression = "none"
     path_prefix: Optional[str] = None
 
-    def setUp(self):
-        super().setUp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self):
         self.storage = MockCloudObjStorage(
             CONTAINER_NAME,
             api_key=API_KEY,
@@ -136,12 +135,12 @@ class TestCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         libcloud_object.content.append(b"trailing garbage")
 
         if self.compression == "none":
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.check(obj_id)
         else:
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.get(obj_id)
-            assert "trailing data" in e.exception.args[0]
+            assert "trailing data" in e.value.args[0]
 
     @pytest.mark.skip("makes no sense to test this for the mocked libcloud")
     def test_download_url(self):
@@ -196,47 +195,41 @@ else:
     moto_available = True
 
 
+@pytest.fixture(scope="class")
+def moto_server():
+    container_name = secrets.token_hex(10)
+    port = _find_free_port()
+    moto_config = {
+        "key": "testing",
+        "secret": "testing",
+        "host": "localhost",
+        "port": port,
+        "secure": False,
+    }
+    server = ThreadedMotoServer(port=port)
+    server.start()
+
+    driver_cls = get_driver(Provider.S3)
+    driver = driver_cls(**moto_config)
+    container = driver.create_container(container_name=container_name)
+    yield moto_config, driver, container
+    driver.delete_container(container)
+    server.stop()
+
+
 @pytest.mark.skipif(not moto_available, reason="moto package is not installed")
-class TestMotoS3CloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestMotoS3CloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.key = "testing"
-        cls.secret = "testing"
-        cls.host = "localhost"
-        cls.port = _find_free_port()
-        cls.server = ThreadedMotoServer(port=cls.port)
-        cls.server.start()
-        cls.container_name = secrets.token_hex(10)
-        driver_cls = get_driver(Provider.S3)
-        cls.driver = driver_cls(
-            key=cls.key, secret=cls.secret, secure=False, host=cls.host, port=cls.port
-        )
-        cls.container = cls.driver.create_container(container_name=cls.container_name)
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        cls.driver.delete_container(cls.container)
-        cls.server.stop()
-
-    def setUp(self):
-        super().setUp()
-
+    @pytest.fixture(autouse=True)
+    def objstorage(self, moto_server):
+        moto_config, driver, container = moto_server
         self.storage = get_objstorage(
             "s3",
-            container_name=self.container_name,
+            container_name=container.name,
             compression=self.compression,
-            key=self.key,
-            secret=self.secret,
-            secure=False,
-            host=self.host,
-            port=self.port,
+            **moto_config,
         )
-
-    def tearDown(self):
-        super().tearDown()
-        for obj in self.driver.list_container_objects(self.container):
-            self.driver.delete_object(obj)
+        yield
+        for obj in driver.list_container_objects(container):
+            driver.delete_object(obj)

@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023  The Software Heritage developers
+# Copyright (C) 2016-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,9 +11,6 @@ import os
 import secrets
 import shutil
 import subprocess
-import tempfile
-import unittest
-from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -93,86 +90,82 @@ class MockBlobClient:
         del self.container.blobs[self.blob]
 
 
+@pytest.fixture(scope="class")
+def azurite_connection_string(tmpdir_factory):
+    host = "127.0.0.1"
+
+    azurite_path = tmpdir_factory.mktemp("azurite")
+
+    azurite_proc = subprocess.Popen(
+        [
+            AZURITE_EXE,
+            "--blobHost",
+            host,
+            "--blobPort",
+            "0",
+        ],
+        stdout=subprocess.PIPE,
+        cwd=azurite_path,
+    )
+
+    prefix = b"Azurite Blob service successfully listens on "
+    for line in azurite_proc.stdout:
+        if line.startswith(prefix):
+            base_url = line[len(prefix) :].decode().strip()
+            break
+    else:
+        assert False, "Did not get Azurite Blob service port."
+
+    # https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite#well-known-storage-account-and-key
+    account_name = "devstoreaccount1"
+    account_key = (
+        "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq"
+        "/K1SZFPTOtr/KBHBeksoGMGw=="
+    )
+
+    container_url = f"{base_url}/{account_name}"
+    # note the stripping of the scheme for the BlobSecondaryEndpoint is NOT
+    # a mistake; looks like azurite requires this secondary endpoint to not
+    # come with the scheme (although I've not seen this documented, so not
+    # sure if it's by design or a bug).
+    secondary_url = container_url.replace("http://127.0.0.1", "localhost")
+
+    yield (
+        f"DefaultEndpointsProtocol=https;"
+        f"AccountName={account_name};"
+        f"AccountKey={account_key};"
+        f"BlobEndpoint={container_url};"
+        f"BlobSecondaryEndpoint={secondary_url};"
+    )
+
+    azurite_proc.kill()
+    azurite_proc.wait(2)
+
+
 @pytest.mark.skipif(not AZURITE_EXE, reason="azurite not found in AZURITE_PATH or PATH")
-class TestAzuriteCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        host = "127.0.0.1"
-
-        cls._azurite_path = tempfile.mkdtemp()
-
-        cls._azurite_proc = subprocess.Popen(
-            [
-                AZURITE_EXE,
-                "--blobHost",
-                host,
-                "--blobPort",
-                "0",
-            ],
-            stdout=subprocess.PIPE,
-            cwd=cls._azurite_path,
-        )
-
-        prefix = b"Azurite Blob service successfully listens on "
-        for line in cls._azurite_proc.stdout:
-            if line.startswith(prefix):
-                base_url = line[len(prefix) :].decode().strip()
-                break
-        else:
-            assert False, "Did not get Azurite Blob service port."
-
-        # https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite#well-known-storage-account-and-key
-        account_name = "devstoreaccount1"
-        account_key = (
-            "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq"
-            "/K1SZFPTOtr/KBHBeksoGMGw=="
-        )
-
-        container_url = f"{base_url}/{account_name}"
-        # note the stripping of the scheme for the BlobSecondaryEndpoint is NOT
-        # a mistake; looks like azurite requires this secondary endpoint to not
-        # come with the scheme (although I've not seen this documented, so not
-        # sure if it's by design or a bug).
-        secondary_url = container_url.replace("http://127.0.0.1", "localhost")
-        cls._connection_string = (
-            f"DefaultEndpointsProtocol=https;"
-            f"AccountName={account_name};"
-            f"AccountKey={account_key};"
-            f"BlobEndpoint={container_url};"
-            f"BlobSecondaryEndpoint={secondary_url};"
-        )
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        cls._azurite_proc.kill()
-        cls._azurite_proc.wait(2)
-        shutil.rmtree(cls._azurite_path)
-
-    def setUp(self):
-        super().setUp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self, azurite_connection_string):
         self._container_name = secrets.token_hex(10)
-        client = BlobServiceClient.from_connection_string(self._connection_string)
+        client = BlobServiceClient.from_connection_string(azurite_connection_string)
         client.create_container(self._container_name)
 
         self.storage = get_objstorage(
             "azure",
-            connection_string=self._connection_string,
+            connection_string=azurite_connection_string,
             container_name=self._container_name,
             compression=self.compression,
         )
 
-    def test_download_url(self):
+    def test_download_url(self, azurite_connection_string):
         content_p, obj_id_p = self.hash_content(b"contains_present")
         self.storage.add(content_p, obj_id=obj_id_p)
         assert self.storage.download_url(obj_id_p).startswith("http://127.0.0.1:")
         storage2 = get_objstorage(
             "azure",
-            connection_string=self._connection_string,
+            connection_string=azurite_connection_string,
             container_name=self._container_name,
             compression=self.compression,
             use_secondary_endpoint_for_downloads=True,
@@ -223,23 +216,17 @@ def get_MockContainerClient():
     return MockContainerClient
 
 
-class TestMockedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    def setUp(self):
-        super().setUp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self, mocker):
         ContainerClient = get_MockContainerClient()
-        patcher = patch(
-            "swh.objstorage.backends.azure.ContainerClient", ContainerClient
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        mocker.patch("swh.objstorage.backends.azure.ContainerClient", ContainerClient)
 
-        patcher = patch(
+        mocker.patch(
             "swh.objstorage.backends.azure.AsyncContainerClient", ContainerClient
         )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
         self.storage = get_objstorage(
             "azure",
@@ -272,12 +259,12 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
         blob_client.upload_blob(data=new_data, length=len(new_data))
 
         if self.compression == "none":
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.check(obj_id)
         else:
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.get(obj_id)
-            assert "trailing data" in e.exception.args[0]
+            assert "trailing data" in e.value.args[0]
 
     @pytest.mark.skip("makes no sense to test this for the mocked azure")
     def test_download_url(self):
@@ -303,21 +290,17 @@ class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
     compression = "bz2"
 
 
-class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase):
-    def setUp(self):
-        super().setUp()
+class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
+    @pytest.fixture(autouse=True)
+    def objstorage(self, mocker):
         self.ContainerClient = get_MockContainerClient()
-        patcher = patch(
+        mocker.patch(
             "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
         )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
-        patcher = patch(
+        mocker.patch(
             "swh.objstorage.backends.azure.AsyncContainerClient", self.ContainerClient
         )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
         self.accounts = {}
         for prefix in "0123456789abcdef":
@@ -329,13 +312,13 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
         del self.accounts["d"]
         del self.accounts["e"]
 
-        with self.assertRaisesRegex(ValueError, "Missing prefixes"):
+        with pytest.raises(ValueError, match="Missing prefixes"):
             get_objstorage("azure-prefixed", accounts=self.accounts)
 
     def test_prefixedazure_instantiation_inconsistent_prefixes(self):
         self.accounts["00"] = self.accounts["0"]
 
-        with self.assertRaisesRegex(ValueError, "Inconsistent prefixes"):
+        with pytest.raises(ValueError, match="Inconsistent prefixes"):
             get_objstorage("azure-prefixed", accounts=self.accounts)
 
     def test_prefixedazure_sharding_behavior(self):
@@ -344,7 +327,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture, unittest.TestCase)
             self.storage.add(content, obj_id=obj_id)
             hex_obj_id = hash_to_hex(obj_id)
             prefix = hex_obj_id[0]
-            self.assertTrue(
+            assert (
                 self.ContainerClient(self.storage.container_urls[prefix])
                 .get_blob_client(hex_obj_id)
                 .get_blob_properties()

@@ -1,11 +1,8 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import shutil
-import tempfile
-import unittest
 
 import pytest
 
@@ -15,15 +12,15 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 
-class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.TestCase):
+class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture):
     """Test the remote archive API."""
 
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self, tmpdir):
         self.config = {
             "objstorage": {
                 "cls": "pathslicing",
-                "root": self.tmpdir,
+                "root": str(tmpdir),
                 "slicing": "0:1/0:5",
                 "allow_delete": True,
             },
@@ -31,12 +28,10 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture, unittest.Te
         }
 
         self.app = app
-        super().setUp()
+        self.start_server()
         self.storage = get_objstorage("remote", url=self.url())
-
-    def tearDown(self):
-        super().tearDown()
-        shutil.rmtree(self.tmpdir)
+        yield
+        self.stop_server()
 
     @pytest.mark.skip("makes no sense to test this for the remote api")
     def test_delete_not_allowed(self):

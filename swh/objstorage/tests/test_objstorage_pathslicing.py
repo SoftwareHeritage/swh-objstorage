@@ -1,12 +1,8 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import shutil
-import tempfile
-import unittest
-from unittest.mock import DEFAULT, patch
 
 import pytest
 
@@ -18,23 +14,18 @@ from swh.objstorage.factory import get_objstorage
 from .objstorage_testing import ObjStorageTestFixture
 
 
-class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestPathSlicingObjStorage(ObjStorageTestFixture):
     compression = "none"
 
-    def setUp(self):
-        super().setUp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self, tmpdir):
         self.slicing = "0:2/2:4/4:6"
-        self.tmpdir = tempfile.mkdtemp()
         self.storage = get_objstorage(
             "pathslicing",
-            root=self.tmpdir,
+            root=str(tmpdir),
             slicing=self.slicing,
             compression=self.compression,
         )
-
-    def tearDown(self):
-        super().tearDown()
-        shutil.rmtree(self.tmpdir)
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
@@ -42,17 +33,15 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def test_iter(self):
         content, obj_id = self.hash_content(b"iter")
-        self.assertEqual(list(iter(self.storage)), [])
+        assert not list(iter(self.storage))
         self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(
-            list(iter(self.storage)), [{self.storage.PRIMARY_HASH: obj_id}]
-        )
+        assert list(iter(self.storage)) == [{self.storage.PRIMARY_HASH: obj_id}]
 
     def test_len(self):
         content, obj_id = self.hash_content(b"len")
-        self.assertEqual(len(self.storage), 0)
+        assert len(self.storage) == 0
         self.storage.add(content, obj_id=obj_id)
-        self.assertEqual(len(self.storage), 1)
+        assert len(self.storage) == 1
 
     def test_check_ok(self):
         content, obj_id = self.hash_content(b"check_ok")
@@ -63,15 +52,12 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
     def test_check_id_mismatch(self):
         content, obj_id = self.hash_content(b"check_id_mismatch")
         self.storage.add(b"unexpected content", obj_id=obj_id)
-        with self.assertRaises(exc.Error) as error:
+        with pytest.raises(exc.Error) as error:
             self.storage.check(obj_id)
-        self.assertEqual(
-            (
-                "Corrupt object %s should have id "
-                "12ebb2d6c81395bcc5cab965bdff640110cb67ff" % obj_id.hex(),
-            ),
-            error.exception.args,
-        )
+        assert (
+            "Corrupt object %s should have id "
+            "12ebb2d6c81395bcc5cab965bdff640110cb67ff" % obj_id.hex(),
+        ) == error.value.args
 
     def test_iterate_from(self):
         all_ids = []
@@ -82,30 +68,30 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
 
         ids = list(self.storage.iter_from(b"\x00" * ID_DIGEST_LENGTH))
-        self.assertEqual(len(ids), len(all_ids))
-        self.assertEqual(ids, all_ids)
+        assert ids == all_ids
 
         ids = list(self.storage.iter_from(all_ids[0]))
-        self.assertEqual(len(ids), len(all_ids) - 1)
-        self.assertEqual(ids, all_ids[1:])
+        assert ids == all_ids[1:]
 
         ids = list(self.storage.iter_from(all_ids[-1], n_leaf=True))
         n_leaf = ids[-1]
         ids = ids[:-1]
-        self.assertEqual(n_leaf, 1)
-        self.assertEqual(len(ids), 0)
+        assert n_leaf == 1
+        assert len(ids) == 0
 
         ids = list(self.storage.iter_from(all_ids[-2], n_leaf=True))
         n_leaf = ids[-1]
         ids = ids[:-1]
-        self.assertEqual(n_leaf, 2)  # beware, this depends on the hash algo
-        self.assertEqual(len(ids), 1)
-        self.assertEqual(ids, all_ids[-1:])
+        assert n_leaf == 2  # beware, this depends on the hash algo
+        assert len(ids) == 1
+        assert ids == all_ids[-1:]
 
-    def test_fdatasync_default(self):
+    def test_fdatasync_default(self, mocker):
         content, obj_id = self.hash_content(b"check_fdatasync")
-        with patch.multiple("os", fsync=DEFAULT, fdatasync=DEFAULT) as patched:
-            self.storage.add(content, obj_id=obj_id)
+        patched = mocker.patch.multiple(
+            "os", fsync=mocker.DEFAULT, fdatasync=mocker.DEFAULT
+        )
+        self.storage.add(content, obj_id=obj_id)
         if self.storage.use_fdatasync:
             assert patched["fdatasync"].call_count == 1
             assert patched["fsync"].call_count == 0
@@ -113,19 +99,23 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
             assert patched["fdatasync"].call_count == 0
             assert patched["fsync"].call_count == 1
 
-    def test_fdatasync_forced_on(self):
+    def test_fdatasync_forced_on(self, mocker):
         self.storage.use_fdatasync = True
         content, obj_id = self.hash_content(b"check_fdatasync")
-        with patch.multiple("os", fsync=DEFAULT, fdatasync=DEFAULT) as patched:
-            self.storage.add(content, obj_id=obj_id)
+        patched = mocker.patch.multiple(
+            "os", fsync=mocker.DEFAULT, fdatasync=mocker.DEFAULT
+        )
+        self.storage.add(content, obj_id=obj_id)
         assert patched["fdatasync"].call_count == 1
         assert patched["fsync"].call_count == 0
 
-    def test_fdatasync_forced_off(self):
+    def test_fdatasync_forced_off(self, mocker):
         self.storage.use_fdatasync = False
         content, obj_id = self.hash_content(b"check_fdatasync")
-        with patch.multiple("os", fsync=DEFAULT, fdatasync=DEFAULT) as patched:
-            self.storage.add(content, obj_id=obj_id)
+        patched = mocker.patch.multiple(
+            "os", fsync=mocker.DEFAULT, fdatasync=mocker.DEFAULT
+        )
+        self.storage.add(content, obj_id=obj_id)
         assert patched["fdatasync"].call_count == 0
         assert patched["fsync"].call_count == 1
 
@@ -134,12 +124,12 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.storage.add(content, obj_id=obj_id)
         with open(self.content_path(obj_id), "ab") as f:  # Add garbage.
             f.write(b"garbage")
-        with self.assertRaises(exc.Error) as error:
+        with pytest.raises(exc.Error) as error:
             self.storage.check(obj_id)
         if self.compression == "none":
-            self.assertIn("Corrupt object", error.exception.args[0])
+            assert "Corrupt object" in error.value.args[0]
         else:
-            self.assertIn("trailing data found", error.exception.args[0])
+            assert "trailing data found" in error.value.args[0]
 
 
 class TestPathSlicingObjStorageGzip(TestPathSlicingObjStorage):

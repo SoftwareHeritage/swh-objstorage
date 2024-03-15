@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -70,25 +70,25 @@ class ObjStorageTestFixture:
 
     def assertContentMatch(self, obj_id, expected_content):  # noqa
         content = self.storage.get(obj_id)
-        self.assertEqual(content, expected_content)
+        assert content == expected_content
 
     def test_check_config(self):
-        self.assertTrue(self.storage.check_config(check_write=False))
-        self.assertTrue(self.storage.check_config(check_write=True))
+        assert self.storage.check_config(check_write=False)
+        assert self.storage.check_config(check_write=True)
 
     def test_contains(self):
         content_p, obj_id_p = self.hash_content(b"contains_present")
         content_m, obj_id_m = self.hash_content(b"contains_missing")
         self.storage.add(content_p, obj_id=obj_id_p)
-        self.assertIn(obj_id_p, self.storage)
-        self.assertNotIn(obj_id_m, self.storage)
+        assert obj_id_p in self.storage
+        assert obj_id_m not in self.storage
 
     def test_contains_composite(self):
         content_p, obj_id_p = self.compositehash_content(b"contains_present")
         content_m, obj_id_m = self.compositehash_content(b"contains_missing")
         self.storage.add(content_p, obj_id=obj_id_p)
-        self.assertIn(obj_id_p, self.storage)
-        self.assertNotIn(obj_id_m, self.storage)
+        assert obj_id_p in self.storage
+        assert obj_id_m not in self.storage
 
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
@@ -118,8 +118,8 @@ class ObjStorageTestFixture:
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
         cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
-        self.assertEqual(cr1, content1)
-        self.assertEqual(cr2, content2)
+        assert cr1 == content1
+        assert cr2 == content2
 
     def test_add_get_batch_composite(self):
         content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
@@ -127,14 +127,14 @@ class ObjStorageTestFixture:
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
         cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
-        self.assertEqual(cr1, content1)
-        self.assertEqual(cr2, content2)
+        assert cr1 == content1
+        assert cr2 == content2
 
     def test_get_batch_unexisting_content(self):
         content, obj_id = self.hash_content(b"get_batch_unexisting_content")
         result = list(self.storage.get_batch([obj_id]))
-        self.assertTrue(len(result) == 1)
-        self.assertIsNone(result[0])
+        assert len(result) == 1
+        assert result[0] is None
 
     def test_restore_content(self):
         self.storage.allow_delete = True
@@ -142,33 +142,33 @@ class ObjStorageTestFixture:
         valid_content, valid_obj_id = self.hash_content(b"restore_content")
         invalid_content = b"unexpected content"
         self.storage.add(invalid_content, valid_obj_id)
-        with self.assertRaises(exc.Error):
+        with pytest.raises(exc.Error):
             self.storage.check(valid_obj_id)
         self.storage.restore(valid_content, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
     def test_get_missing(self):
         content, obj_id = self.hash_content(b"get_missing")
-        with self.assertRaises(exc.ObjNotFoundError) as e:
+        with pytest.raises(exc.ObjNotFoundError) as e:
             self.storage.get(obj_id)
 
-        self.assertIn(obj_id, e.exception.args)
+        assert obj_id in e.value.args
 
     def test_get_missing_composite(self):
         content, obj_id = self.compositehash_content(b"get_missing")
-        with self.assertRaises(exc.ObjNotFoundError) as e:
+        with pytest.raises(exc.ObjNotFoundError) as e:
             self.storage.get(obj_id)
 
-        self.assertIn(obj_id, e.exception.args)
+        assert obj_id in e.value.args
 
     def test_check_missing(self):
         content, obj_id = self.hash_content(b"check_missing")
-        with self.assertRaises(exc.Error):
+        with pytest.raises(exc.Error):
             self.storage.check(obj_id)
 
     def test_check_missing_composite(self):
         content, obj_id = self.compositehash_content(b"check_missing")
-        with self.assertRaises(exc.Error):
+        with pytest.raises(exc.Error):
             self.storage.check(obj_id)
 
     def test_check_present(self):
@@ -190,43 +190,43 @@ class ObjStorageTestFixture:
     def test_delete_missing(self):
         self.storage.allow_delete = True
         content, obj_id = self.hash_content(b"missing_content_to_delete")
-        with self.assertRaises(exc.Error):
+        with pytest.raises(exc.Error):
             self.storage.delete(obj_id)
 
     def test_delete_missing_composite(self):
         self.storage.allow_delete = True
         content, obj_id = self.compositehash_content(b"missing_content_to_delete")
-        with self.assertRaises(exc.Error):
+        with pytest.raises(exc.Error):
             self.storage.delete(obj_id)
 
     def test_delete_present(self):
         self.storage.allow_delete = True
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
-        self.assertTrue(self.storage.delete(obj_id))
-        with self.assertRaises(exc.Error):
+        assert self.storage.delete(obj_id)
+        with pytest.raises(exc.Error):
             self.storage.get(obj_id)
 
     def test_delete_present_composite(self):
         self.storage.allow_delete = True
         content, obj_id = self.compositehash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
-        self.assertTrue(self.storage.delete(obj_id))
-        with self.assertRaises(exc.Error):
+        assert self.storage.delete(obj_id)
+        with pytest.raises(exc.Error):
             self.storage.get(obj_id)
 
     def test_delete_not_allowed(self):
         self.storage.allow_delete = False
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
-        with self.assertRaises(PermissionError):
+        with pytest.raises(PermissionError):
             self.storage.delete(obj_id)
 
     def test_delete_not_allowed_by_default(self):
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
-        with self.assertRaises(PermissionError):
-            self.assertTrue(self.storage.delete(obj_id))
+        with pytest.raises(PermissionError):
+            self.storage.delete(obj_id)
 
     def test_add_batch(self):
         contents = {}
@@ -241,15 +241,13 @@ class ObjStorageTestFixture:
 
         ret = self.storage.add_batch(contents)
 
-        self.assertEqual(
-            ret,
-            {
-                "object:add": expected_content_add,
-                "object:add:bytes": expected_content_add_bytes,
-            },
-        )
+        assert ret == {
+            "object:add": expected_content_add,
+            "object:add:bytes": expected_content_add_bytes,
+        }
+
         for obj_id in contents:
-            self.assertIn(obj_id, self.storage)
+            assert obj_id in self.storage
 
     def test_add_batch_list(self):
         contents = []
@@ -264,15 +262,13 @@ class ObjStorageTestFixture:
 
         ret = self.storage.add_batch(contents)
 
-        self.assertEqual(
-            ret,
-            {
-                "object:add": expected_content_add,
-                "object:add:bytes": expected_content_add_bytes,
-            },
-        )
+        assert ret == {
+            "object:add": expected_content_add,
+            "object:add:bytes": expected_content_add_bytes,
+        }
+
         for obj_id, content in contents:
-            self.assertIn(obj_id, self.storage)
+            assert obj_id in self.storage
 
     def test_add_batch_list_composite(self):
         contents = []
@@ -287,19 +283,17 @@ class ObjStorageTestFixture:
 
         ret = self.storage.add_batch(contents)
 
-        self.assertEqual(
-            ret,
-            {
-                "object:add": expected_content_add,
-                "object:add:bytes": expected_content_add_bytes,
-            },
-        )
+        assert ret == {
+            "object:add": expected_content_add,
+            "object:add:bytes": expected_content_add_bytes,
+        }
+
         for obj_id, content in contents:
-            self.assertIn(obj_id, self.storage)
+            assert obj_id in self.storage
 
     def test_content_iterator(self):
         sto_obj_ids = list(iter(self.storage))
-        self.assertFalse(sto_obj_ids)
+        assert not sto_obj_ids
         obj_ids = self.fill_objstorage(self.num_objects)
 
         sto_obj_ids = list(self.storage)

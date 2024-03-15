@@ -1,13 +1,13 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import json
 import os
-import unittest
 from urllib.parse import urlparse
 
+import pytest
 from requests.utils import get_encoding_from_headers
 import requests_mock
 from requests_mock.contrib import fixture
@@ -225,13 +225,13 @@ class FilerRequestsMock:
         del self.content[request.path]
 
 
-class TestSeaweedObjStorage(ObjStorageTestFixture, unittest.TestCase):
+class TestSeaweedObjStorage(ObjStorageTestFixture):
     compression = "none"
     url = "http://127.0.0.1/test/"
     slicing = ""
 
-    def setUp(self):
-        super().setUp()
+    @pytest.fixture(autouse=True)
+    def objstorage(self):
         self.storage = get_objstorage(
             cls="seaweedfs",
             url=self.url,
@@ -239,6 +239,7 @@ class TestSeaweedObjStorage(ObjStorageTestFixture, unittest.TestCase):
             slicing=self.slicing,
         )
         self.mock = FilerRequestsMock(url=self.url)
+        yield self.storage
 
     def fill_objstorage(self, num_objects):
         # override default implelentation to speed things up a bit, shortcuting
@@ -280,12 +281,12 @@ class TestSeaweedObjStorage(ObjStorageTestFixture, unittest.TestCase):
         self.mock.content[path] += b"trailing garbage"
 
         if self.compression == "none":
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.check(obj_id)
         else:
-            with self.assertRaises(Error) as e:
+            with pytest.raises(Error) as e:
                 self.storage.get(obj_id)
-            assert "trailing data" in e.exception.args[0]
+            assert "trailing data" in e.value.args[0]
 
     def test_slicing(self):
         slicer = PathSlicer(urlparse(self.url).path, self.slicing)
@@ -312,9 +313,9 @@ class TestSeaweedObjStorageWithSlicing2(TestSeaweedObjStorage):
 class TestSeaweedObjStorageWithSmallBatch(TestSeaweedObjStorage):
     num_objects = 120
 
-    def setUp(self):
-        super().setUp()
-        self.storage.wf.batchsize = 1
+    @pytest.fixture(autouse=True)
+    def batchsize(self, objstorage):
+        objstorage.wf.batchsize = 1
 
 
 class TestSeaweedObjStorageWithSlicing1AndSmallBatch(
