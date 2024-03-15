@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 def needs_ceph():
     ceph = shutil.which("ceph")
 
-    if not ceph:
+    if not ceph or os.environ.get("USE_CEPH", "yes") != "yes":
         pytest.skip("the ceph CLI was not found")
 
 
