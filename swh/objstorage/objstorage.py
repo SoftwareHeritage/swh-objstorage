@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,17 @@ import collections
 from datetime import timedelta
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 import zlib
 
 from typing_extensions import Protocol
@@ -17,11 +27,13 @@ from typing_extensions import Protocol
 from swh.model import hashutil
 from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO
-from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 
 
-def objid_to_default_hex(obj_id: ObjId) -> str:
+def objid_to_default_hex(
+    obj_id: ObjId, algo: Literal["sha1", "sha256"] = ID_HASH_ALGO
+) -> str:
     """Converts SHA1 hashes and multi-hashes to the hexadecimal representation
     of the SHA1."""
     if isinstance(obj_id, bytes):
@@ -29,28 +41,41 @@ def objid_to_default_hex(obj_id: ObjId) -> str:
     elif isinstance(obj_id, str):
         return obj_id
     else:
-        return hashutil.hash_to_hex(obj_id[ID_HASH_ALGO])
+        return hashutil.hash_to_hex(obj_id[algo])
 
 
-def compute_hash(content, algo=ID_HASH_ALGO):
+def compute_hashes(
+    content: bytes, hash_names: Iterable[str] = hashutil.DEFAULT_ALGORITHMS
+) -> Dict[str, bytes]:
+    """Compute the content's hashes.
+
+    Args:
+        content: The raw content to hash
+        hash_names: Names of hashing algorithms
+            (default to :const:`swh.model.hashutil.DEFAULT_ALGORITHMS`)
+
+    Returns:
+        A dict mapping algo name to hash value
+
+    """
+    return hashutil.MultiHash.from_data(
+        content,
+        hash_names=hash_names,
+    ).digest()
+
+
+def compute_hash(content: bytes, algo: str = ID_HASH_ALGO) -> bytes:
     """Compute the content's hash.
 
     Args:
-        content (bytes): The raw content to hash
-        hash_name (str): Hash's name (default to ID_HASH_ALGO)
+        content: The raw content to hash
+        hash_name: Hash's name
 
     Returns:
-        The ID_HASH_ALGO for the content
+        The computed hash for the content
 
     """
-    return (
-        hashutil.MultiHash.from_data(
-            content,
-            hash_names=[algo],
-        )
-        .digest()
-        .get(algo)
-    )
+    return compute_hashes(content, [algo])[algo]
 
 
 class NullCompressor:
@@ -103,6 +128,8 @@ compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
 
 
 class ObjStorage(metaclass=abc.ABCMeta):
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
+
     def __init__(self, *, allow_delete=False, **kwargs):
         # A more complete permission system could be used in place of that if
         # it becomes needed
@@ -163,3 +190,25 @@ class ObjStorage(metaclass=abc.ABCMeta):
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
         return None
+
+    @abc.abstractmethod
+    def get(self, obj_id: ObjId) -> bytes:
+        raise NotImplementedError()
+
+    def check(self, obj_id: ObjId) -> None:
+        """Check if a content is found and recompute its hash to check integrity."""
+        obj_content = self.get(obj_id)
+        hash_algos = [str(self.PRIMARY_HASH)]
+        if isinstance(obj_id, dict):
+            hash_algos += [algo for algo in obj_id if algo != self.PRIMARY_HASH]
+        actual_hashes = compute_hashes(obj_content, hash_algos)
+        for algo in hash_algos:
+            actual_obj_id = actual_hashes[algo]
+            expected_obj_id = obj_id
+            if isinstance(obj_id, dict):
+                expected_obj_id = obj_id[algo]  # type: ignore[literal-required]
+            if actual_obj_id != expected_obj_id:
+                raise ObjCorruptedError(
+                    f"expected {algo} hash is {hashutil.hash_to_hex(expected_obj_id)}, "
+                    f"actual {algo} hash is {hashutil.hash_to_hex(actual_obj_id)}"
+                )

@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2023  The Software Heritage developers
+# Copyright (C) 2021-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -16,7 +16,6 @@ from click.testing import CliRunner
 import pytest
 import yaml
 
-from swh.objstorage import exc
 from swh.objstorage.backends.winery.database import DatabaseAdmin
 from swh.objstorage.backends.winery.objstorage import (
     cleanup_rw_shard,
@@ -36,6 +35,7 @@ from swh.objstorage.backends.winery.throttler import (
     Throttler,
 )
 from swh.objstorage.cli import swh_cli_group
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 from swh.objstorage.utils import call_async
@@ -251,7 +251,7 @@ def test_winery_add_get(winery):
     winery.add(content=content, obj_id=obj_id, check_presence=False)
     assert winery.base.locked_shard == shard
     assert winery.get(obj_id) == content
-    with pytest.raises(exc.ObjNotFoundError):
+    with pytest.raises(ObjNotFoundError):
         winery.get(b"unknown")
     winery.shard.drop()
 
@@ -277,7 +277,7 @@ def test_winery_delete_on_rwshard(winery):
     assert winery.base.locked_shard == shard
     assert winery.get(obj_id) == content
     winery.delete(obj_id)
-    with pytest.raises(exc.ObjNotFoundError):
+    with pytest.raises(ObjNotFoundError):
         winery.get(obj_id)
 
 
@@ -297,7 +297,7 @@ def test_winery_delete_on_roshard(winery, file_backed_pool):
     winery.delete(obj_id)
     assert len(list(winery.base.deleted_objects())) == 1
     # We still should not be able to access it
-    with pytest.raises(exc.ObjNotFoundError):
+    with pytest.raises(ObjNotFoundError):
         winery.get(obj_id)
     # The content is still present in the roshard image at this point
     image_path = file_backed_pool.image_path(shard)

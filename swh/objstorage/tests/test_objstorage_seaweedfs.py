@@ -13,7 +13,7 @@ import requests_mock
 from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
-from swh.objstorage.exc import Error
+from swh.objstorage.exc import ObjCorruptedError
 from swh.objstorage.objstorage import compressors, compute_hash, decompressors
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
@@ -278,13 +278,11 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
         path = self.storage._path(obj_id)
         self.mock.content[path] += b"trailing garbage"
 
-        if self.compression == "none":
-            with pytest.raises(Error) as e:
-                self.storage.check(obj_id)
-        else:
-            with pytest.raises(Error) as e:
-                self.storage.get(obj_id)
-            assert "trailing data" in e.value.args[0]
+        with pytest.raises(ObjCorruptedError) as e:
+            self.storage.check(obj_id)
+
+        if self.compression != "none":
+            assert "trailing data found" in e.value.args[0]
 
     def test_slicing(self):
         slicer = PathSlicer(urlparse(self.url).path, self.slicing)

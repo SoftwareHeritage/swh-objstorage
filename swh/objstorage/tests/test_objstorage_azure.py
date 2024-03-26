@@ -19,7 +19,7 @@ import pytest
 
 from swh.model.hashutil import hash_to_hex
 import swh.objstorage.backends.azure
-from swh.objstorage.exc import Error
+from swh.objstorage.exc import ObjCorruptedError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 
@@ -258,13 +258,11 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
         blob_client.delete_blob()
         blob_client.upload_blob(data=new_data, length=len(new_data))
 
-        if self.compression == "none":
-            with pytest.raises(Error) as e:
-                self.storage.check(obj_id)
-        else:
-            with pytest.raises(Error) as e:
-                self.storage.get(obj_id)
-            assert "trailing data" in e.value.args[0]
+        with pytest.raises(ObjCorruptedError) as e:
+            self.storage.check(obj_id)
+
+        if self.compression != "none":
+            assert "trailing data found" in e.value.args[0]
 
     @pytest.mark.skip("makes no sense to test this for the mocked azure")
     def test_download_url(self):

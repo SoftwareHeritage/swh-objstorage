@@ -1,15 +1,13 @@
-# Copyright (C) 2017-2022  The Software Heritage developers
+# Copyright (C) 2017-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from typing import Dict, Iterator
 
-from typing_extensions import Literal
-
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import ObjStorage, compute_hash, objid_to_default_hex
+from swh.objstorage.objstorage import ObjStorage
 
 
 class InMemoryObjStorage(ObjStorage):
@@ -19,7 +17,7 @@ class InMemoryObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: Literal["sha1"] = "sha1"
+    PRIMARY_HASH = "sha1"
 
     def __init__(self, **args):
         super().__init__()
@@ -52,12 +50,6 @@ class InMemoryObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
         return self.state[self._state_key(obj_id)]
-
-    def check(self, obj_id: ObjId) -> None:
-        if obj_id not in self:
-            raise ObjNotFoundError(obj_id)
-        if compute_hash(self.state[self._state_key(obj_id)]) != self._state_key(obj_id):
-            raise Error("Corrupt object %s" % objid_to_default_hex(obj_id))
 
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission

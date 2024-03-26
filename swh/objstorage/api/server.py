@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -17,7 +17,7 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import Error, ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
 
@@ -50,7 +50,7 @@ def get_objstorage():
 
 
 class ObjStorageServerApp(RPCServerApp):
-    client_exception_classes = (ObjNotFoundError, Error)
+    client_exception_classes = (ObjNotFoundError, ObjCorruptedError, Error)
     method_decorators = [timed]
 
     def pre_add(self, kw):

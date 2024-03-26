@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,12 @@ import msgpack
 
 from swh.core.api import RPCClient
 from swh.objstorage.constants import DEFAULT_LIMIT
-from swh.objstorage.exc import Error, ObjNotFoundError, ObjStorageAPIError
+from swh.objstorage.exc import (
+    Error,
+    ObjCorruptedError,
+    ObjNotFoundError,
+    ObjStorageAPIError,
+)
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import objid_to_default_hex
 
@@ -28,7 +33,7 @@ class RemoteObjStorage(RPCClient):
     """
 
     api_exception = ObjStorageAPIError
-    reraise_exceptions = [ObjNotFoundError, Error]
+    reraise_exceptions = [ObjNotFoundError, Error, ObjCorruptedError]
     backend_class = ObjStorageInterface
 
     def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:

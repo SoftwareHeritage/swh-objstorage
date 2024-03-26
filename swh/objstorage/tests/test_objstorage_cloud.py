@@ -18,7 +18,7 @@ from libcloud.storage.types import (
 import pytest
 
 from swh.objstorage.backends.libcloud import CloudObjStorage
-from swh.objstorage.exc import Error
+from swh.objstorage.exc import ObjCorruptedError
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -133,13 +133,11 @@ class TestCloudObjStorage(ObjStorageTestFixture):
         libcloud_object = self.storage._get_object(obj_id)
         libcloud_object.content.append(b"trailing garbage")
 
-        if self.compression == "none":
-            with pytest.raises(Error) as e:
-                self.storage.check(obj_id)
-        else:
-            with pytest.raises(Error) as e:
-                self.storage.get(obj_id)
-            assert "trailing data" in e.value.args[0]
+        with pytest.raises(ObjCorruptedError) as e:
+            self.storage.check(obj_id)
+
+        if self.compression != "none":
+            assert "trailing data found" in e.value.args[0]
 
     @pytest.mark.skip("makes no sense to test this for the mocked libcloud")
     def test_download_url(self):

@@ -234,7 +234,7 @@ class ObjStorageInterface(Protocol):
 
         Raises:
             ObjNotFoundError: if the requested object is missing.
-            Error: if the request object is corrupted.
+            ObjCorruptedError: if the requested object is corrupted.
 
         """
         ...

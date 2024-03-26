@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2023  The Software Heritage developers
+# Copyright (C) 2021-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,12 @@ import requests_mock
 from requests_mock.contrib import fixture
 
 from swh.model import hashutil
-from swh.objstorage import exc
+from swh.objstorage.exc import (
+    NonIterableObjStorage,
+    ObjCorruptedError,
+    ObjNotFoundError,
+    ReadOnlyObjStorage,
+)
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 
@@ -80,7 +85,7 @@ def test_http_objstorage_missing():
 def test_http_objstorage_get_missing():
     sto_front, sto_back, objids = build_objstorage()
 
-    with pytest.raises(exc.ObjNotFoundError):
+    with pytest.raises(ObjNotFoundError):
         sto_front.get(b"\x00" * 20)
 
 
@@ -92,11 +97,11 @@ def test_http_objstorage_check(multi_hash):
 
     # create an invalid object in the in-memory objstorage
     invalid_content = b"p0wn3d content"
-    fake_objid = "\x01" * 20
+    fake_objid = b"\x01" * 20
     sto_back.add(invalid_content, fake_objid)
 
     # the http objstorage should report it as invalid
-    with pytest.raises(exc.Error):
+    with pytest.raises(ObjCorruptedError):
         sto_front.check(fake_objid)
 
 
@@ -105,20 +110,20 @@ def test_http_objstorage_read_only():
 
     content = b""
     obj_id = compute_hash(content)
-    with pytest.raises(exc.ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorage):
         sto_front.add(content, obj_id=obj_id)
-    with pytest.raises(exc.ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorage):
         sto_front.restore(b"", obj_id=compute_hash(b""))
-    with pytest.raises(exc.ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorage):
         sto_front.delete(b"\x00" * 20)
 
 
 def test_http_objstorage_not_iterable():
     sto_front, sto_back, objids = build_objstorage()
 
-    with pytest.raises(exc.NonIterableObjStorage):
+    with pytest.raises(NonIterableObjStorage):
         len(sto_front)
-    with pytest.raises(exc.NonIterableObjStorage):
+    with pytest.raises(NonIterableObjStorage):
         iter(sto_front)
 
 

@@ -9,7 +9,7 @@ from typing import Tuple
 import pytest
 import requests
 
-from swh.objstorage import exc
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash, decompressors
 
@@ -146,33 +146,35 @@ class ObjStorageTestFixture:
         valid_content, valid_obj_id = self.hash_content(b"restore_content")
         invalid_content = b"unexpected content"
         self.storage.add(invalid_content, valid_obj_id)
-        with pytest.raises(exc.Error):
+        with pytest.raises((ObjCorruptedError, ObjNotFoundError)):
+            # raise Corrupted except read only storage that raises NotFound,
             self.storage.check(valid_obj_id)
+        assert valid_obj_id in self.storage
         self.storage.restore(valid_content, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
     def test_get_missing(self):
         content, obj_id = self.hash_content(b"get_missing")
-        with pytest.raises(exc.ObjNotFoundError) as e:
+        with pytest.raises(ObjNotFoundError) as e:
             self.storage.get(obj_id)
 
         assert obj_id in e.value.args
 
     def test_get_missing_composite(self):
         content, obj_id = self.compositehash_content(b"get_missing")
-        with pytest.raises(exc.ObjNotFoundError) as e:
+        with pytest.raises(ObjNotFoundError) as e:
             self.storage.get(obj_id)
 
         assert obj_id in e.value.args
 
     def test_check_missing(self):
         content, obj_id = self.hash_content(b"check_missing")
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.check(obj_id)
 
     def test_check_missing_composite(self):
         content, obj_id = self.compositehash_content(b"check_missing")
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.check(obj_id)
 
     def test_check_present(self):
@@ -180,7 +182,7 @@ class ObjStorageTestFixture:
         self.storage.add(content, obj_id)
         try:
             self.storage.check(obj_id)
-        except exc.Error:
+        except ObjCorruptedError:
             self.fail("Integrity check failed")
 
     def test_check_present_composite(self):
@@ -188,19 +190,19 @@ class ObjStorageTestFixture:
         self.storage.add(content, obj_id)
         try:
             self.storage.check(obj_id)
-        except exc.Error:
+        except ObjCorruptedError:
             self.fail("Integrity check failed")
 
     def test_delete_missing(self):
         self.storage.allow_delete = True
         content, obj_id = self.hash_content(b"missing_content_to_delete")
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.delete(obj_id)
 
     def test_delete_missing_composite(self):
         self.storage.allow_delete = True
         content, obj_id = self.compositehash_content(b"missing_content_to_delete")
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.delete(obj_id)
 
     def test_delete_present(self):
@@ -208,7 +210,7 @@ class ObjStorageTestFixture:
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         assert self.storage.delete(obj_id)
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.get(obj_id)
 
     def test_delete_present_composite(self):
@@ -216,7 +218,7 @@ class ObjStorageTestFixture:
         content, obj_id = self.compositehash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         assert self.storage.delete(obj_id)
-        with pytest.raises(exc.Error):
+        with pytest.raises(ObjNotFoundError):
             self.storage.get(obj_id)
 
     def test_delete_not_allowed(self):
@@ -356,5 +358,5 @@ class ObjStorageTestFixture:
             decompress = decompressors[self.storage.compression]().decompress
             assert decompress(requests.get(url).content) == content
 
-            with pytest.raises(exc.ObjNotFoundError):
+            with pytest.raises(ObjNotFoundError):
                 self.storage.download_url(b"\xff" * 20)

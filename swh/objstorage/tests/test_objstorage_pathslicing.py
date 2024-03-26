@@ -7,8 +7,8 @@
 import pytest
 
 from swh.model import hashutil
-from swh.objstorage import exc
 from swh.objstorage.constants import ID_DIGEST_LENGTH
+from swh.objstorage.exc import ObjCorruptedError
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -45,17 +45,12 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         content, obj_id = self.hash_content(b"check_ok")
         self.storage.add(content, obj_id=obj_id)
         assert self.storage.check(obj_id) is None
-        assert self.storage.check(obj_id.hex()) is None
 
     def test_check_id_mismatch(self):
-        content, obj_id = self.hash_content(b"check_id_mismatch")
+        _, obj_id = self.hash_content(b"check_id_mismatch")
         self.storage.add(b"unexpected content", obj_id=obj_id)
-        with pytest.raises(exc.Error) as error:
+        with pytest.raises(ObjCorruptedError, match="Object corrupted"):
             self.storage.check(obj_id)
-        assert (
-            "Corrupt object %s should have id "
-            "12ebb2d6c81395bcc5cab965bdff640110cb67ff" % obj_id.hex(),
-        ) == error.value.args
 
     def test_iterate_from(self):
         all_ids = []
@@ -122,11 +117,9 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         self.storage.add(content, obj_id=obj_id)
         with open(self.content_path(obj_id), "ab") as f:  # Add garbage.
             f.write(b"garbage")
-        with pytest.raises(exc.Error) as error:
+        with pytest.raises(ObjCorruptedError, match="Object corrupted") as error:
             self.storage.check(obj_id)
-        if self.compression == "none":
-            assert "Corrupt object" in error.value.args[0]
-        else:
+        if self.compression != "none":
             assert "trailing data found" in error.value.args[0]
 
 

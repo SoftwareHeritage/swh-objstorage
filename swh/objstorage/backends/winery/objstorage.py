@@ -7,9 +7,7 @@ import logging
 from multiprocessing import Process
 from typing import Callable, Optional, Tuple
 
-from typing_extensions import Literal
-
-from swh.objstorage import exc
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage
 
@@ -29,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
-    PRIMARY_HASH: Literal["sha256"] = "sha256"
+    PRIMARY_HASH = "sha256"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -52,9 +50,6 @@ class WineryObjStorage(ObjStorage):
 
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         self.winery.add(content, self._hash(obj_id), check_presence)
-
-    def check(self, obj_id: ObjId) -> None:
-        return self.winery.check(self._hash(obj_id))
 
     def delete(self, obj_id: ObjId):
         if not self.allow_delete:
@@ -110,7 +105,7 @@ class WineryReader(WineryBase):
     def get(self, obj_id: ObjId) -> bytes:
         shard_info = self.base.get(obj_id)
         if shard_info is None:
-            raise exc.ObjNotFoundError(obj_id)
+            raise ObjNotFoundError(obj_id)
         name, state = shard_info
         content: Optional[bytes] = None
         if state.image_available:
@@ -121,7 +116,7 @@ class WineryReader(WineryBase):
             rwshard = self.rwshard(name)
             content = rwshard.get(obj_id)
         if content is None:
-            raise exc.ObjNotFoundError(obj_id)
+            raise ObjNotFoundError(obj_id)
         return content
 
     def uninit(self):
@@ -227,7 +222,7 @@ class WineryWriter(WineryReader):
     def delete(self, obj_id: ObjId):
         shard_info = self.base.get(obj_id)
         if shard_info is None:
-            raise exc.ObjNotFoundError(obj_id)
+            raise ObjNotFoundError(obj_id)
         name, state = shard_info
         # We only care about RWShard for now. ROShards will be
         # taken care in a batch job.

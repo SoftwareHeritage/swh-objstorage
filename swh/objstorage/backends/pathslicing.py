@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,11 +9,8 @@ import os
 import tempfile
 from typing import Iterator, List, Optional
 
-from typing_extensions import Literal
-
-from swh.model import hashutil
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     ObjStorage,
@@ -154,7 +151,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: Literal["sha1"] = "sha1"
+    PRIMARY_HASH = "sha1"
 
     def __init__(self, root, slicing, compression="gzip", **kwargs):
         super().__init__(**kwargs)
@@ -253,33 +250,23 @@ class PathSlicingObjStorage(ObjStorage):
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             out = d.decompress(f.read())
         if d.unused_data:
-            raise Error(
-                "Corrupt object %s: trailing data found" % hex_obj_id,
+            raise ObjCorruptedError(
+                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
             )
 
         return out
 
     def check(self, obj_id: ObjId) -> None:
         try:
-            data = self.get(obj_id)
+            self.get(obj_id)
         except OSError:
-            hex_obj_id = objid_to_default_hex(obj_id)
-            raise Error(
-                "Corrupt object %s: not a proper compressed file" % hex_obj_id,
+            hex_obj_id = objid_to_default_hex(obj_id, algo=self.PRIMARY_HASH)
+            raise ObjCorruptedError(
+                f"content with {self.PRIMARY_HASH} hash {hex_obj_id} is not a "
+                "proper compressed file"
             )
 
-        checksums = hashutil.MultiHash.from_data(
-            data, hash_names=[ID_HASH_ALGO]
-        ).digest()
-
-        actual_obj_sha1 = checksums[ID_HASH_ALGO]
-        hex_obj_id = objid_to_default_hex(obj_id)
-
-        if hex_obj_id != hashutil.hash_to_hex(actual_obj_sha1):
-            raise Error(
-                "Corrupt object %s should have id %s"
-                % (objid_to_default_hex(obj_id), hashutil.hash_to_hex(actual_obj_sha1))
-            )
+        return super().check(obj_id)
 
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission

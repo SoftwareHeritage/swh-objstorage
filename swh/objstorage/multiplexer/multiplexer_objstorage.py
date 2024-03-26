@@ -1,14 +1,14 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import queue
 import threading
-from typing import Dict, Iterable, Iterator, Mapping, Tuple, Union
+from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
 from swh.model.model import Sha1
-from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage
 
@@ -294,19 +294,24 @@ class MultiplexerObjStorage(ObjStorage):
 
     def check(self, obj_id: ObjId) -> None:
         nb_present = 0
+        nb_corrupted = 0
+        exception: Optional[Exception] = None
         for storage in self.get_read_threads(obj_id):
             try:
                 storage.check(obj_id)
-            except ObjNotFoundError:
+            except ObjNotFoundError as e:
+                exception = e
                 continue
+            except ObjCorruptedError as e:
+                exception = e
+                nb_corrupted += 1
             else:
                 nb_present += 1
-        # If there is an Error because of a corrupted file, then let it pass.
 
-        # Raise the ObjNotFoundError only if the content couldn't be found in
-        # all the storages.
-        if nb_present == 0:
-            raise ObjNotFoundError(obj_id)
+        # Raise exception only if the content could not be found in all the storages
+        # or is corrupted in all the storages
+        if exception and (nb_present == 0 or nb_corrupted == len(self.storages)):
+            raise exception
 
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission

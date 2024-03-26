@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2023  The Software Heritage developers
+# Copyright (C) 2016-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -20,17 +20,11 @@ from azure.storage.blob import (
     generate_container_sas,
 )
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
-from typing_extensions import Literal
 
 from swh.model import hashutil
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import (
-    ObjStorage,
-    compressors,
-    compute_hash,
-    decompressors,
-)
+from swh.objstorage.objstorage import ObjStorage, compressors, decompressors
 from swh.objstorage.utils import call_async
 
 
@@ -111,7 +105,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: Literal["sha1"] = "sha1"
+    PRIMARY_HASH = "sha1"
 
     def __init__(
         self,
@@ -302,7 +296,9 @@ class AzureCloudObjStorage(ObjStorage):
         decompressor = decompressors[self.compression]()
         ret = decompressor.decompress(data)
         if decompressor.unused_data:
-            raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
+            raise ObjCorruptedError(
+                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
+            )
         return ret
 
     async def _get_async_or_none(self, obj_id, container_clients):
@@ -326,15 +322,6 @@ class AzureCloudObjStorage(ObjStorage):
     def get_batch(self, obj_ids: Iterable[ObjId]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return call_async(self._get_batch_async, obj_ids)
-
-    def check(self, obj_id: ObjId) -> None:
-        """Check the content integrity."""
-        obj_content = self.get(obj_id)
-        content_obj_id = compute_hash(obj_content)
-        if isinstance(obj_id, dict):
-            obj_id = obj_id[self.PRIMARY_HASH]
-        if content_obj_id != obj_id:
-            raise Error(obj_id)
 
     def delete(self, obj_id: ObjId):
         """Delete an object."""

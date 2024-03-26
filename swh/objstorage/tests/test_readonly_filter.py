@@ -8,7 +8,7 @@ from string import ascii_lowercase
 
 import pytest
 
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.multiplexer.filter import read_only
 from swh.objstorage.objstorage import compute_hash
@@ -64,7 +64,7 @@ class ReadOnlyFilterTestCase:
     def test_can_check(self):
         with pytest.raises(ObjNotFoundError):
             self.storage.check(self.absent_id)
-        with pytest.raises(Error):
+        with pytest.raises(ObjCorruptedError):
             self.storage.check(self.invalid_id)
         self.storage.check(self.valid_id)
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,17 +10,14 @@ import logging
 from typing import Iterator, Optional
 from urllib.parse import urlparse
 
-from typing_extensions import Literal
-
 from swh.model import hashutil
 from swh.objstorage.backends.pathslicing import PathSlicer
-from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     ObjStorage,
     compressors,
-    compute_hash,
     decompressors,
     objid_to_default_hex,
 )
@@ -36,7 +33,7 @@ class SeaweedFilerObjStorage(ObjStorage):
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    PRIMARY_HASH: Literal["sha1"] = "sha1"
+    PRIMARY_HASH = "sha1"
 
     def __init__(self, url, compression=None, slicing="", pool_maxsize=100, **kwargs):
         super().__init__(**kwargs)
@@ -110,7 +107,9 @@ class SeaweedFilerObjStorage(ObjStorage):
         ret = d.decompress(obj)
         if d.unused_data:
             hex_obj_id = objid_to_default_hex(obj_id)
-            raise Error("Corrupt object %s: trailing data found" % hex_obj_id)
+            raise ObjCorruptedError(
+                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
+            )
         return ret
 
     def download_url(
@@ -123,15 +122,6 @@ class SeaweedFilerObjStorage(ObjStorage):
         if not self.wf.exists(path):
             raise ObjNotFoundError(obj_id)
         return self.wf.build_url(path)
-
-    def check(self, obj_id: ObjId) -> None:
-        # Check the content integrity
-        obj_content = self.get(obj_id)
-        content_obj_id = compute_hash(obj_content)
-        if isinstance(obj_id, dict):
-            obj_id = obj_id[self.PRIMARY_HASH]
-        if content_obj_id != obj_id:
-            raise Error(obj_id)
 
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission
