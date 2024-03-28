@@ -22,9 +22,9 @@ from azure.storage.blob import (
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.model import hashutil
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import ObjStorage, compressors, decompressors
+from swh.objstorage.objstorage import CompressionFormat, ObjStorage, compressors
 from swh.objstorage.utils import call_async
 
 
@@ -114,7 +114,7 @@ class AzureCloudObjStorage(ObjStorage):
         api_secret_key: Optional[str] = None,
         container_name: Optional[str] = None,
         connection_string: Optional[str] = None,
-        compression="gzip",
+        compression: CompressionFormat = "gzip",
         use_secondary_endpoint_for_downloads=False,
         **kwargs,
     ):
@@ -293,13 +293,7 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             data = await download.content_as_bytes()
 
-        decompressor = decompressors[self.compression]()
-        ret = decompressor.decompress(data)
-        if decompressor.unused_data:
-            raise ObjCorruptedError(
-                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
-            )
-        return ret
+        return self.decompress(data, hex_obj_id)
 
     async def _get_async_or_none(self, obj_id, container_clients):
         """Like ``get_async(obj_id)``, but returns None instead of raising
@@ -373,7 +367,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
     def __init__(
         self,
         accounts: Mapping[str, Union[str, Mapping[str, str]]],
-        compression="gzip",
+        compression: CompressionFormat = "gzip",
         **kwargs,
     ):
         # shortcut AzureCloudObjStorage __init__

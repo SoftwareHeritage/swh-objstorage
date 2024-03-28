@@ -14,12 +14,12 @@ import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.model import hashutil
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
+    CompressionFormat,
     ObjStorage,
     compressors,
-    decompressors,
     objid_to_default_hex,
 )
 
@@ -64,7 +64,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def __init__(
         self,
         container_name: str,
-        compression: str = "gzip",
+        compression: CompressionFormat = "gzip",
         path_prefix: Optional[str] = None,
         **kwargs,
     ):
@@ -170,14 +170,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
     def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
-        d = decompressors[self.compression]()
-        ret = d.decompress(obj)
-        if d.unused_data:
-            hex_obj_id = objid_to_default_hex(obj_id)
-            raise ObjCorruptedError(
-                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
-            )
-        return ret
+        return self.decompress(obj, objid_to_default_hex(obj_id))
 
     def download_url(
         self,

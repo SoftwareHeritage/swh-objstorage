@@ -10,12 +10,12 @@ import tempfile
 from typing import Iterator, List, Optional
 
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
+    CompressionFormat,
     ObjStorage,
     compressors,
-    decompressors,
     objid_to_default_hex,
 )
 
@@ -153,7 +153,9 @@ class PathSlicingObjStorage(ObjStorage):
 
     PRIMARY_HASH = "sha1"
 
-    def __init__(self, root, slicing, compression="gzip", **kwargs):
+    def __init__(
+        self, root, slicing, compression: CompressionFormat = "gzip", **kwargs
+    ):
         super().__init__(**kwargs)
         self.root = root
         self.slicer = PathSlicer(root, slicing)
@@ -246,27 +248,8 @@ class PathSlicingObjStorage(ObjStorage):
 
         # Open the file and return its content as bytes
         hex_obj_id = objid_to_default_hex(obj_id)
-        d = decompressors[self.compression]()
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
-            out = d.decompress(f.read())
-        if d.unused_data:
-            raise ObjCorruptedError(
-                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
-            )
-
-        return out
-
-    def check(self, obj_id: ObjId) -> None:
-        try:
-            self.get(obj_id)
-        except OSError:
-            hex_obj_id = objid_to_default_hex(obj_id, algo=self.PRIMARY_HASH)
-            raise ObjCorruptedError(
-                f"content with {self.PRIMARY_HASH} hash {hex_obj_id} is not a "
-                "proper compressed file"
-            )
-
-        return super().check(obj_id)
+            return self.decompress(f.read(), hex_obj_id)
 
     def delete(self, obj_id: ObjId):
         super().delete(obj_id)  # Check delete permission

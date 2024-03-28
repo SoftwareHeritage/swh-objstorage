@@ -12,13 +12,13 @@ from urllib.parse import urlparse
 
 from swh.model import hashutil
 from swh.objstorage.backends.pathslicing import PathSlicer
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
+    CompressionFormat,
     ObjStorage,
     compressors,
-    decompressors,
     objid_to_default_hex,
 )
 
@@ -35,7 +35,14 @@ class SeaweedFilerObjStorage(ObjStorage):
 
     PRIMARY_HASH = "sha1"
 
-    def __init__(self, url, compression=None, slicing="", pool_maxsize=100, **kwargs):
+    def __init__(
+        self,
+        url,
+        compression: CompressionFormat = "none",
+        slicing="",
+        pool_maxsize=100,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.wf = HttpFiler(url, pool_maxsize=pool_maxsize)
         self.root_path = urlparse(url).path
@@ -103,14 +110,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             LOGGER.info("Failed to get object %s: %r", self._path(obj_id), exc)
             raise ObjNotFoundError(obj_id)
 
-        d = decompressors[self.compression]()
-        ret = d.decompress(obj)
-        if d.unused_data:
-            hex_obj_id = objid_to_default_hex(obj_id)
-            raise ObjCorruptedError(
-                f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
-            )
-        return ret
+        return self.decompress(obj, objid_to_default_hex(obj_id))
 
     def download_url(
         self,

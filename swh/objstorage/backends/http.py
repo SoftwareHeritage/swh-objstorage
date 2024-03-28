@@ -14,15 +14,14 @@ from swh.model import hashutil
 from swh.objstorage.constants import ID_HASH_ALGO
 from swh.objstorage.exc import (
     NonIterableObjStorage,
-    ObjCorruptedError,
     ObjNotFoundError,
     ReadOnlyObjStorage,
 )
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
+    CompressionFormat,
     ObjStorage,
-    decompressors,
     objid_to_default_hex,
 )
 
@@ -40,7 +39,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
       url: https://softwareheritage.s3.amazonaws.com/content/
     """
 
-    def __init__(self, url=None, compression=None, **kwargs):
+    def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
         super().__init__(**kwargs)
         self.session = requests.sessions.Session()
         self.root_path = url
@@ -85,16 +84,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         except Exception:
             raise ObjNotFoundError(obj_id)
 
-        ret: bytes = resp.content
-        if self.compression:
-            d = decompressors[self.compression]()
-            ret = d.decompress(ret)
-            if d.unused_data:
-                hex_obj_id = objid_to_default_hex(obj_id)
-                raise ObjCorruptedError(
-                    f"trailing data found in content with {self.PRIMARY_HASH} {hex_obj_id}"
-                )
-        return ret
+        return self.decompress(resp.content, objid_to_default_hex(obj_id))
 
     def download_url(
         self,

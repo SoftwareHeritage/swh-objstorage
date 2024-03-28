@@ -112,7 +112,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         assert patched["fdatasync"].call_count == 0
         assert patched["fsync"].call_count == 1
 
-    def test_check_not_compressed(self):
+    def test_check_not_compressed_trailing_data(self):
         content, obj_id = self.hash_content(b"check_not_compressed")
         self.storage.add(content, obj_id=obj_id)
         with open(self.content_path(obj_id), "ab") as f:  # Add garbage.
@@ -121,6 +121,16 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
             self.storage.check(obj_id)
         if self.compression != "none":
             assert "trailing data found" in error.value.args[0]
+
+    def test_check_not_compressed(self):
+        content, obj_id = self.hash_content(b"check_not_compressed")
+        self.storage.add(content, obj_id=obj_id)
+        with open(self.content_path(obj_id), "wb") as f:  # Replace by garbage.
+            f.write(b"garbage")
+        with pytest.raises(ObjCorruptedError, match="Object corrupted") as error:
+            self.storage.check(obj_id)
+        if self.compression != "none":
+            assert "not a proper compressed file" in error.value.args[0]
 
 
 class TestPathSlicingObjStorageGzip(TestPathSlicingObjStorage):

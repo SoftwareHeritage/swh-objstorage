@@ -126,9 +126,12 @@ compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
     "none": NullCompressor,
 }
 
+CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
+
 
 class ObjStorage(metaclass=abc.ABCMeta):
     PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
+    compression: CompressionFormat = "none"
 
     def __init__(self, *, allow_delete=False, **kwargs):
         # A more complete permission system could be used in place of that if
@@ -212,3 +215,19 @@ class ObjStorage(metaclass=abc.ABCMeta):
                     f"expected {algo} hash is {hashutil.hash_to_hex(expected_obj_id)}, "
                     f"actual {algo} hash is {hashutil.hash_to_hex(actual_obj_id)}"
                 )
+
+    def decompress(self, data: bytes, hex_obj_id: str) -> bytes:
+        decompressor = decompressors[self.compression]()
+        try:
+            ret = decompressor.decompress(data)
+        except (zlib.error, lzma.LZMAError, OSError):
+            raise ObjCorruptedError(
+                f"content with {self.PRIMARY_HASH} hash {hex_obj_id} is not a proper "
+                "compressed file"
+            )
+        if decompressor.unused_data:
+            raise ObjCorruptedError(
+                f"trailing data found when decompressing content with {self.PRIMARY_HASH} "
+                f"{hex_obj_id}"
+            )
+        return ret
