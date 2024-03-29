@@ -1,5 +1,5 @@
 moto[server, s3] < 5
-pytest
+pytest >= 8.1
 pytest-mock
 requests_mock[fixture] >= 1.9
 requests_toolbelt

@@ -1,8 +1,9 @@
 [project]
 name = "swh.objstorage"
 authors = [
-	{name="Software Heritage developers", email="swh-devel@inria.fr"},
+    {name="Software Heritage developers", email="swh-devel@inria.fr"},
 ]
+
 description = "Software Heritage object storage"
 readme = {file = "README.rst", content-type = "text/x-rst"}
 requires-python = ">=3.7"

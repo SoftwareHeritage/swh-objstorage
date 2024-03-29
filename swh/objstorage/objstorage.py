@@ -16,10 +16,9 @@ from typing_extensions import Protocol
 
 from swh.model import hashutil
 from swh.model.model import Sha1
-
-from .constants import DEFAULT_LIMIT, ID_HASH_ALGO
-from .exc import ObjNotFoundError
-from .interface import CompositeObjId, ObjId, ObjStorageInterface
+from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO
+from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 
 
 def objid_to_default_hex(obj_id: ObjId) -> str:
