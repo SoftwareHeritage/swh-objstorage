@@ -14,7 +14,7 @@ from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjCorruptedError
-from swh.objstorage.objstorage import compressors, compute_hash, decompressors
+from swh.objstorage.objstorage import compute_hash, decompressors
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 
@@ -243,17 +243,13 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
         # override default implelentation to speed things up a bit, shortcuting
         # the HTTP request path to put objects directly in the objstorage
         # mocker.
-        def compressor(data):
-            comp = compressors[self.compression]()
-            yield comp.compress(data)
-            yield comp.flush()
 
         path = self.storage._path
         all_ids = []
         for i in range(num_objects):
             content = b"content %d" % i
             obj_id = compute_hash(content)
-            self.mock.content[path(obj_id)] = b"".join(compressor(content))
+            self.mock.content[path(obj_id)] = self.storage.compress(content)
             all_ids.append({"sha1": obj_id})
         all_ids.sort(key=lambda d: d["sha1"])
         return all_ids

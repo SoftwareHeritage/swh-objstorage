@@ -6,6 +6,7 @@
 import abc
 from collections import OrderedDict
 from datetime import timedelta
+from io import BytesIO
 from typing import Iterator, Optional
 from urllib.parse import urlencode
 
@@ -19,7 +20,6 @@ from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
-    compressors,
     objid_to_default_hex,
 )
 
@@ -210,16 +210,6 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         except ObjectDoesNotExistError:
             raise ObjNotFoundError(obj_id)
 
-    def _compressor(self, data):
-        comp = compressors[self.compression]()
-        for chunk in data:
-            cchunk = comp.compress(chunk)
-            if cchunk:
-                yield cchunk
-        trail = comp.flush()
-        if trail:
-            yield trail
-
     def _put_object(self, content, obj_id):
         """Create an object in the cloud storage.
 
@@ -228,11 +218,10 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
         """
         object_path = self._object_path(obj_id)
-
-        if not isinstance(content, Iterator):
-            content = (content,)
         self.driver.upload_object_via_stream(
-            self._compressor(content), self.container, object_path
+            BytesIO(self.compress(content)),
+            self.container,
+            object_path,
         )
 
 

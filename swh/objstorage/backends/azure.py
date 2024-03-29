@@ -24,7 +24,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import CompressionFormat, ObjStorage, compressors
+from swh.objstorage.objstorage import CompressionFormat, ObjStorage
 from swh.objstorage.utils import call_async
 
 
@@ -246,9 +246,7 @@ class AzureCloudObjStorage(ObjStorage):
         hex_obj_id = self._internal_id(obj_id)
 
         # Send the compressed content
-        compressor = compressors[self.compression]()
-        data = compressor.compress(content)
-        data += compressor.flush()
+        data = self.compress(content)
 
         client = self.get_blob_client(hex_obj_id)
         try:

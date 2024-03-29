@@ -237,10 +237,8 @@ class PathSlicingObjStorage(ObjStorage):
             return
 
         hex_obj_id = objid_to_default_hex(obj_id)
-        compressor = compressors[self.compression]()
         with self._write_obj_file(hex_obj_id) as f:
-            f.write(compressor.compress(content))
-            f.write(compressor.flush())
+            f.write(self.compress(content))
 
     def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:
@@ -264,14 +262,6 @@ class PathSlicingObjStorage(ObjStorage):
         return True
 
     # Streaming methods
-
-    @contextmanager
-    def chunk_writer(self, obj_id):
-        hex_obj_id = objid_to_default_hex(obj_id)
-        compressor = compressors[self.compression]()
-        with self._write_obj_file(hex_obj_id) as f:
-            yield lambda c: f.write(compressor.compress(c))
-            f.write(compressor.flush())
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT

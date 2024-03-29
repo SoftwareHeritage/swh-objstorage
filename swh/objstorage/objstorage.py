@@ -216,6 +216,12 @@ class ObjStorage(metaclass=abc.ABCMeta):
                     f"actual {algo} hash is {hashutil.hash_to_hex(actual_obj_id)}"
                 )
 
+    def compress(self, data: bytes) -> bytes:
+        compressor = compressors[self.compression]()
+        compressed = compressor.compress(data)
+        compressed += compressor.flush()
+        return compressed
+
     def decompress(self, data: bytes, hex_obj_id: str) -> bytes:
         decompressor = decompressors[self.compression]()
         try:

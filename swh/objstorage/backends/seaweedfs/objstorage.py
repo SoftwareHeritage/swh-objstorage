@@ -18,7 +18,6 @@ from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     CompressionFormat,
     ObjStorage,
-    compressors,
     objid_to_default_hex,
 )
 
@@ -89,16 +88,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         if check_presence and obj_id in self:
             return
 
-        def compressor(data):
-            comp = compressors[self.compression]()
-            yield comp.compress(data)
-            yield comp.flush()
-
-        assert isinstance(
-            content, bytes
-        ), "list of content chunks is not supported anymore"
-
-        self.wf.put(io.BytesIO(b"".join(compressor(content))), self._path(obj_id))
+        self.wf.put(io.BytesIO(self.compress(content)), self._path(obj_id))
 
     def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
