@@ -3,9 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 import os
 
 import pytest
+
+from swh.objstorage.backends.in_memory import InMemoryObjStorage
+from swh.objstorage.exc import ObjCorruptedError
+from swh.objstorage.multiplexer.multiplexer_objstorage import MultiplexerObjStorage
+from swh.objstorage.objstorage import compute_hashes
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -67,3 +73,37 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         self.storage.storages[0].add(content, obj_id=obj_id)
         # Try to retrieve it on the main storage
         assert obj_id not in self.storage
+
+
+def test_multiplexer_corruption_fallback(mocker, caplog):
+    content_p = b"contains_present"
+    obj_id_p = compute_hashes(content_p)
+
+    class CorruptedInMemoryObjStorage(InMemoryObjStorage):
+        def get(self, obj_id):
+            raise ObjCorruptedError("Always corrupted", obj_id)
+
+    corrupt_storage = CorruptedInMemoryObjStorage()
+    corrupt_get = mocker.spy(corrupt_storage, "get")
+
+    ok_storage = InMemoryObjStorage()
+    ok_get = mocker.spy(ok_storage, "get")
+
+    multiplexer = MultiplexerObjStorage(storages=[corrupt_storage, ok_storage])
+    multiplexer.add(content_p, obj_id=obj_id_p)
+
+    assert obj_id_p in corrupt_storage
+    assert obj_id_p in ok_storage
+
+    with caplog.at_level(
+        logging.WARNING, "swh.objstorage.multiplexer.multiplexer_objstorage"
+    ):
+        assert multiplexer.get(obj_id_p) == content_p
+
+    corrupt_get.assert_called_once_with(obj_id_p)
+    ok_get.assert_called_once_with(obj_id_p)
+
+    assert len(caplog.records) == 1
+    assert "CorruptedInMemoryObjStorage" in caplog.records[0].message
+    for algo, hash in obj_id_p.items():
+        assert f"{algo}:{hash.hex()}" in caplog.records[0].message

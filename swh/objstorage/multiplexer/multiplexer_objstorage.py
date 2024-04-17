@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 import queue
 import threading
 from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
@@ -11,6 +12,9 @@ from swh.model.model import Sha1
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage
+from swh.objstorage.utils import format_obj_id
+
+logger = logging.getLogger(__name__)
 
 
 class ObjStorageThread(threading.Thread):
@@ -284,13 +288,31 @@ class MultiplexerObjStorage(ObjStorage):
         ).pop()
 
     def get(self, obj_id: ObjId) -> bytes:
+        corrupted_exc: Optional[ObjCorruptedError] = None
         for storage in self.get_read_threads(obj_id):
             try:
                 return storage.get(obj_id)
             except ObjNotFoundError:
                 continue
-        # If no storage contains this content, raise the error
-        raise ObjNotFoundError(obj_id)
+            except ObjCorruptedError as exc:
+                logger.warning(
+                    "Object %s was reported as corrupted by %s: %s",
+                    format_obj_id(obj_id),
+                    storage.storage.__class__.__name__,
+                    str(exc),
+                )
+                # Hoist exception, mypy doesn't like when we directly use
+                # `except ObjCorruptedError as corrupted_exc`
+                corrupted_exc = exc
+                # Try reading from another storage
+                continue
+
+        if corrupted_exc:
+            # The only objects we've found were corrupted, raise that exception
+            raise corrupted_exc
+        else:
+            # No storage contains this content, raise the error
+            raise ObjNotFoundError(obj_id)
 
     def check(self, obj_id: ObjId) -> None:
         nb_present = 0
