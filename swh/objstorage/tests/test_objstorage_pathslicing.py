@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+import os
 
 import pytest
 
@@ -131,6 +133,44 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
             self.storage.check(obj_id)
         if self.compression != "none":
             assert "not a proper compressed file" in error.value.args[0]
+
+    def test__iter__skip_tmpfile(self, caplog):
+        content, obj_id = self.hash_content(b"skip_tmpfile")
+        self.storage.add(content, obj_id=obj_id)
+        path = self.storage.slicer.get_path(obj_id.hex())
+
+        dir = os.path.dirname(path)
+        bogus_path = os.path.join(dir, "bogus_file")
+        with open(bogus_path, "w") as f:
+            f.write("bogus")
+
+        with caplog.at_level(logging.WARNING, "swh.objstorage.backends.pathslicing"):
+            for _ in self.storage:
+                pass
+
+        assert len(caplog.records) == 1, [log.getMessage() for log in caplog.records]
+        message = caplog.records[0].getMessage()
+        assert "__iter__" in message
+        assert bogus_path in message
+
+    def test_iter_from_skip_tmpfile(self, caplog):
+        content, obj_id = self.hash_content(b"skip_tmpfile")
+        self.storage.add(content, obj_id=obj_id)
+        path = self.storage.slicer.get_path(obj_id.hex())
+
+        dir = os.path.dirname(path)
+        bogus_path = os.path.join(dir, "bogus_file")
+        with open(bogus_path, "w") as f:
+            f.write("bogus")
+
+        with caplog.at_level(logging.WARNING, "swh.objstorage.backends.pathslicing"):
+            for _ in self.storage.iter_from(obj_id=b"\x00" * 20):
+                pass
+
+        assert len(caplog.records) == 1, [log.getMessage() for log in caplog.records]
+        message = caplog.records[0].getMessage()
+        assert "iter_from" in message
+        assert bogus_path in message
 
 
 class TestPathSlicingObjStorageGzip(TestPathSlicingObjStorage):

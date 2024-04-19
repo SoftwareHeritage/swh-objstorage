@@ -5,11 +5,17 @@
 
 from contextlib import contextmanager
 from itertools import islice
+import logging
 import os
 import tempfile
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Literal, Optional
 
-from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, ID_HEXDIGEST_LENGTH
+from swh.objstorage.constants import (
+    DEFAULT_LIMIT,
+    ID_HASH_ALGO,
+    ID_HEXDIGEST_LENGTH,
+    is_valid_hexdigest,
+)
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
@@ -23,6 +29,15 @@ BUFSIZ = 1048576
 
 DIR_MODE = 0o755
 FILE_MODE = 0o644
+
+
+logger = logging.getLogger(__name__)
+
+
+def is_valid_filename(filename: str, algo: Literal["sha1", "sha256"] = ID_HASH_ALGO):
+    """Checks that the file points to a valid hexdigest for the given algo."""
+
+    return is_valid_hexdigest(os.path.basename(filename), algo)
 
 
 class PathSlicer:
@@ -151,7 +166,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH = "sha1"
+    PRIMARY_HASH: Literal["sha1"] = "sha1"
 
     def __init__(
         self, root, slicing, compression: CompressionFormat = "gzip", **kwargs
@@ -213,6 +228,9 @@ class PathSlicingObjStorage(ObjStorage):
         for root, _dirs, files in os.walk(self.root):
             _dirs.sort()
             for f in sorted(files):
+                if not is_valid_filename(f, algo=self.PRIMARY_HASH):
+                    logger.warning("__iter__ skipping over invalid file %s/%s", root, f)
+                    continue
                 yield {self.PRIMARY_HASH: bytes.fromhex(f)}
 
     def __len__(self) -> int:
@@ -289,6 +307,11 @@ class PathSlicingObjStorage(ObjStorage):
                     if d < cslice:
                         dirs.remove(d)
             for f in sorted(files):
+                if not is_valid_filename(f, algo=self.PRIMARY_HASH):
+                    logger.warning(
+                        "iter_from skipping over invalid file %s/%s", root, f
+                    )
+                    continue
                 if f > hex_obj_id:
                     yield {self.PRIMARY_HASH: bytes.fromhex(f)}
         if n_leaf:
