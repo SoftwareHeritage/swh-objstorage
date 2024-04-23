@@ -129,7 +129,7 @@ class WineryReader(WineryBase):
         super().uninit()
 
 
-def pack(shard, shared_base=None, clean_immediately=False, **kwargs):
+def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
     stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
 
@@ -162,7 +162,7 @@ def pack(shard, shared_base=None, clean_immediately=False, **kwargs):
     return True
 
 
-def cleanup_rw_shard(shard, shared_base=None, **kwargs):
+def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
     rw = RWShard(shard, **{"shard_max_size": 0, **kwargs})
 
     uninit_base = False
