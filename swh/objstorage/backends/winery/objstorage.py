@@ -333,38 +333,40 @@ def shard_packer(
     shards_packed = 0
     waited_for_shards = 0
     while not stop_packing(shards_packed):
-        shard_to_pack = base.lock_one_shard(
+        locked = base.maybe_lock_one_shard(
             current_state=ShardState.FULL, new_state=ShardState.PACKING
         )
 
-        if not shard_to_pack:
+        if not locked:
             wait_for_shard(waited_for_shards)
             waited_for_shards += 1
             continue
 
-        name, _ = shard_to_pack
-        logger.info("shard_packer: Locked shard %s to pack", name)
-        ret = pack(
-            name,
-            base_dsn=base_dsn,
-            shard_dsn=shard_dsn,
-            shard_max_size=shard_max_size,
-            output_dir=output_dir,
-            shared_base=base,
-            throttle_read=throttle_read,
-            throttle_write=throttle_write,
-            application_name=application_name,
-            rbd_use_sudo=rbd_use_sudo,
-            rbd_map_options=rbd_map_options,
-            rbd_create_images=rbd_create_images,
-            rbd_wait_for_image=rbd_wait_for_image,
-            rbd_pool_name=rbd_pool_name,
-            rbd_data_pool_name=rbd_data_pool_name,
-            rbd_image_features_unsupported=rbd_image_features_unsupported,
-        )
-        if not ret:
-            raise ValueError("Packing shard %s failed" % name)
-        shards_packed += 1
+        waited_for_shards = 0
+
+        with locked:
+            logger.info("shard_packer: Locked shard %s to pack", locked.name)
+            ret = pack(
+                locked.name,
+                base_dsn=base_dsn,
+                shard_dsn=shard_dsn,
+                shard_max_size=shard_max_size,
+                output_dir=output_dir,
+                shared_base=base,
+                throttle_read=throttle_read,
+                throttle_write=throttle_write,
+                application_name=application_name,
+                rbd_use_sudo=rbd_use_sudo,
+                rbd_map_options=rbd_map_options,
+                rbd_create_images=rbd_create_images,
+                rbd_wait_for_image=rbd_wait_for_image,
+                rbd_pool_name=rbd_pool_name,
+                rbd_data_pool_name=rbd_data_pool_name,
+                rbd_image_features_unsupported=rbd_image_features_unsupported,
+            )
+            if not ret:
+                raise ValueError("Packing shard %s failed" % locked.name)
+            shards_packed += 1
 
     return shards_packed
 
@@ -401,32 +403,33 @@ def rw_shard_cleaner(
     shards_cleaned = 0
     waited_for_shards = 0
     while not stop_cleaning(shards_cleaned):
-        shard_to_clean = base.lock_one_shard(
+        locked = base.maybe_lock_one_shard(
             current_state=ShardState.PACKED,
             new_state=ShardState.CLEANING,
             min_mapped_hosts=min_mapped_hosts,
         )
 
-        if not shard_to_clean:
+        if not locked:
             wait_for_shard(waited_for_shards)
             waited_for_shards += 1
             continue
 
         waited_for_shards = 0
 
-        name, _ = shard_to_clean
-        logger.info("rw_shard_cleaner: Locked shard %s to clean", name)
+        with locked:
+            logger.info("rw_shard_cleaner: Locked shard %s to clean", locked.name)
 
-        ret = cleanup_rw_shard(
-            name,
-            base_dsn=base_dsn,
-            shard_dsn=shard_dsn,
-            shared_base=base,
-            application_name=application_name,
-        )
-        if not ret:
-            raise ValueError("Cleaning shard %s failed" % name)
-        shards_cleaned += 1
+            ret = cleanup_rw_shard(
+                locked.name,
+                base_dsn=base_dsn,
+                shard_dsn=shard_dsn,
+                shared_base=base,
+                application_name=application_name,
+            )
+            if not ret:
+                raise ValueError("Cleaning shard %s failed" % locked.name)
+
+            shards_cleaned += 1
 
     return shards_cleaned
 

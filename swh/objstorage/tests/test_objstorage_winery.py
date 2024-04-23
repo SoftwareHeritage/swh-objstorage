@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from swh.objstorage.backends.winery.database import DatabaseAdmin
+import swh.objstorage.backends.winery.objstorage
 from swh.objstorage.backends.winery.objstorage import (
     cleanup_rw_shard,
     deleted_objects_cleaner,
@@ -632,6 +633,53 @@ def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+@pytest.mark.clean_immediately(False)
+def test_winery_cli_packer_rollback_on_error(image_pool, storage, tmp_path, cli_runner):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.FULL
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    with open(tmp_path / "config.yml", "w") as f:
+        yaml.safe_dump(
+            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
+        )
+
+    # pytest-mock doesn't seem to interact very well with the cli_runner
+    def failing_pack(*args, **kwargs):
+        raise ValueError("Packing failed")
+
+    orig_pack = swh.objstorage.backends.winery.objstorage.pack
+    try:
+        swh.objstorage.backends.winery.objstorage.pack = failing_pack
+        result = cli_runner.invoke(
+            swh_cli_group,
+            ("objstorage", "winery", "packer", "--stop-after-shards=4"),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+    finally:
+        swh.objstorage.backends.winery.objstorage.pack = orig_pack
+
+    assert result.exit_code == 1
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert (
+            shard_info[shard] == ShardState.FULL
+        ), f"{shard} in state {shard_info[shard]}"
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
 def test_winery_cli_rbd(image_pool, storage, tmp_path, cli_runner):
     # create 4 shards
     for i in range(16):
@@ -744,6 +792,72 @@ def test_winery_cli_rw_shard_cleaner(
     databases = set(db_admin.list_databases())
     for shard in filled:
         assert shard not in databases
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(True)
+@pytest.mark.clean_immediately(False)
+def test_winery_cli_rw_shard_cleaner_rollback_on_error(
+    image_pool, postgresql_dsn, storage, tmp_path, cli_runner
+):
+    # create 4 shards
+    for i in range(16):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 4
+
+    for packer in storage.winery.packers:
+        packer.join()
+        assert packer.exitcode == 0
+
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard_info[shard] == ShardState.PACKED
+    assert shard_info[storage.winery.base.locked_shard] == ShardState.WRITING
+
+    with open(tmp_path / "config.yml", "w") as f:
+        yaml.safe_dump(
+            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
+        )
+
+    db_admin = DatabaseAdmin(postgresql_dsn)
+
+    databases = set(db_admin.list_databases())
+    for shard in filled:
+        assert shard in databases
+
+    # pytest-mock doesn't seem to interact very well with the cli_runner
+    def failing_cleanup(*args, **kwargs):
+        raise ValueError("Cleanup failed")
+
+    orig_cleanup = swh.objstorage.backends.winery.objstorage.cleanup_rw_shard
+    try:
+        swh.objstorage.backends.winery.objstorage.cleanup_rw_shard = failing_cleanup
+
+        result = cli_runner.invoke(
+            swh_cli_group,
+            (
+                "objstorage",
+                "winery",
+                "rw-shard-cleaner",
+                "--stop-instead-of-waiting",
+                "--min-mapped-hosts=0",
+            ),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+    finally:
+        swh.objstorage.backends.winery.objstorage.cleanup_rw_shard = orig_cleanup
+
+    assert result.exit_code == 1
+
+    databases = set(db_admin.list_databases())
+    shard_info = dict(storage.winery.base.list_shards())
+    for shard in filled:
+        assert shard in databases
+        assert shard_info[shard] == ShardState.PACKED
 
 
 @pytest.mark.shard_max_size(1024)

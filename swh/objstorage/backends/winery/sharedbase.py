@@ -6,7 +6,8 @@
 from contextlib import ExitStack
 from enum import Enum
 import logging
-from typing import Iterator, Optional, Set, Tuple
+from types import TracebackType
+from typing import Iterator, Optional, Set, Tuple, Type
 import uuid
 
 import psycopg
@@ -45,6 +46,61 @@ class SignatureState(Enum):
     INFLIGHT = "inflight"
     PRESENT = "present"
     DELETED = "deleted"
+
+
+class TemporaryShardLocker:
+    """Opportunistically lock a shard, and provide a context manager to unlock
+    the shard if an operation fails.
+
+    Use this through the :meth:`SharedBase.maybe_lock_one_shard` method.
+    """
+
+    def __init__(
+        self,
+        base: "SharedBase",
+        current_state: ShardState,
+        new_state: ShardState,
+        min_mapped_hosts: int = 0,
+    ) -> None:
+        self.base = base
+        self.previous_state = current_state
+        self.name: Optional[str] = None
+        self.id: Optional[int] = None
+        locked = self.base.lock_one_shard(
+            current_state=current_state,
+            new_state=new_state,
+            min_mapped_hosts=min_mapped_hosts,
+        )
+        if locked:
+            self.name, self.id = locked
+
+    def __bool__(self) -> bool:
+        return self.name is not None
+
+    def __enter__(self) -> "TemporaryShardLocker":
+        if not self:
+            raise ValueError("No shard was locked")
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[Exception]],
+        exc_value: Optional[Exception],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """If an exception has been raised, restore the shard to its previous state"""
+        if not self:
+            return
+
+        if not exc_type:
+            return
+
+        try:
+            self.base.set_shard_state(
+                name=self.name, new_state=self.previous_state, check_locker=True
+            )
+        except Exception:
+            logger.warning("Could not unlock shard %s:", self.name, exc_info=True)
 
 
 class SharedBase(Database):
@@ -251,6 +307,38 @@ class SharedBase(Database):
                         "SharedBase %s: shard %s locked", WRITER_UUID, shard_name
                     )
                     return c.fetchone()
+
+    def maybe_lock_one_shard(
+        self,
+        current_state: ShardState,
+        new_state: ShardState,
+        min_mapped_hosts: int = 0,
+    ) -> TemporaryShardLocker:
+        """Opportunistically lock a shard, and, if a shard was locked, provide a
+        context manager to rollback the locking on failure.
+
+        Example::
+
+           locked = base.maybe_lock_one_shard(
+               current_state=ShardState.FULL,
+               new_state=ShardState.PACKING,
+           )
+           if not locked:
+               wait_a_minute()
+               return
+
+           with locked:
+               do_something_with_locked_shard(locked.name)
+
+        If ``do_something_with_locked_shard`` fails, the shard will be moved
+        back to the ``current_state`` on exit.
+        """
+        return TemporaryShardLocker(
+            base=self,
+            current_state=current_state,
+            new_state=new_state,
+            min_mapped_hosts=min_mapped_hosts,
+        )
 
     def set_shard_state(
         self,
