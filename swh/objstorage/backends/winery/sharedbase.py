@@ -482,34 +482,16 @@ class SharedBase(Database):
             return None
         return self.get_shard_info(id)
 
-    def add_phase_1(self, obj_id) -> Optional[int]:
-        try:
-            with self.pool.connection() as db:
-                db.execute(
-                    "INSERT INTO signature2shard (signature, shard, state) "
-                    "VALUES (%s, %s, 'inflight')",
-                    (obj_id, self.locked_shard_id),
-                )
-            return self.locked_shard_id
-        except psycopg.errors.UniqueViolation:
-            with self.pool.connection() as db:
-                c = db.execute(
-                    "SELECT shard FROM signature2shard WHERE "
-                    "signature = %s AND state = 'inflight'",
-                    (obj_id,),
-                )
-                row = c.fetchone()
-                if not row:
-                    return None
-                return row[0]
-
-    def add_phase_2(self, obj_id):
-        with self.pool.connection() as db:
-            db.execute(
-                "UPDATE signature2shard SET state = 'present' "
-                "WHERE signature = %s AND shard = %s",
-                (obj_id, self.locked_shard_id),
-            )
+    def record_new_obj_id(self, db, obj_id) -> Optional[int]:
+        db.execute(
+            "INSERT INTO signature2shard (signature, shard, state) "
+            "VALUES (%s, %s, 'present') ON CONFLICT (signature) DO NOTHING",
+            (obj_id, self.locked_shard_id),
+        )
+        cur = db.execute(
+            "SELECT shard FROM signature2shard WHERE signature = %s", (obj_id,)
+        )
+        return cur.fetchone()[0]
 
     def delete(self, obj_id):
         with self.pool.connection() as db:

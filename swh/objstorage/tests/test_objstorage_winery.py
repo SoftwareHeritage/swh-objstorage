@@ -10,6 +10,7 @@ from functools import partial
 import logging
 import os
 import shutil
+from threading import Event, Thread
 import time
 from typing import Any, Dict
 
@@ -285,6 +286,47 @@ def test_winery_add_get(winery):
     with pytest.raises(ObjNotFoundError):
         winery.get(b"unknown")
     winery.shard.drop()
+
+
+def test_winery_add_concurrent(winery, mocker):
+    num_threads = 4
+
+    class ManualReleaseSharedBase(SharedBase):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.release_obj_id = Event()
+
+        def record_new_obj_id(self, *args, **kwargs):
+            ret = super().record_new_obj_id(*args, **kwargs)
+            self.release_obj_id.wait()
+            return ret
+
+    mocker.patch(
+        "swh.objstorage.backends.winery.objstorage.SharedBase", ManualReleaseSharedBase
+    )
+
+    content = b"test_concurrency"
+    obj_id = compute_hash(content, "sha256")
+
+    def add_object(my_storage):
+        my_storage.add(content=content, obj_id=obj_id)
+
+        assert my_storage.get(obj_id) == content
+
+    storages = [get_objstorage(cls="winery", **winery.args) for _ in range(num_threads)]
+
+    threads = [Thread(target=add_object, args=[storage]) for storage in storages]
+    for thread in threads:
+        thread.start()
+
+    for storage in reversed(storages):
+        storage.winery.base.release_obj_id.set()
+
+    for thread in threads:
+        thread.join()
+
+    assert winery.get(obj_id) == content
+    assert sum(1 for _ in winery.base.list_shards()) >= num_threads
 
 
 @pytest.mark.shard_max_size(1)

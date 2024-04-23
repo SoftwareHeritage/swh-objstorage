@@ -8,7 +8,6 @@ import logging
 from typing import Iterator, Optional, Tuple
 
 import psycopg
-import psycopg.errors
 
 from .database import Database
 
@@ -57,17 +56,16 @@ class RWShard(Database):
             else:
                 return size
 
-    def add(self, obj_id: bytes, content: bytes) -> None:
-        try:
-            with self.pool.connection() as db, db.cursor() as c:
-                c.execute(
-                    f"INSERT INTO {self.table_name} (key, content) VALUES (%s, %s)",
-                    (obj_id, content),
-                    binary=True,
-                )
+    def add(self, db: psycopg.Connection, obj_id: bytes, content: bytes) -> None:
+        cur = db.execute(
+            f"INSERT INTO {self.table_name} (key, content) "
+            "VALUES (%s, %s) "
+            "ON CONFLICT (key) DO NOTHING",
+            (obj_id, content),
+            binary=True,
+        )
+        if cur.rowcount:
             self.size += len(content)
-        except psycopg.errors.UniqueViolation:
-            pass
 
     def get(self, obj_id: bytes) -> Optional[bytes]:
         with self.pool.connection() as db, db.cursor() as c:

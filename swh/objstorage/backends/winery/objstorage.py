@@ -201,13 +201,13 @@ class WineryWriter(WineryReader):
         if check_presence and obj_id in self:
             return
 
-        shard = self.base.add_phase_1(obj_id)
-        if shard != self.base.locked_shard_id:
-            #  this object is the responsibility of another shard
-            return
+        with self.base.pool.connection() as db, db.transaction():
+            shard = self.base.record_new_obj_id(db, obj_id)
+            if shard != self.base.locked_shard_id:
+                #  this object is the responsibility of another shard
+                return
 
-        self.shard.add(obj_id, content)
-        self.base.add_phase_2(obj_id)
+            self.shard.add(db, obj_id, content)
 
         if self.shard.is_full():
             self.base.set_shard_state(new_state=ShardState.FULL)
