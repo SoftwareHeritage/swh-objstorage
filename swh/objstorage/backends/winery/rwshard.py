@@ -5,6 +5,7 @@
 
 
 import logging
+from typing import Iterator, Optional, Tuple
 
 import psycopg
 import psycopg.errors
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class RWShard(Database):
-    def __init__(self, name, application_name=None, **kwargs):
+    def __init__(self, name: str, application_name: Optional[str] = None, **kwargs):
         self._name = name
         self.application_name = application_name
         if application_name is None:
@@ -26,28 +27,28 @@ class RWShard(Database):
         self.limit = kwargs["shard_max_size"]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
-    def table_name(self):
+    def table_name(self) -> str:
         return f"shard_{self._name}"
 
-    def is_full(self):
+    def is_full(self) -> bool:
         return self.size >= self.limit
 
-    def create(self):
+    def create(self) -> None:
         with self.pool.connection() as db:
             db.execute(
                 f"CREATE TABLE IF NOT EXISTS {self.table_name} "
                 "(LIKE shard_template INCLUDING ALL)"
             )
 
-    def drop(self):
+    def drop(self) -> None:
         with self.pool.connection() as db:
             db.execute(f"DROP TABLE {self.table_name}")
 
-    def total_size(self):
+    def total_size(self) -> int:
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(f"SELECT SUM(LENGTH(content)) FROM {self.table_name}")
             size = c.fetchone()[0]
@@ -56,7 +57,7 @@ class RWShard(Database):
             else:
                 return size
 
-    def add(self, obj_id, content):
+    def add(self, obj_id: bytes, content: bytes) -> None:
         try:
             with self.pool.connection() as db, db.cursor() as c:
                 c.execute(
@@ -68,7 +69,7 @@ class RWShard(Database):
         except psycopg.errors.UniqueViolation:
             pass
 
-    def get(self, obj_id):
+    def get(self, obj_id: bytes) -> Optional[bytes]:
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(
                 f"SELECT content FROM {self.table_name} WHERE key = %s",
@@ -80,13 +81,13 @@ class RWShard(Database):
             else:
                 return c.fetchone()[0]
 
-    def delete(self, obj_id):
+    def delete(self, obj_id: bytes) -> None:
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(f"DELETE FROM {self.table_name} WHERE key = %s", (obj_id,))
             if c.rowcount == 0:
                 raise KeyError(obj_id)
 
-    def all(self):
+    def all(self) -> Iterator[Tuple[bytes, bytes]]:
         with self.pool.connection() as db, db.cursor() as c:
             with c.copy(
                 f"COPY {self.table_name} (key, content) TO STDOUT (FORMAT BINARY)"
@@ -94,7 +95,7 @@ class RWShard(Database):
                 copy.set_types(["bytea", "bytea"])
                 yield from copy.rows()
 
-    def count(self):
+    def count(self) -> int:
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(f"SELECT COUNT(*) FROM {self.table_name}")
             return c.fetchone()[0]

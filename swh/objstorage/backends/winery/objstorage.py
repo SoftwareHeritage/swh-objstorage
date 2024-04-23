@@ -102,7 +102,7 @@ class WineryReader(WineryBase):
             self.rw_shards[name] = shard
         return self.rw_shards[name]
 
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: bytes) -> bytes:
         shard_info = self.base.get(obj_id)
         if shard_info is None:
             raise ObjNotFoundError(obj_id)
@@ -197,7 +197,7 @@ class WineryWriter(WineryReader):
         self.shard.uninit()
         super().uninit()
 
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(self, content: bytes, obj_id: bytes, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
             return
 
@@ -219,7 +219,7 @@ class WineryWriter(WineryReader):
                 self.uninit()
                 self.init()
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: bytes):
         shard_info = self.base.get(obj_id)
         if shard_info is None:
             raise ObjNotFoundError(obj_id)
