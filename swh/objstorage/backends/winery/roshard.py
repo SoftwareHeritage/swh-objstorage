@@ -7,7 +7,9 @@ from collections import Counter
 import logging
 import math
 import os
+import shlex
 import socket
+import stat
 import subprocess
 import time
 from types import TracebackType
@@ -394,6 +396,8 @@ class ROShardCreator:
                 self.rbd_wait_for_image(attempt)
                 attempt += 1
 
+        self.zero_image_if_needed()
+
         self.shard = ShardCreator(self.path, self.count)
         logger.debug("ROShard %s: created", self.name)
         self.shard.__enter__()
@@ -410,6 +414,37 @@ class ROShardCreator:
             self.pool.image_remap_ro(self.name)
         if not exc_type:
             self.throttler.uninit()
+
+    def zero_image_if_needed(self):
+        """Check whether the image is empty, and zero it out if it's not.
+
+        We really check only the first 1kB, as we assume that the SWHShard
+        marker will have been written at the beginning of the image under all
+        circumstances if the RO Shard creation has been interrupted.
+        """
+        with open(self.path, "rb") as f:
+            start = f.read(1024)
+            if set(start) == {b"\x00"}:
+                return
+
+        logger.warning("RO Shard %s isn't empty, cleaning it up", self.path)
+        st = os.stat(self.path)
+        if stat.S_ISBLK(st.st_mode):
+            # Block device, use DISCARD
+            command = ["/usr/sbin/blkdiscard", self.path]
+        else:
+            # Regular file, use fallocate --punch-hole
+            command = [
+                "/usr/bin/fallocate",
+                "--punch-hole",
+                "-l",
+                str(st.st_size),
+                self.path,
+            ]
+        try:
+            subprocess.run(command, check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            logger.warning("%s failed:", shlex.join(command), self.path, exc_info=True)
 
     def add(self, content, obj_id):
         return self.throttler.throttle_add(self.shard.write, obj_id, content)

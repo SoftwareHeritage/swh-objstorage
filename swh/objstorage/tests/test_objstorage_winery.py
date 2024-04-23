@@ -597,6 +597,59 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+def test_winery_packer_clean_up_interrupted_shard(
+    shard_max_size, image_pool, postgresql_dsn, storage, caplog
+):
+    caplog.set_level(logging.CRITICAL)
+
+    # create 1 full shard
+    for i in range(4):
+        content = i.to_bytes(256, "little")
+        obj_id = compute_hash(content, "sha256")
+        storage.add(content=content, obj_id=obj_id)
+
+    filled = storage.winery.shards_filled
+    assert len(filled) == 1
+
+    shard = filled[0]
+
+    if not image_pool.image_mapped(shard):
+        image_pool.image_create(shard)
+
+    with open(image_pool.image_path(shard), "wb") as f:
+        f.write(b"SWHShard interrupted bla")
+
+    with caplog.at_level(logging.WARNING, "swh.objstorage.backends.winery.roshard"):
+        # Pack a single shard
+        ret = shard_packer(
+            base_dsn=postgresql_dsn,
+            shard_dsn=postgresql_dsn,
+            shard_max_size=shard_max_size,
+            throttle_read=200 * 1024 * 1024,
+            throttle_write=200 * 1024 * 1024,
+            stop_packing=stop_after_shards(1),
+            rbd_pool_name=image_pool.pool_name,
+            rbd_create_images=False,
+        )
+
+    assert ret == 1
+    found_cleanup_message = False
+    found_subprocess_error = False
+    for record in caplog.records:
+        msg = record.getMessage()
+        if image_pool.image_path(shard) in msg:
+            if "cleaning it up" in msg:
+                found_cleanup_message = True
+            elif "failed:" in msg:
+                found_subprocess_error = True
+    else:
+        assert found_cleanup_message and not found_subprocess_error, [
+            r.getMessage() for r in caplog.records
+        ]
+
+
+@pytest.mark.shard_max_size(1024)
+@pytest.mark.pack_immediately(False)
 @pytest.mark.clean_immediately(False)
 def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
     # create 4 shards
