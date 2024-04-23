@@ -168,6 +168,7 @@ class RBDWorker:
         self,
         base_dsn: str,
         rbd_pool_name: str,
+        rbd_map_options: str,
         shard_max_size: int,
         application_name: Optional[str] = None,
         duration: int = 10,
@@ -176,6 +177,7 @@ class RBDWorker:
         self.pool = Pool(
             shard_max_size=shard_max_size,
             rbd_pool_name=rbd_pool_name,
+            rbd_map_options=rbd_map_options,
         )
         self.duration = duration
         self.started = time.monotonic()

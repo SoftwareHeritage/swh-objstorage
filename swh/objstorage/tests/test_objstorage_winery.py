@@ -110,8 +110,17 @@ def rbd_pool_name(request, pytestconfig):
 
 
 @pytest.fixture
-def ceph_pool(remove_pool, remove_images, rbd_pool_name, needs_ceph):
-    pool = PoolHelper(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
+def rbd_map_options():
+    return os.environ.get("RBD_MAP_OPTIONS", "")
+
+
+@pytest.fixture
+def ceph_pool(remove_pool, remove_images, rbd_pool_name, rbd_map_options, needs_ceph):
+    pool = PoolHelper(
+        shard_max_size=10 * 1024 * 1024,
+        rbd_pool_name=rbd_pool_name,
+        rbd_map_options=rbd_map_options,
+    )
     if remove_pool:
         pool.remove()
         pool.pool_create()
@@ -198,7 +207,12 @@ def clean_immediately(request) -> bool:
 
 @pytest.fixture
 def storage(
-    shard_max_size, pack_immediately, clean_immediately, rbd_pool_name, postgresql_dsn
+    shard_max_size,
+    pack_immediately,
+    clean_immediately,
+    rbd_pool_name,
+    rbd_map_options,
+    postgresql_dsn,
 ):
     storage = get_objstorage(
         cls="winery",
@@ -210,6 +224,7 @@ def storage(
         pack_immediately=pack_immediately,
         clean_immediately=clean_immediately,
         rbd_pool_name=rbd_pool_name,
+        rbd_map_options=rbd_map_options,
     )
     logger.debug("Instantiated storage %s on rbd pool %s", storage, rbd_pool_name)
     yield storage
@@ -512,6 +527,7 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(1),
             rbd_pool_name=image_pool.pool_name,
+            rbd_map_options=image_pool.map_options,
         )
         == 1
     )
@@ -551,6 +567,7 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
             throttle_write=200 * 1024 * 1024,
             stop_packing=stop_after_shards(3),
             rbd_pool_name=image_pool.pool_name,
+            rbd_map_options=image_pool.map_options,
         )
         == 3
     )
@@ -767,6 +784,7 @@ def test_winery_standalone_packer_never_stop_packing(
             throttle_write=200 * 1024 * 1024,
             wait_for_shard=wait_five_times,
             rbd_pool_name=image_pool.pool_name,
+            rbd_map_options=image_pool.map_options,
         )
 
     assert called == list(range(5))
@@ -803,10 +821,12 @@ def test_winery_get_object(winery, image_pool):
 
 
 @pytest.mark.skipif("CEPH_HARDCODE_POOL" in os.environ, reason="Ceph pool hardcoded")
-def test_winery_ceph_pool(needs_ceph):
+def test_winery_ceph_pool(needs_ceph, rbd_map_options):
     name = "IMAGE"
     pool = PoolHelper(
-        shard_max_size=10 * 1024 * 1024, rbd_pool_name="test-winery-ceph-pool"
+        shard_max_size=10 * 1024 * 1024,
+        rbd_pool_name="test-winery-ceph-pool",
+        rbd_map_options=rbd_map_options,
     )
     pool.remove()
     pool.pool_create()
@@ -891,6 +911,7 @@ def test_winery_bench_work_rbd(storage, image_pool):
         "shard_max_size": storage.winery.args["shard_max_size"],
         "duration": 1,
         "rbd_pool_name": image_pool.pool_name,
+        "rbd_map_options": image_pool.map_options,
     }
     assert (
         work(
@@ -979,7 +1000,7 @@ class WineryBenchOptions:
 
 
 @pytest.fixture
-def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
+def bench_options(pytestconfig, postgresql_dsn, rbd_map_options) -> WineryBenchOptions:
     output_dir = pytestconfig.getoption("--winery-bench-output-directory")
     shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
     pack_immediately = pytestconfig.getoption("--winery-bench-pack-immediately")
@@ -1032,6 +1053,7 @@ def bench_options(pytestconfig, postgresql_dsn) -> WineryBenchOptions:
             "base_dsn": postgresql_dsn,
             "shard_max_size": shard_max_size,
             "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
+            "rbd_map_options": rbd_map_options,
             "duration": duration,
         },
     }

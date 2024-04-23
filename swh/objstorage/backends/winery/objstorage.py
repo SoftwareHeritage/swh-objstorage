@@ -290,6 +290,7 @@ def shard_packer(
         str, ...
     ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
     rbd_use_sudo: bool = True,
+    rbd_map_options: str = "",
     rbd_create_images: bool = True,
     rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
         min_duration=5,
@@ -341,8 +342,6 @@ def shard_packer(
             waited_for_shards += 1
             continue
 
-        waited_for_shards = 0
-
         name, _ = shard_to_pack
         logger.info("shard_packer: Locked shard %s to pack", name)
         ret = pack(
@@ -356,6 +355,7 @@ def shard_packer(
             throttle_write=throttle_write,
             application_name=application_name,
             rbd_use_sudo=rbd_use_sudo,
+            rbd_map_options=rbd_map_options,
             rbd_create_images=rbd_create_images,
             rbd_wait_for_image=rbd_wait_for_image,
             rbd_pool_name=rbd_pool_name,

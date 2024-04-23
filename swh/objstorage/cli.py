@@ -143,6 +143,7 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
     )
     rbd_create_images = config.get("rbd_create_images", True)
+    rbd_map_options = config.get("rbd_map_options", "")
 
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
@@ -157,6 +158,7 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         rbd_data_pool_name=rbd_data_pool_name,
         rbd_image_features_unsupported=rbd_image_features_unsupported,
         rbd_use_sudo=rbd_use_sudo,
+        rbd_map_options=rbd_map_options,
         rbd_create_images=rbd_create_images,
         output_dir=output_dir,
         stop_packing=stop_packing,
@@ -213,6 +215,7 @@ def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
         config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
     )
     rbd_manage_rw_images = config.get("rbd_manage_rw_images", True)
+    rbd_map_options = config.get("rbd_map_options", "")
 
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
@@ -223,6 +226,7 @@ def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
         rbd_data_pool_name=rbd_data_pool_name,
         rbd_use_sudo=rbd_use_sudo,
         rbd_image_features_unsupported=rbd_image_features_unsupported,
+        rbd_map_options=rbd_map_options,
     )
 
     pool.manage_images(

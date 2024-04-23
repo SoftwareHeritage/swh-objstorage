@@ -43,6 +43,9 @@ class Pool(object):
       rbd_data_pool_name: name of the pool used for RBD images (data)
       rbd_image_features_unsupported: features not supported by the kernel
         mounting the rbd images
+      rbd_map_options: options to pass to ``rbd device map``, e.g.
+        ``ms_mode=prefer-secure`` to connect to a ceph cluster with encryption
+        enabled
     """
 
     def __init__(
@@ -54,11 +57,13 @@ class Pool(object):
         rbd_image_features_unsupported: Tuple[
             str, ...
         ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+        rbd_map_options: str = "",
     ) -> None:
         self.use_sudo = rbd_use_sudo
         self.pool_name = rbd_pool_name
         self.data_pool_name = rbd_data_pool_name or f"{self.pool_name}-data"
         self.features_unsupported = rbd_image_features_unsupported
+        self.map_options = rbd_map_options
         self.image_size = math.ceil((shard_max_size * 2) / (1024 * 1024))
 
     POOL_CONFIG: Tuple[str, ...] = (
@@ -67,6 +72,7 @@ class Pool(object):
         "rbd_pool_name",
         "rbd_data_pool_name",
         "rbd_image_features_unsupported",
+        "rbd_map_options",
     )
 
     @classmethod
@@ -141,7 +147,13 @@ class Pool(object):
         self.image_map(image, "rw")
 
     def image_map(self, image: str, options: str):
-        self.rbd("device", "map", "-o", options, image)
+        self.rbd(
+            "device",
+            "map",
+            "-o",
+            f"{options},{self.map_options}" if self.map_options else options,
+            image,
+        )
 
     def image_remap_ro(self, image: str):
         self.image_unmap(image)

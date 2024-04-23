@@ -41,6 +41,7 @@ class PoolHelper(Pool):
         rbd_image_features_unsupported: Tuple[
             str, ...
         ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+        rbd_map_options: str = "",
         rbd_erasure_code_profile=None,
         rbd_data_pool_settings=None,
     ):
@@ -50,6 +51,7 @@ class PoolHelper(Pool):
             rbd_pool_name=rbd_pool_name,
             rbd_data_pool_name=rbd_data_pool_name,
             rbd_image_features_unsupported=rbd_image_features_unsupported,
+            rbd_map_options=rbd_map_options,
         )
         self.erasure_code_profile_settings = (
             rbd_erasure_code_profile or DEFAULT_ERASURE_CODE_PROFILE.copy()
