@@ -898,7 +898,7 @@ def test_winery_bench_work_rbd(storage, image_pool):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 def test_winery_bench_work_rw_shard_cleaner(storage):
-    rbd_args = {
+    rw_shard_cleaner_args = {
         "base_dsn": storage.winery.args["base_dsn"],
         "shard_dsn": storage.winery.args["shard_dsn"],
     }
@@ -906,7 +906,7 @@ def test_winery_bench_work_rw_shard_cleaner(storage):
         work(
             "rw_shard_cleaner",
             storage=storage,
-            worker_args={"rw_shard_cleaner": rbd_args},
+            worker_args={"rw_shard_cleaner": rw_shard_cleaner_args},
             time_remaining=datetime.timedelta(seconds=300),
         )
         == "rw_shard_cleaner"
