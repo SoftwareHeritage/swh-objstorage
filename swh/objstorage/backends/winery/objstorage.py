@@ -147,7 +147,7 @@ def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
 
         logger.debug("RO shard %s: added %s objects, saving", shard, count)
 
-    logger.debug("RO shard %s: saved", shard)
+    logger.info("RO shard %s: saved", shard)
 
     uninit_base = False
     if not shared_base:
