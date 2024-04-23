@@ -13,7 +13,7 @@ import uuid
 import psycopg
 import psycopg.errors
 
-from .database import Database, DatabaseAdmin
+from .database import Database
 
 WRITER_UUID = uuid.uuid4()
 
@@ -104,18 +104,13 @@ class TemporaryShardLocker:
 
 
 class SharedBase(Database):
+    current_version: int = 1
+
     def __init__(self, **kwargs) -> None:
-        DatabaseAdmin(
-            dsn=kwargs["base_dsn"],
-            dbname="sharedbase",
-            application_name=kwargs.get("application_name"),
-        ).create_database()
         super().__init__(
             dsn=kwargs["base_dsn"],
-            dbname="sharedbase",
             application_name=kwargs.get("application_name"),
         )
-        self.create_tables()
         self._locked_shard: Optional[Tuple[str, int]] = None
 
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
@@ -125,86 +120,6 @@ class SharedBase(Database):
             self.set_shard_state(new_state=ShardState.STANDBY)
         self._locked_shard = None
         super().uninit()
-
-    @property
-    def lock(self):
-        return 314116  # an arbitrary unique number
-
-    @property
-    def database_tables(self):
-        return [
-            f"""\
-        DO $$ BEGIN
-          CREATE TYPE shard_state AS ENUM (
-            {", ".join("'%s'" % value.value for value in ShardState)}
-          );
-        EXCEPTION
-          WHEN duplicate_object THEN null;
-        END $$;
-            """,
-            "ALTER TYPE shard_state ADD VALUE IF NOT EXISTS 'cleaning' AFTER 'packed';",
-            """
-        CREATE TABLE IF NOT EXISTS shards(
-            id BIGSERIAL PRIMARY KEY,
-            state shard_state NOT NULL DEFAULT 'standby',
-            locker_ts TIMESTAMPTZ,
-            locker UUID,
-            name CHAR(32) NOT NULL UNIQUE,
-            mapped_on_hosts_when_packed TEXT[] NOT NULL DEFAULT '{}'
-        )
-        """,
-            """\
-        ALTER TABLE shards
-            ADD COLUMN
-              IF NOT EXISTS
-              mapped_on_hosts_when_packed TEXT[]
-              NOT NULL
-              DEFAULT '{}'
-        """,
-            f"""\
-        DO $$ BEGIN
-          CREATE TYPE signature_state AS ENUM (
-            {", ".join("'%s'" % value.value for value in SignatureState)}
-          );
-        EXCEPTION
-          WHEN duplicate_object THEN null;
-        END $$;
-        """,
-            """
-        CREATE TABLE IF NOT EXISTS signature2shard(
-            signature BYTEA PRIMARY KEY,
-            state signature_state NOT NULL DEFAULT 'inflight',
-            shard BIGINT NOT NULL REFERENCES shards(id)
-        )
-        """,
-            """\
-        DO $$ BEGIN
-            ALTER TABLE signature2shard
-                ALTER COLUMN inflight TYPE signature_state USING (
-                    CASE
-                      WHEN inflight THEN 'inflight'::signature_state
-                      ELSE 'present'::signature_state
-                    END),
-                ALTER COLUMN inflight SET DEFAULT 'inflight';
-            ALTER TABLE signature2shard
-                RENAME COLUMN inflight TO state;
-        EXCEPTION
-          WHEN undefined_column THEN NULL;
-        END $$;
-        """,
-            """\
-        ALTER TYPE signature_state ADD VALUE IF NOT EXISTS 'deleted' AFTER 'present';
-        """,
-            """\
-        CREATE INDEX IF NOT EXISTS signature2shard_deleted
-            ON signature2shard(signature, shard)
-         WHERE state = 'deleted'
-        """,
-            """\
-        CREATE INDEX IF NOT EXISTS signature2shard_shard_state
-            ON signature2shard(shard, state)
-        """,
-        ]
 
     @property
     def locked_shard(self) -> str:

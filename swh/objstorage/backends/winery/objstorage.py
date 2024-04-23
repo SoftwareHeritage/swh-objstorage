@@ -261,6 +261,11 @@ class WineryWriter(WineryReader):
         self.init()
 
     def __del__(self):
+        # This is needed if super().__init__ fails, and __del__ gets called
+        # before self.packers is defined.
+        if not hasattr(self, "packers"):
+            return
+
         for p in self.packers:
             p.kill()
             p.join()
@@ -279,7 +284,6 @@ def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
 
 def shard_packer(
     base_dsn: str,
-    shard_dsn: str,
     shard_max_size: int,
     throttle_read: int,
     throttle_write: int,
@@ -313,7 +317,6 @@ def shard_packer(
 
     Arguments:
       base_dsn: PostgreSQL dsn for the shared database
-      shard_dsn: PostgreSQL dsn for the individual shard databases
       shard_max_size: Max size of a shard (used to size new shards)
       throttle_read: reads per second
       throttle_write: writes per second
@@ -349,7 +352,6 @@ def shard_packer(
             ret = pack(
                 locked.name,
                 base_dsn=base_dsn,
-                shard_dsn=shard_dsn,
                 shard_max_size=shard_max_size,
                 output_dir=output_dir,
                 shared_base=base,
@@ -373,7 +375,6 @@ def shard_packer(
 
 def rw_shard_cleaner(
     base_dsn: str,
-    shard_dsn: str,
     min_mapped_hosts: int,
     application_name: Optional[str] = None,
     stop_cleaning: Callable[[int], bool] = never_stop,
@@ -390,7 +391,6 @@ def rw_shard_cleaner(
 
     Arguments:
       base_dsn: PostgreSQL dsn for the shared database
-      shard_dsn: PostgreSQL dsn for the individual shard databases
       min_mapped_hosts: how many hosts should have mapped the image read-only before
         cleaning it
       application_name: the application name sent to PostgreSQL
@@ -422,7 +422,6 @@ def rw_shard_cleaner(
             ret = cleanup_rw_shard(
                 locked.name,
                 base_dsn=base_dsn,
-                shard_dsn=shard_dsn,
                 shared_base=base,
                 application_name=application_name,
             )

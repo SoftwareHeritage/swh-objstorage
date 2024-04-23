@@ -8,7 +8,7 @@ import datetime
 import logging
 import time
 
-from .database import Database, DatabaseAdmin
+from .database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,6 @@ class IOThrottler(Database):
     def __init__(self, name, **kwargs):
         super().__init__(
             dsn=kwargs["base_dsn"],
-            dbname="throttler",
             application_name=kwargs.get("application_name", "SWH Winery Throttler"),
         )
         self.name = name
@@ -111,7 +110,6 @@ class IOThrottler(Database):
         self.bandwidth = BandwidthCalculator()
 
     def init_db(self):
-        self.create_tables()
         with self.pool.connection() as db, db.transaction(), db.cursor() as cur:
             cur.execute(
                 f"INSERT INTO t_{self.name} (updated, bytes) VALUES (%s, %s) RETURNING id",
@@ -127,23 +125,6 @@ class IOThrottler(Database):
                 " FOR UPDATE SKIP LOCKED)"
             )
         self.sync_interval = 60
-
-    @property
-    def lock(self):
-        return 9485433  # an arbitrary unique number
-
-    @property
-    def database_tables(self):
-        return [
-            f"""
-        CREATE TABLE IF NOT EXISTS t_{name} (
-            id SERIAL PRIMARY KEY,
-            updated TIMESTAMP NOT NULL,
-            bytes INTEGER NOT NULL
-        )
-       """
-            for name in ("read", "write")
-        ]
 
     def download_info(self):
         with self.pool.connection() as db:
@@ -194,7 +175,6 @@ class Throttler:
     """
 
     def __init__(self, **kwargs):
-        DatabaseAdmin(kwargs["base_dsn"], "throttler").create_database()
         self.read = IOThrottler("read", **kwargs)
         self.write = IOThrottler("write", **kwargs)
 

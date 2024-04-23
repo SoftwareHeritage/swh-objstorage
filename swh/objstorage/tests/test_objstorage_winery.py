@@ -6,6 +6,7 @@
 from collections import Counter
 from dataclasses import asdict, dataclass
 import datetime
+from functools import partial
 import logging
 import os
 import shutil
@@ -14,9 +15,10 @@ from typing import Any, Dict
 
 from click.testing import CliRunner
 import pytest
+from pytest_postgresql import factories
 import yaml
 
-from swh.objstorage.backends.winery.database import DatabaseAdmin
+from swh.core.db.db_utils import initialize_database_for_module
 import swh.objstorage.backends.winery.objstorage
 from swh.objstorage.backends.winery.objstorage import (
     cleanup_rw_shard,
@@ -26,7 +28,7 @@ from swh.objstorage.backends.winery.objstorage import (
     shard_packer,
     stop_after_shards,
 )
-from swh.objstorage.backends.winery.sharedbase import ShardState
+from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 from swh.objstorage.backends.winery.sleep import sleep_exponential
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
@@ -169,14 +171,22 @@ def image_pool(request):
     return request.getfixturevalue(request.param)
 
 
+winery_postgresql_proc = factories.postgresql_proc(
+    load=[
+        partial(
+            initialize_database_for_module,
+            modname="objstorage.backends.winery",
+            version=SharedBase.current_version,
+        ),
+    ],
+)
+
+winery_postgresql = factories.postgresql("winery_postgresql_proc")
+
+
 @pytest.fixture
-def postgresql_dsn(postgresql_proc):
-    dsn = f"user={postgresql_proc.user} host={postgresql_proc.host} port={postgresql_proc.port}"
-    yield dsn
-    d = DatabaseAdmin(dsn)
-    for database in d.list_databases():
-        if database not in (postgresql_proc.dbname, f"{postgresql_proc.dbname}_tmpl"):
-            DatabaseAdmin(dsn, database).drop_database()
+def postgresql_dsn(winery_postgresql):
+    return winery_postgresql.info.dsn
 
 
 @pytest.fixture
@@ -218,7 +228,6 @@ def storage(
     storage = get_objstorage(
         cls="winery",
         base_dsn=postgresql_dsn,
-        shard_dsn=postgresql_dsn,
         shard_max_size=shard_max_size,
         throttle_write=200 * 1024 * 1024,
         throttle_read=100 * 1024 * 1024,
@@ -522,7 +531,6 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     assert (
         shard_packer(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
@@ -544,7 +552,6 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     assert (
         rw_shard_cleaner(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             min_mapped_hosts=0,
             stop_cleaning=stop_after_shards(1),
         )
@@ -562,7 +569,6 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     assert (
         shard_packer(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
@@ -584,7 +590,6 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     assert (
         rw_shard_cleaner(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             min_mapped_hosts=0,
             stop_cleaning=stop_after_shards(3),
         )
@@ -623,7 +628,6 @@ def test_winery_packer_clean_up_interrupted_shard(
         # Pack a single shard
         ret = shard_packer(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
@@ -808,11 +812,9 @@ def test_winery_cli_rw_shard_cleaner(
             {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
         )
 
-    db_admin = DatabaseAdmin(postgresql_dsn)
-
-    databases = set(db_admin.list_databases())
+    shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
-        assert shard in databases
+        assert shard in shard_tables
 
     result = cli_runner.invoke(
         swh_cli_group,
@@ -823,9 +825,9 @@ def test_winery_cli_rw_shard_cleaner(
     assert result.exit_code == 0
 
     # No hosts have mapped the shard as remapped, so the cleaner has done nothing
-    databases = set(db_admin.list_databases())
+    shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
-        assert shard in databases
+        assert shard in shard_tables
 
     result = cli_runner.invoke(
         swh_cli_group,
@@ -842,9 +844,9 @@ def test_winery_cli_rw_shard_cleaner(
     assert result.exit_code == 0
 
     # Now we've forced action
-    databases = set(db_admin.list_databases())
+    shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
-        assert shard not in databases
+        assert shard not in shard_tables
 
 
 @pytest.mark.shard_max_size(1024)
@@ -876,11 +878,9 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
             {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
         )
 
-    db_admin = DatabaseAdmin(postgresql_dsn)
-
-    databases = set(db_admin.list_databases())
+    shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
-        assert shard in databases
+        assert shard in shard_tables
 
     # pytest-mock doesn't seem to interact very well with the cli_runner
     def failing_cleanup(*args, **kwargs):
@@ -906,10 +906,10 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
 
     assert result.exit_code == 1
 
-    databases = set(db_admin.list_databases())
+    shard_tables = set(storage.winery.base.list_shard_tables())
     shard_info = dict(storage.winery.base.list_shards())
     for shard in filled:
-        assert shard in databases
+        assert shard in shard_tables
         assert shard_info[shard] == ShardState.PACKED
 
 
@@ -945,7 +945,6 @@ def test_winery_standalone_packer_never_stop_packing(
     with pytest.raises(NoShardLeft):
         shard_packer(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             shard_max_size=shard_max_size,
             throttle_read=200 * 1024 * 1024,
             throttle_write=200 * 1024 * 1024,
@@ -964,7 +963,6 @@ def test_winery_standalone_packer_never_stop_packing(
     with pytest.raises(NoShardLeft):
         rw_shard_cleaner(
             base_dsn=postgresql_dsn,
-            shard_dsn=postgresql_dsn,
             min_mapped_hosts=0,
             wait_for_shard=wait_five_times,
         )
@@ -1054,7 +1052,6 @@ def test_winery_bench_work_ro_rw(storage, image_pool, tmpdir):
 def test_winery_bench_work_pack(storage, image_pool):
     pack_args = {
         "base_dsn": storage.winery.args["base_dsn"],
-        "shard_dsn": storage.winery.args["shard_dsn"],
         "shard_max_size": storage.winery.args["shard_max_size"],
         "throttle_read": storage.winery.args["throttle_read"],
         "throttle_write": storage.winery.args["throttle_write"],
@@ -1095,7 +1092,6 @@ def test_winery_bench_work_rbd(storage, image_pool):
 def test_winery_bench_work_rw_shard_cleaner(storage):
     rw_shard_cleaner_args = {
         "base_dsn": storage.winery.args["base_dsn"],
-        "shard_dsn": storage.winery.args["shard_dsn"],
     }
     assert (
         work(
@@ -1178,7 +1174,6 @@ def bench_options(pytestconfig, postgresql_dsn, rbd_map_options) -> WineryBenchO
         "shard_max_size": shard_max_size,
         "pack_immediately": pack_immediately,
         "base_dsn": postgresql_dsn,
-        "shard_dsn": postgresql_dsn,
         "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
         "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
         "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
@@ -1198,7 +1193,6 @@ def bench_options(pytestconfig, postgresql_dsn, rbd_map_options) -> WineryBenchO
         },
         "pack": {
             "base_dsn": postgresql_dsn,
-            "shard_dsn": postgresql_dsn,
             "output_dir": output_dir,
             "shard_max_size": shard_max_size,
             "rbd_create_images": False,
@@ -1208,13 +1202,11 @@ def bench_options(pytestconfig, postgresql_dsn, rbd_map_options) -> WineryBenchO
         },
         "stats": {
             "base_dsn": postgresql_dsn,
-            "shard_dsn": postgresql_dsn,
             "shard_max_size": shard_max_size,
             "interval": pytestconfig.getoption("--winery-bench-stats-interval"),
         },
         "rw_shard_cleaner": {
             "base_dsn": postgresql_dsn,
-            "shard_dsn": postgresql_dsn,
         },
         "rbd": {
             "base_dsn": postgresql_dsn,
@@ -1398,7 +1390,6 @@ def test_winery_bandwidth_calculator(mocker):
 
 
 def test_winery_io_throttler(postgresql_dsn, mocker):
-    DatabaseAdmin(postgresql_dsn, "throttler").create_database()
     sleep = mocker.spy(time, "sleep")
     speed = 100
     i = IOThrottler("read", base_dsn=postgresql_dsn, throttle_read=100)

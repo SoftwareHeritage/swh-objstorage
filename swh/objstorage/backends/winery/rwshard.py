@@ -9,7 +9,7 @@ import logging
 import psycopg
 import psycopg.errors
 
-from .database import Database, DatabaseAdmin
+from .database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -20,44 +20,36 @@ class RWShard(Database):
         self.application_name = application_name
         if application_name is None:
             self.application_name = f"SWH Winery RW Shard {name}"
-        DatabaseAdmin(
-            kwargs["base_dsn"],
-            self.name,
-            application_name=f"Admin {self.application_name}",
-        ).create_database()
-        super().__init__(kwargs["shard_dsn"], self.name, self.application_name)
-        self.create_tables()
+        super().__init__(kwargs["base_dsn"], self.application_name)
+        self.create()
         self.size = self.total_size()
         self.limit = kwargs["shard_max_size"]
-
-    @property
-    def lock(self):
-        return 452343  # an arbitrary unique number
 
     @property
     def name(self):
         return self._name
 
+    @property
+    def table_name(self):
+        return f"shard_{self._name}"
+
     def is_full(self):
         return self.size >= self.limit
 
-    def drop(self):
-        DatabaseAdmin(self.dsn, self.dbname).drop_database()
+    def create(self):
+        with self.pool.connection() as db:
+            db.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.table_name} "
+                "(LIKE shard_template INCLUDING ALL)"
+            )
 
-    @property
-    def database_tables(self):
-        return [
-            """
-        CREATE TABLE IF NOT EXISTS objects(
-          key BYTEA PRIMARY KEY,
-          content BYTEA
-        ) WITH (autovacuum_enabled = false)
-        """,
-        ]
+    def drop(self):
+        with self.pool.connection() as db:
+            db.execute(f"DROP TABLE {self.table_name}")
 
     def total_size(self):
         with self.pool.connection() as db, db.cursor() as c:
-            c.execute("SELECT SUM(LENGTH(content)) FROM objects")
+            c.execute(f"SELECT SUM(LENGTH(content)) FROM {self.table_name}")
             size = c.fetchone()[0]
             if size is None:
                 return 0
@@ -68,7 +60,7 @@ class RWShard(Database):
         try:
             with self.pool.connection() as db, db.cursor() as c:
                 c.execute(
-                    "INSERT INTO objects (key, content) VALUES (%s, %s)",
+                    f"INSERT INTO {self.table_name} (key, content) VALUES (%s, %s)",
                     (obj_id, content),
                     binary=True,
                 )
@@ -79,7 +71,9 @@ class RWShard(Database):
     def get(self, obj_id):
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(
-                "SELECT content FROM objects WHERE key = %s", (obj_id,), binary=True
+                f"SELECT content FROM {self.table_name} WHERE key = %s",
+                (obj_id,),
+                binary=True,
             )
             if c.rowcount == 0:
                 return None
@@ -88,19 +82,19 @@ class RWShard(Database):
 
     def delete(self, obj_id):
         with self.pool.connection() as db, db.cursor() as c:
-            c.execute("DELETE FROM objects WHERE key = %s", (obj_id,))
+            c.execute(f"DELETE FROM {self.table_name} WHERE key = %s", (obj_id,))
             if c.rowcount == 0:
                 raise KeyError(obj_id)
 
     def all(self):
         with self.pool.connection() as db, db.cursor() as c:
             with c.copy(
-                "COPY objects (key, content) TO STDOUT (FORMAT BINARY)"
+                f"COPY {self.table_name} (key, content) TO STDOUT (FORMAT BINARY)"
             ) as copy:
                 copy.set_types(["bytea", "bytea"])
                 yield from copy.rows()
 
     def count(self):
         with self.pool.connection() as db, db.cursor() as c:
-            c.execute("SELECT COUNT(*) FROM objects")
+            c.execute(f"SELECT COUNT(*) FROM {self.table_name}")
             return c.fetchone()[0]

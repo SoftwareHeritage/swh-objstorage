@@ -116,7 +116,6 @@ class PackWorker:
     def __init__(
         self,
         base_dsn: str,
-        shard_dsn: str,
         shard_max_size: int,
         throttle_read: int,
         throttle_write: int,
@@ -126,7 +125,6 @@ class PackWorker:
         output_dir: Optional[str] = None,
     ):
         self.base_dsn = base_dsn
-        self.shard_dsn = shard_dsn
         self.shard_max_size = shard_max_size
         self.output_dir = output_dir
         self.throttle_read = throttle_read
@@ -148,7 +146,6 @@ class PackWorker:
     def run(self) -> Literal["pack"]:
         shard_packer(
             base_dsn=self.base_dsn,
-            shard_dsn=self.shard_dsn,
             shard_max_size=self.shard_max_size,
             throttle_read=self.throttle_read,
             throttle_write=self.throttle_write,
@@ -206,13 +203,11 @@ class RWShardCleanerWorker:
     def __init__(
         self,
         base_dsn: str,
-        shard_dsn: str,
         min_mapped_hosts: int = 1,
         application_name: Optional[str] = None,
         duration: int = 10,
     ):
         self.base_dsn = base_dsn
-        self.shard_dsn = shard_dsn
         self.min_mapped_hosts = min_mapped_hosts
         self.application_name = application_name
         self.duration = duration
@@ -229,7 +224,6 @@ class RWShardCleanerWorker:
     def run(self) -> Literal["rw_shard_cleaner"]:
         rw_shard_cleaner(
             base_dsn=self.base_dsn,
-            shard_dsn=self.shard_dsn,
             min_mapped_hosts=self.min_mapped_hosts,
             stop_cleaning=self.stop_cleaning,
             wait_for_shard=self.wait_for_shard,
@@ -242,13 +236,11 @@ class StatsPrinter:
     def __init__(
         self,
         base_dsn: str,
-        shard_dsn: str,
         shard_max_size: int,
         application_name: Optional[str] = None,
         interval: int = 5 * 60,
     ):
         self.base_dsn = base_dsn
-        self.shard_dsn = shard_dsn
         self.shard_max_size = shard_max_size
         self.interval = datetime.timedelta(seconds=interval)
         self.application_name = application_name or "Winery Benchmark Stats Printer"
@@ -257,7 +249,6 @@ class StatsPrinter:
     def get_winery_reader(self) -> WineryReader:
         return WineryReader(
             base_dsn=self.base_dsn,
-            shard_dsn=self.shard_dsn,
             shard_max_size=self.shard_max_size,
             application_name=self.application_name,
         )

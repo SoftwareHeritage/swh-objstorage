@@ -131,7 +131,6 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         signal_received = True
 
     base_dsn = config["base_dsn"]
-    shard_dsn = config["shard_dsn"]
     shard_max_size = config["shard_max_size"]
     throttle_read = config.get("throttle_read", 200 * 1024 * 1024)
     throttle_write = config.get("throttle_write", 200 * 1024 * 1024)
@@ -150,7 +149,6 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
 
     ret = shard_packer(
         base_dsn=base_dsn,
-        shard_dsn=shard_dsn,
         shard_max_size=shard_max_size,
         throttle_read=throttle_read,
         throttle_write=throttle_write,
@@ -290,14 +288,12 @@ def winery_rw_shard_cleaner(
         stop_on_next_iteration = True
 
     base_dsn = config["base_dsn"]
-    shard_dsn = config["base_dsn"]
 
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
     ret = rw_shard_cleaner(
         base_dsn=base_dsn,
-        shard_dsn=shard_dsn,
         min_mapped_hosts=min_mapped_hosts,
         stop_cleaning=stop_cleaning,
         wait_for_shard=wait_for_shard,
