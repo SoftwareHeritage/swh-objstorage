@@ -198,6 +198,8 @@ class FileBackedPool(Pool):
 
     def image_create(self, image: str) -> None:
         path = self.image_path(image)
+        if os.path.exists(path):
+            raise ValueError(f"Image {image} already exists")
         open(path, "w").close()
         os.truncate(path, self.image_size * 1024 * 1024)
         self.image_map(image, "rw")
