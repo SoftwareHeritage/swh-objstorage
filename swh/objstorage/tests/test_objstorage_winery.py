@@ -78,6 +78,8 @@ def cli_runner(capsys):
 
 @pytest.fixture
 def remove_pool(request, pytestconfig):
+    if os.environ.get("CEPH_HARDCODE_POOL"):
+        return False
     marker = request.node.get_closest_marker("use_benchmark_flags")
     if marker is None:
         return True
@@ -87,6 +89,8 @@ def remove_pool(request, pytestconfig):
 
 @pytest.fixture
 def remove_images(request, pytestconfig):
+    if os.environ.get("CEPH_HARDCODE_POOL"):
+        return False
     marker = request.node.get_closest_marker("use_benchmark_flags")
     if marker is None:
         return True
@@ -96,6 +100,8 @@ def remove_images(request, pytestconfig):
 
 @pytest.fixture
 def rbd_pool_name(request, pytestconfig):
+    if os.environ.get("CEPH_HARDCODE_POOL"):
+        return os.environ["CEPH_HARDCODE_POOL"]
     marker = request.node.get_closest_marker("use_benchmark_flags")
     if marker is None:
         return "winery-test-shards"
@@ -796,6 +802,7 @@ def test_winery_get_object(winery, image_pool):
     assert winery.get(obj_id) == content
 
 
+@pytest.mark.skipif("CEPH_HARDCODE_POOL" in os.environ, reason="Ceph pool hardcoded")
 def test_winery_ceph_pool(needs_ceph):
     name = "IMAGE"
     pool = PoolHelper(
