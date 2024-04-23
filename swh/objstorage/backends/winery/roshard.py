@@ -337,7 +337,6 @@ class ROShard:
     def __del__(self):
         self.close()
         self.throttler.uninit()
-        super().__del__()
 
     @staticmethod
     def delete(pool, shard_name, obj_id):
