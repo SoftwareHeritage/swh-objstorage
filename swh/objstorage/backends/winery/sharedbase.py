@@ -435,12 +435,7 @@ class SharedBase(Database):
                 return 0
             return row[1]
 
-    def record_shard_mapped(self, host: str, name: Optional[str] = None) -> Set[str]:
-        if not name:
-            if not self._locked_shard:
-                raise ValueError("Can't set shard state, no shard specified or locked")
-            name = self._locked_shard[0]
-
+    def record_shard_mapped(self, host: str, name: str) -> Set[str]:
         with self.pool.connection() as db, db.transaction():
             with db.cursor() as c:
                 c.execute(

@@ -459,9 +459,14 @@ def test_winery_get_shard_info(winery):
 
 
 def test_winery_base_record_shard_mapped(winery):
-    assert {"test"} == winery.base.record_shard_mapped("test")
-    assert {"test"} == winery.base.record_shard_mapped("test")
-    assert {"test", "test2"} == winery.base.record_shard_mapped("test2")
+    # Lock a shard
+    shard_name, shard_id = winery.base.create_shard(new_state=ShardState.PACKED)
+
+    assert {"test"} == winery.base.record_shard_mapped(host="test", name=shard_name)
+    assert {"test"} == winery.base.record_shard_mapped(host="test", name=shard_name)
+    assert {"test", "test2"} == winery.base.record_shard_mapped(
+        host="test2", name=shard_name
+    )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
