@@ -5,7 +5,7 @@
 
 import logging
 from multiprocessing import Process
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
@@ -157,12 +157,17 @@ def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
 
 
 class WineryWriter(WineryReader):
-    def __init__(self, **kwargs):
-        self.pack_immediately = kwargs.get("pack_immediately", True)
-        self.clean_immediately = kwargs.get("clean_immediately", True)
+    def __init__(
+        self,
+        pack_immediately: bool = True,
+        clean_immediately: bool = True,
+        **kwargs,
+    ):
+        self.pack_immediately = pack_immediately
+        self.clean_immediately = clean_immediately
         super().__init__(**kwargs)
-        self.shards_filled = []
-        self.packers = []
+        self.shards_filled: List[str] = []
+        self.packers: List[Process] = []
         self._shard: Optional[RWShard] = None
 
     def release_shard(
