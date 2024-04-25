@@ -73,7 +73,7 @@ def work(
             return ROWorker(storage, **kind_args).run(time_remaining=time_remaining)
         finally:
             if isinstance(storage, WineryObjStorage):
-                storage.winery.uninit()
+                storage.on_shutdown()
     elif kind == "rw":
         try:
             if isinstance(storage, dict):
@@ -83,7 +83,7 @@ def work(
             return RWWorker(storage, **kind_args).run(time_remaining=time_remaining)
         finally:
             if isinstance(storage, WineryObjStorage):
-                storage.winery.uninit()
+                storage.on_shutdown()
     elif kind == "pack":
         return PackWorker(application_name=application_name, **kind_args).run()
     elif kind == "rbd":
@@ -399,7 +399,7 @@ class ROWorker(Worker):
         logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
 
     def finalize(self):
-        self.storage.winery.uninit()
+        self.storage.on_shutdown()
 
 
 class RWWorker(Worker):
@@ -475,7 +475,7 @@ class RWWorker(Worker):
         return True
 
     def finalize(self):
-        self.winery.uninit()
+        self.storage.on_shutdown()
 
         if not self.block_until_packed:
             return

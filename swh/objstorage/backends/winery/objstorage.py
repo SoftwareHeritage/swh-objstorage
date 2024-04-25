@@ -36,9 +36,6 @@ class WineryObjStorage(ObjStorage):
         else:
             self.winery = WineryWriter(**kwargs)
 
-    def uninit(self):
-        self.winery.uninit()
-
     def get(self, obj_id: ObjId) -> bytes:
         return self.winery.get(self._hash(obj_id))
 
@@ -62,20 +59,20 @@ class WineryObjStorage(ObjStorage):
         else:
             return obj_id
 
+    def on_shutdown(self):
+        self.winery.on_shutdown()
+
 
 class WineryBase:
     def __init__(self, **kwargs):
         self.args = kwargs
-        self.init()
-
-    def init(self):
         self.base = SharedBase(**self.args)
-
-    def uninit(self):
-        self.base.uninit()
 
     def __contains__(self, obj_id):
         return self.base.contains(obj_id)
+
+    def on_shutdown(self):
+        return
 
 
 class WineryReader(WineryBase):
@@ -92,7 +89,6 @@ class WineryReader(WineryBase):
                 return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:
-                self.rw_shards[name].uninit()
                 del self.rw_shards[name]
         return self.ro_shards[name]
 
@@ -119,15 +115,6 @@ class WineryReader(WineryBase):
             raise ObjNotFoundError(obj_id)
         return content
 
-    def uninit(self):
-        for shard in self.rw_shards.values():
-            shard.uninit()
-        self.rw_shards = {}
-        for shard in self.ro_shards.values():
-            shard.close()
-        self.ro_shards = {}
-        super().uninit()
-
 
 def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
     stats = Stats(kwargs.get("output_dir"))
@@ -149,33 +136,22 @@ def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
 
     logger.info("RO shard %s: saved", shard)
 
-    uninit_base = False
     if not shared_base:
         shared_base = SharedBase(**kwargs)
-        uninit_base = True
     shared_base.shard_packing_ends(shard)
-    rw.uninit()
     if clean_immediately:
         cleanup_rw_shard(shard, shared_base=shared_base, **kwargs)
-    if uninit_base:
-        shared_base.uninit()
     return True
 
 
 def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
     rw = RWShard(shard, **{"shard_max_size": 0, **kwargs})
 
-    uninit_base = False
-    try:
-        if not shared_base:
-            shared_base = SharedBase(**kwargs)
-            uninit_base = True
+    rw.drop()
 
-        rw.drop()
-        shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
-    finally:
-        if shared_base and uninit_base:
-            shared_base.uninit()
+    if not shared_base:
+        shared_base = SharedBase(**kwargs)
+    shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
 
     return True
 
@@ -187,15 +163,38 @@ class WineryWriter(WineryReader):
         super().__init__(**kwargs)
         self.shards_filled = []
         self.packers = []
+        self._shard: Optional[RWShard] = None
 
-    def init(self):
-        super().init()
-        self.shard = RWShard(self.base.locked_shard, **self.args)
-        logger.debug("WineryBase: RWShard %s instantiated", self.base.locked_shard)
+    def release_shard(
+        self,
+        shard: Optional[RWShard] = None,
+        new_state: ShardState = ShardState.STANDBY,
+    ):
+        """Release the currently locked shard"""
+        if not shard:
+            shard = self._shard
 
-    def uninit(self):
-        self.shard.uninit()
-        super().uninit()
+        if not shard:
+            return
+
+        logger.debug("WineryWriter releasing shard %s", shard.name)
+
+        self.base.set_shard_state(new_state=new_state, name=shard.name)
+        self._shard = None
+
+    @property
+    def shard(self):
+        """Lock a shard to be able to use it."""
+        if not self._shard:
+            self._shard = RWShard(
+                self.base.locked_shard,
+                **self.args,
+            )
+            logger.debug(
+                "WineryBase: locked RWShard %s",
+                self._shard.name,
+            )
+        return self._shard
 
     def add(self, content: bytes, obj_id: bytes, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
@@ -210,14 +209,11 @@ class WineryWriter(WineryReader):
             self.shard.add(db, obj_id, content)
 
         if self.shard.is_full():
-            self.base.set_shard_state(new_state=ShardState.FULL)
-            self.shards_filled.append(self.shard.name)
+            filled_name = self.shard.name
+            self.release_shard(new_state=ShardState.FULL)
+            self.shards_filled.append(filled_name)
             if self.pack_immediately:
-                self.pack()
-            else:
-                # Switch shards
-                self.uninit()
-                self.init()
+                self.pack(filled_name)
 
     def delete(self, obj_id: bytes):
         shard_info = self.base.get(obj_id)
@@ -245,28 +241,27 @@ class WineryWriter(WineryReader):
         # was interrupted for whatever reason) run pack for each of them
         pass
 
-    def pack(self):
-        self.base.shard_packing_starts(self.shard.name)
+    def pack(self, shard_name: str):
+        self.base.shard_packing_starts(shard_name)
         p = Process(
             target=pack,
             kwargs={
-                "shard": self.shard.name,
+                "shard": shard_name,
                 "clean_immediately": self.clean_immediately,
                 **self.args,
             },
         )
-        self.uninit()
         p.start()
         self.packers.append(p)
-        self.init()
+
+    def on_shutdown(self):
+        self.release_shard()
 
     def __del__(self):
-        # This is needed if super().__init__ fails, and __del__ gets called
-        # before self.packers is defined.
-        if not hasattr(self, "packers"):
-            return
-
-        for p in self.packers:
+        for p in getattr(self, "packers", []):
+            if not p.is_alive():
+                continue
+            logger.warning("Killing packer %s", p)
             p.kill()
             p.join()
 

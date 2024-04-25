@@ -338,7 +338,6 @@ class ROShard:
 
     def __del__(self):
         self.close()
-        self.throttler.uninit()
 
     @staticmethod
     def delete(pool, shard_name, obj_id):
@@ -412,8 +411,6 @@ class ROShardCreator:
         self.shard.__exit__(exc_type, exc_val, exc_tb)
         if self.rbd_create_images and not exc_type:
             self.pool.image_remap_ro(self.name)
-        if not exc_type:
-            self.throttler.uninit()
 
     def zero_image_if_needed(self):
         """Check whether the image is empty, and zero it out if it's not.

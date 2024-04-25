@@ -117,12 +117,6 @@ class SharedBase(Database):
 
         logger.debug("SharedBase %s: instantiated", WRITER_UUID)
 
-    def uninit(self):
-        if self._locked_shard is not None:
-            self.set_shard_state(new_state=ShardState.STANDBY)
-        self._locked_shard = None
-        super().uninit()
-
     @property
     def locked_shard(self) -> str:
         self.set_locked_shard()
@@ -265,12 +259,12 @@ class SharedBase(Database):
         name: Optional[str] = None,
         db: Optional[psycopg.Connection] = None,
     ):
-        reset_locked_shard = False
         if not name:
             if not self._locked_shard:
                 raise ValueError("Can't set shard state, no shard specified or locked")
             name = self._locked_shard[0]
-            reset_locked_shard = True
+
+        reset_locked_shard = self._locked_shard and self._locked_shard[0] == name
 
         with ExitStack() as stack:
             if not db:
@@ -299,7 +293,8 @@ class SharedBase(Database):
             affected = c.rowcount
             if affected != 1:
                 raise ValueError(
-                    "set_pack_state(%s) affected %s rows, expected 1" % (name, affected)
+                    "set_shard_state(%s) affected %s rows, expected 1"
+                    % (name, affected)
                 )
 
             logger.debug(

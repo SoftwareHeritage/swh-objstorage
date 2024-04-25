@@ -56,11 +56,8 @@ class Database(abc.ABC):
             c = db.execute(QUERY)
             return [r[0].removeprefix("shard_") for r in c]
 
-    def uninit(self):
+    def __del__(self):
         # Release the connection pool
         if self._pool:
             self._pool.close()
             self._pool = None
-
-    def __del__(self):
-        self.uninit()

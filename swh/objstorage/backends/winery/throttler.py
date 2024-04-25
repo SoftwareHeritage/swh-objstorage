@@ -186,7 +186,3 @@ class Throttler:
     def throttle_add(self, fun, obj_id, content):
         self.write.add(len(obj_id) + len(content))
         return fun(obj_id, content)
-
-    def uninit(self):
-        self.read.uninit()
-        self.write.uninit()
