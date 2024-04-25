@@ -424,7 +424,7 @@ class ROShardCreator:
         """
         with open(self.path, "rb") as f:
             start = f.read(1024)
-            if set(start) == {b"\x00"}:
+            if set(start) == {0}:
                 return
 
         logger.warning("RO Shard %s isn't empty, cleaning it up", self.path)
