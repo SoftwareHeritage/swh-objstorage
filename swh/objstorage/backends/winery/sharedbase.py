@@ -106,10 +106,12 @@ class TemporaryShardLocker:
 class SharedBase(Database):
     current_version: int = 1
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(
+        self, base_dsn: str, application_name: str = "SWH Winery SharedBase", **kwargs
+    ) -> None:
         super().__init__(
-            dsn=kwargs["base_dsn"],
-            application_name=kwargs.get("application_name"),
+            dsn=base_dsn,
+            application_name=application_name,
         )
         self._locked_shard: Optional[Tuple[str, int]] = None
 

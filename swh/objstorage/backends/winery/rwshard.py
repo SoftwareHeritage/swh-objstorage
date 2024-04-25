@@ -15,15 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 class RWShard(Database):
-    def __init__(self, name: str, application_name: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        base_dsn: str,
+        shard_max_size: int,
+        application_name: Optional[str] = None,
+        **kwargs,
+    ):
         self._name = name
-        self.application_name = application_name
         if application_name is None:
-            self.application_name = f"SWH Winery RW Shard {name}"
-        super().__init__(kwargs["base_dsn"], self.application_name)
+            application_name = f"SWH Winery RW Shard {name}"
+        super().__init__(dsn=base_dsn, application_name=application_name)
         self.create()
         self.size = self.total_size()
-        self.limit = kwargs["shard_max_size"]
+        self.limit = shard_max_size
 
     @property
     def name(self) -> str:

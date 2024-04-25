@@ -5,74 +5,14 @@
 
 import abc
 import logging
-import os
-from typing import Dict, Optional, Tuple
 
 from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
 
-class PoolManager:
-    """Manage a set of connection pools"""
-
-    def __init__(self) -> None:
-        self.pools: Dict[Tuple[str, Optional[str]], ConnectionPool] = {}
-        self.refcounts: Dict[Tuple[str, Optional[str]], int] = {}
-
-        os.register_at_fork(after_in_child=self.reset_state)
-
-    def reset_state(self) -> None:
-        """Clean up the state after forking, ConnectionPools aren't multiprocess-safe"""
-        logger.debug("Fork detected, resetting PoolManager")
-        self.pools.clear()
-        self.refcounts.clear()
-
-    def get(self, conninfo: str, application_name: Optional[str]) -> ConnectionPool:
-        """Get a reference to this connection pool"""
-        key = (conninfo, application_name)
-        if key not in self.pools:
-            logger.debug("Creating connection pool for app=%s", application_name)
-            self.refcounts[key] = 0
-            self.pools[key] = ConnectionPool(
-                conninfo=conninfo,
-                kwargs={
-                    "application_name": application_name,
-                    "fallback_application_name": "SWH Winery",
-                    "autocommit": True,
-                },
-                name=f"pool-{application_name}" if application_name else "pool",
-                min_size=0,
-                max_size=4,
-                open=True,
-                max_idle=5,
-                check=ConnectionPool.check_connection,
-            )
-            logger.debug("Connection pools managed: %s", len(self.pools))
-
-        self.refcounts[key] += 1
-        return self.pools[key]
-
-    def release(self, conninfo: str, application_name: str) -> None:
-        """Release a reference to this connection pool"""
-        key = (conninfo, application_name)
-        if key not in self.pools:
-            return
-
-        self.refcounts[key] -= 1
-        if self.refcounts[key] <= 0:
-            logger.debug("Closing pool for app=%s", application_name)
-            del self.refcounts[key]
-            self.pools[key].close()
-            del self.pools[key]
-            logger.debug("Connection pools managed: %s", len(self.pools))
-
-
-POOLS = PoolManager()
-
-
 class Database(abc.ABC):
-    def __init__(self, dsn, application_name=None):
+    def __init__(self, dsn: str, application_name: str):
         self.dsn = dsn
         self.application_name = application_name
         self._pool = None
@@ -80,9 +20,21 @@ class Database(abc.ABC):
     @property
     def pool(self):
         if not self._pool:
-            self._pool = POOLS.get(
+            self._pool = ConnectionPool(
                 conninfo=self.dsn,
-                application_name=self.application_name,
+                kwargs={
+                    "application_name": self.application_name,
+                    "fallback_application_name": "SWH Winery",
+                    "autocommit": True,
+                },
+                name=f"pool-{self.application_name}"
+                if self.application_name
+                else "pool",
+                min_size=0,
+                max_size=4,
+                open=True,
+                max_idle=5,
+                check=ConnectionPool.check_connection,
             )
         return self._pool
 
@@ -105,13 +57,10 @@ class Database(abc.ABC):
             return [r[0].removeprefix("shard_") for r in c]
 
     def uninit(self):
+        # Release the connection pool
         if self._pool:
+            self._pool.close()
             self._pool = None
-            POOLS.release(
-                conninfo=self.dsn,
-                application_name=self.application_name,
-            )
 
     def __del__(self):
-        # Release the connection pool
         self.uninit()
