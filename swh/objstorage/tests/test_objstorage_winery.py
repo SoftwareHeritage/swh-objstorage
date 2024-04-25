@@ -10,7 +10,7 @@ from functools import partial
 import logging
 import os
 import shutil
-from threading import Event, Thread
+import threading
 import time
 from typing import Any, Dict
 
@@ -242,6 +242,12 @@ def storage(
     logger.debug("Instantiated storage %s on rbd pool %s", storage, rbd_pool_name)
     yield storage
     storage.on_shutdown()
+    names = [
+        thread.name
+        for thread in threading.enumerate()
+        if thread.name.startswith("IdleHandler")
+    ]
+    assert not names, f"Some IdleHandlers are still alive: {','.join(names)}"
 
 
 @pytest.fixture
@@ -296,7 +302,7 @@ def test_winery_add_concurrent(winery, mocker):
     class ManualReleaseSharedBase(SharedBase):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.release_obj_id = Event()
+            self.release_obj_id = threading.Event()
 
         def record_new_obj_id(self, *args, **kwargs):
             ret = super().record_new_obj_id(*args, **kwargs)
@@ -317,7 +323,9 @@ def test_winery_add_concurrent(winery, mocker):
 
     storages = [get_objstorage(cls="winery", **winery.args) for _ in range(num_threads)]
 
-    threads = [Thread(target=add_object, args=[storage]) for storage in storages]
+    threads = [
+        threading.Thread(target=add_object, args=[storage]) for storage in storages
+    ]
     for thread in threads:
         thread.start()
 

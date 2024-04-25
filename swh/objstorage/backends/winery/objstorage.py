@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from functools import partial
 import logging
 from multiprocessing import Process
 from typing import Callable, List, Optional, Tuple
@@ -161,6 +162,7 @@ class WineryWriter(WineryReader):
         self,
         pack_immediately: bool = True,
         clean_immediately: bool = True,
+        rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
         self.pack_immediately = pack_immediately
@@ -169,10 +171,12 @@ class WineryWriter(WineryReader):
         self.shards_filled: List[str] = []
         self.packers: List[Process] = []
         self._shard: Optional[RWShard] = None
+        self.idle_timeout = rwshard_idle_timeout
 
     def release_shard(
         self,
         shard: Optional[RWShard] = None,
+        from_idle_handler: bool = False,
         new_state: ShardState = ShardState.STANDBY,
     ):
         """Release the currently locked shard"""
@@ -185,19 +189,25 @@ class WineryWriter(WineryReader):
         logger.debug("WineryWriter releasing shard %s", shard.name)
 
         self.base.set_shard_state(new_state=new_state, name=shard.name)
+        if not from_idle_handler:
+            logger.debug("Shard released, disabling idle handler")
+            shard.disable_idle_handler()
         self._shard = None
 
     @property
     def shard(self):
-        """Lock a shard to be able to use it."""
+        """Lock a shard to be able to use it. Release it after :attr:`idle_timeout`."""
         if not self._shard:
             self._shard = RWShard(
                 self.base.locked_shard,
+                idle_timeout_cb=partial(self.release_shard, from_idle_handler=True),
+                idle_timeout=self.idle_timeout,
                 **self.args,
             )
             logger.debug(
-                "WineryBase: locked RWShard %s",
+                "WineryBase: locked RWShard %s, releasing it in %s",
                 self._shard.name,
+                self.idle_timeout,
             )
         return self._shard
 
