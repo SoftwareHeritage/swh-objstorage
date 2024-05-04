@@ -143,7 +143,8 @@ class RWShard(Database):
         with self.pool.connection() as db:
             db.execute(
                 f"CREATE TABLE IF NOT EXISTS {self.table_name} "
-                "(LIKE shard_template INCLUDING ALL)"
+                "(LIKE shard_template INCLUDING ALL) "
+                "WITH (autovacuum_enabled = false)"
             )
 
     def drop(self) -> None:
