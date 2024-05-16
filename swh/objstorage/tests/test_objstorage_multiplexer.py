@@ -10,7 +10,7 @@ import pytest
 
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
 from swh.objstorage.exc import ObjCorruptedError
-from swh.objstorage.multiplexer.multiplexer_objstorage import MultiplexerObjStorage
+from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.objstorage import compute_hashes
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -90,15 +90,13 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
     ok_storage = InMemoryObjStorage()
     ok_get = mocker.spy(ok_storage, "get")
 
-    multiplexer = MultiplexerObjStorage(storages=[corrupt_storage, ok_storage])
+    multiplexer = MultiplexerObjStorage(objstorages=[corrupt_storage, ok_storage])
     multiplexer.add(content_p, obj_id=obj_id_p)
 
     assert obj_id_p in corrupt_storage
     assert obj_id_p in ok_storage
 
-    with caplog.at_level(
-        logging.WARNING, "swh.objstorage.multiplexer.multiplexer_objstorage"
-    ):
+    with caplog.at_level(logging.WARNING, "swh.objstorage.multiplexer"):
         assert multiplexer.get(obj_id_p) == content_p
 
     corrupt_get.assert_called_once_with(obj_id_p)

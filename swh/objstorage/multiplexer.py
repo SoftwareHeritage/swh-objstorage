@@ -10,6 +10,7 @@ from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
 from swh.model.model import Sha1
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
 from swh.objstorage.utils import format_obj_id
@@ -172,11 +173,14 @@ class MultiplexerObjStorage(ObjStorage):
     def __init__(
         self,
         *,
-        storages: Iterable[ObjStorageInterface],
+        objstorages: Iterable[Union[ObjStorageInterface, Dict]],
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.storages = list(storages)
+        self.storages = [
+            get_objstorage(**sto) if isinstance(sto, dict) else sto
+            for sto in objstorages
+        ]
         self.storage_threads = [ObjStorageThread(storage) for storage in self.storages]
         for thread in self.storage_threads:
             thread.start()

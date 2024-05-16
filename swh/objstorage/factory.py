@@ -7,7 +7,6 @@ import importlib
 import warnings
 
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.objstorage import ObjStorage
 
 __all__ = ["get_objstorage", "ObjStorage"]
@@ -27,6 +26,7 @@ OBJSTORAGE_IMPLEMENTATIONS = {
     "swift": "swh.objstorage.backends.libcloud.OpenStackCloudObjStorage",
     "winery": "swh.objstorage.backends.winery.WineryObjStorage",
     # filters and proxies
+    "multiplexer": "swh.objstorage.multiplexer.MultiplexerObjStorage",
     "read-only": "swh.objstorage.proxies.readonly.ReadOnlyProxyObjStorage",
     # deprecated factories
     "filtered": "_construct_filtered_objstorage",
@@ -79,15 +79,3 @@ def _construct_filtered_objstorage(storage_conf, filters_conf, **kwargs):
     )
 
     return get_objstorage(cls="read-only", storage=get_objstorage(**storage_conf))
-
-
-def _construct_multiplexer_objstorage(objstorages=(), name="multiplexer", **kwargs):
-    storages = []
-    for i, conf in enumerate(c.copy() for c in objstorages):
-        if "name" not in conf:
-            conf["name"] = f"{name}.{i}:{conf['cls']}"
-        storages.append(get_objstorage(**conf))
-    return MultiplexerObjStorage(name=name, storages=storages, **kwargs)
-
-
-OBJSTORAGE_IMPLEMENTATIONS["multiplexer"] = "_construct_multiplexer_objstorage"

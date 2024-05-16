@@ -21,8 +21,6 @@ def get_cls(sto: ObjStorageInterface) -> Optional[str]:
     defined in factory.py)
     """
     for cls, v in OBJSTORAGE_IMPLEMENTATIONS.items():
-        if v == "_construct_multiplexer_objstorage":
-            v = "swh.objstorage.multiplexer.multiplexer_objstorage.MultiplexerObjStorage"
         if f"{sto.__class__.__module__}.{sto.__class__.__name__}" == v:
             return cls
     return None
