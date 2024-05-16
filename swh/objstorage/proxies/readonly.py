@@ -5,6 +5,7 @@
 
 from typing import Dict, Iterator, Union
 
+from swh.objstorage.exc import ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
@@ -53,13 +54,15 @@ class ReadOnlyProxyObjStorage(ObjStorage):
         return self.storage.check(obj_id, *args, **kwargs)
 
     def check_config(self, *, check_write):
+        if check_write:
+            return False
         return self.storage.check_config(check_write=False)
 
     def add(self, *args, **kwargs):
-        return
+        raise ReadOnlyObjStorageError("add")
 
     def restore(self, *args, **kwargs):
-        return
+        raise ReadOnlyObjStorageError("restore")
 
     def delete(self, *args, **kwargs):
-        return True
+        raise ReadOnlyObjStorageError("dalete")

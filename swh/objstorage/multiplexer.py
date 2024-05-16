@@ -130,7 +130,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     The multiplexer object storage allows an input to be demultiplexed
     among multiple storages that will or will not accept it by
-    themselves (see .filter package).
+    themselves.
 
     As the ids can be different, no pre-computed ids should be
     submitted.  Also, there are no guarantees that the returned ids
@@ -139,32 +139,16 @@ class MultiplexerObjStorage(ObjStorage):
 
     Use case examples follow.
 
-    Example 1::
+    Example::
 
-        storage_v1 = filter.read_only(PathSlicingObjStorage('/dir1',
-                                                            '0:2/2:4/4:6'))
+        storage_v1 = ReadOnlyProxyObjStorage(
+                        PathSlicingObjStorage('/dir1', '0:2/2:4/4:6')
+        )
         storage_v2 = PathSlicingObjStorage('/dir2', '0:1/0:5')
         storage = MultiplexerObjStorage([storage_v1, storage_v2])
 
     When using 'storage', all the new contents will only be added to the v2
     storage, while it will be retrievable from both.
-
-    Example 2::
-
-        storage_v1 = filter.id_regex(
-            PathSlicingObjStorage('/dir1', '0:2/2:4/4:6'),
-            r'[^012].*'
-        )
-        storage_v2 = filter.if_regex(
-            PathSlicingObjStorage('/dir2', '0:1/0:5'),
-            r'[012]/*'
-        )
-        storage = MultiplexerObjStorage([storage_v1, storage_v2])
-
-    When using this storage, the contents with a sha1 starting with 0, 1 or 2
-    will be redirected (read AND write) to the storage_v2, while the others
-    will be redirected to the storage_v1.  If a content starting with 0, 1 or 2
-    is present in the storage_v1, it would be ignored anyway.
 
     """
 
@@ -184,6 +168,11 @@ class MultiplexerObjStorage(ObjStorage):
         self.storage_threads = [ObjStorageThread(storage) for storage in self.storages]
         for thread in self.storage_threads:
             thread.start()
+        self.write_storage_threads = [
+            thread
+            for thread, storage in zip(self.storage_threads, self.storages)
+            if storage.check_config(check_write=True)
+        ]
 
     def wrap_call(self, threads, call, *args, **kwargs):
         threads = list(threads)
@@ -197,10 +186,13 @@ class MultiplexerObjStorage(ObjStorage):
         yield from self.storage_threads
 
     def get_write_threads(self, obj_id=None):
-        yield from self.storage_threads
+        yield from self.write_storage_threads
 
     def check_config(self, *, check_write):
         """Check whether the object storage is properly configured.
+
+        If check_write is True, return True if at least one object storage
+        returned True.
 
         Args:
             check_write (bool): if True, check if writes to the object storage
@@ -208,12 +200,20 @@ class MultiplexerObjStorage(ObjStorage):
 
         Returns:
             True if the configuration check worked, an exception if it didn't.
+
         """
-        return all(
-            self.wrap_call(
-                self.storage_threads, "check_config", check_write=check_write
+        if not check_write:
+            return all(
+                self.wrap_call(
+                    self.storage_threads, "check_config", check_write=check_write
+                )
             )
-        )
+        else:
+            return any(
+                self.wrap_call(
+                    self.storage_threads, "check_config", check_write=check_write
+                )
+            )
 
     def __contains__(self, obj_id: ObjId) -> bool:
         """Indicate if the given object is present in the storage.

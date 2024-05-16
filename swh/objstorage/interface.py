@@ -103,7 +103,10 @@ class ObjStorageInterface(Protocol):
             can succeed.
 
         Returns:
-            True if the configuration check worked, an exception if it didn't.
+            True if the configuration check worked, False if 'check_write' is
+            True and the object storage is actually read only, and an exception
+            if the check failed.
+
         """
         ...
 

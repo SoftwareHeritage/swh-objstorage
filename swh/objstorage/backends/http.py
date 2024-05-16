@@ -51,7 +51,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
-        return True
+        return check_write is False
 
     def __contains__(self, obj_id: ObjId) -> bool:
         resp = self.session.head(self._path(obj_id))

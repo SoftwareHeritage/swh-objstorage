@@ -9,7 +9,7 @@ import os
 import pytest
 
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
-from swh.objstorage.exc import ObjCorruptedError
+from swh.objstorage.exc import ObjCorruptedError, ReadOnlyObjStorageError
 from swh.objstorage.multiplexer import MultiplexerObjStorage
 from swh.objstorage.objstorage import compute_hashes
 
@@ -69,7 +69,8 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
     def test_access_readonly(self):
         # Add a content to the readonly storage
         content, obj_id = self.hash_content(b"content in read-only")
-        self.storage.storages[0].add(content, obj_id=obj_id)
+        with pytest.raises(ReadOnlyObjStorageError):
+            self.storage.storages[0].add(content, obj_id=obj_id)
         # Try to retrieve it on the main storage
         assert obj_id not in self.storage
 

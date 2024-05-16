@@ -5,7 +5,11 @@
 
 import pytest
 
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import (
+    ObjCorruptedError,
+    ObjNotFoundError,
+    ReadOnlyObjStorageError,
+)
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
 
@@ -75,12 +79,17 @@ def test_can_check(objstorage, contentdata):
 
 
 def test_cannot_add(objstorage, contentdata):
-    new_id = objstorage.add(b"New content")
-    result = objstorage.add(contentdata["valid_content"], contentdata["valid_id"])
-    assert new_id is None
-    assert result is None
+    with pytest.raises(ReadOnlyObjStorageError):
+        objstorage.add(b"New content")
+    with pytest.raises(ReadOnlyObjStorageError):
+        objstorage.add(contentdata["valid_content"], contentdata["valid_id"])
 
 
 def test_cannot_restore(objstorage, contentdata):
-    result = objstorage.restore(contentdata["valid_content"], contentdata["valid_id"])
-    assert result is None
+    with pytest.raises(ReadOnlyObjStorageError):
+        objstorage.restore(contentdata["valid_content"], contentdata["valid_id"])
+
+
+def test_check_config(objstorage):
+    assert objstorage.check_config(check_write=False) is True
+    assert objstorage.check_config(check_write=True) is False
