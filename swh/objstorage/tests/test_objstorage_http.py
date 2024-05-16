@@ -10,10 +10,10 @@ from requests_mock.contrib import fixture
 
 from swh.model import hashutil
 from swh.objstorage.exc import (
-    NonIterableObjStorage,
+    NonIterableObjStorageError,
     ObjCorruptedError,
     ObjNotFoundError,
-    ReadOnlyObjStorage,
+    ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import compute_hash
@@ -110,20 +110,20 @@ def test_http_objstorage_read_only():
 
     content = b""
     obj_id = compute_hash(content)
-    with pytest.raises(ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorageError):
         sto_front.add(content, obj_id=obj_id)
-    with pytest.raises(ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorageError):
         sto_front.restore(b"", obj_id=compute_hash(b""))
-    with pytest.raises(ReadOnlyObjStorage):
+    with pytest.raises(ReadOnlyObjStorageError):
         sto_front.delete(b"\x00" * 20)
 
 
 def test_http_objstorage_not_iterable():
     sto_front, sto_back, objids = build_objstorage()
 
-    with pytest.raises(NonIterableObjStorage):
+    with pytest.raises(NonIterableObjStorageError):
         len(sto_front)
-    with pytest.raises(NonIterableObjStorage):
+    with pytest.raises(NonIterableObjStorageError):
         iter(sto_front)
 
 

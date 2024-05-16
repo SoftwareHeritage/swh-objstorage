@@ -2,6 +2,7 @@
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+from deprecated import deprecated
 
 
 def _exc_message(base: str, args):
@@ -35,7 +36,7 @@ class ObjStorageAPIError(Exception):
         )
 
 
-class ReadOnlyObjStorage(Error):
+class ReadOnlyObjStorageError(Error):
     def __init__(self, method, *args):
         super().__init__(*args)
         self.method = method
@@ -44,10 +45,22 @@ class ReadOnlyObjStorage(Error):
         return f"This object storage is Read-Only: cannot use {self.method}"
 
 
-class NonIterableObjStorage(Error):
+ReadOnlyObjStorage = deprecated(
+    version="v3.1.0",
+    reason="This exception has been renamed as ReadOnlyObjStorageError",
+)(ReadOnlyObjStorageError)
+
+
+class NonIterableObjStorageError(Error):
     def __init__(self, method, *args):
         super().__init__(*args)
         self.method = method
 
     def __str__(self):
         return f"This object storage is not iterable: cannot use {self.method}"
+
+
+NonIterableObjStorage = deprecated(
+    version="v3.1.0",
+    reason="This exception has been renamed as NonIterableObjStorageError",
+)(NonIterableObjStorageError)

@@ -13,9 +13,9 @@ import requests
 from swh.model import hashutil
 from swh.objstorage.constants import ID_HASH_ALGO
 from swh.objstorage.exc import (
-    NonIterableObjStorage,
+    NonIterableObjStorageError,
     ObjNotFoundError,
-    ReadOnlyObjStorage,
+    ReadOnlyObjStorageError,
 )
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import (
@@ -58,26 +58,26 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return resp.status_code == 200
 
     def __iter__(self) -> Iterator[CompositeObjId]:
-        raise NonIterableObjStorage("__iter__")
+        raise NonIterableObjStorageError("__iter__")
 
     def __len__(self):
-        raise NonIterableObjStorage("__len__")
+        raise NonIterableObjStorageError("__len__")
 
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
-        raise ReadOnlyObjStorage("add")
+        raise ReadOnlyObjStorageError("add")
 
     def delete(self, obj_id: ObjId):
-        raise ReadOnlyObjStorage("delete")
+        raise ReadOnlyObjStorageError("delete")
 
     def restore(self, content: bytes, obj_id: ObjId) -> None:
-        raise ReadOnlyObjStorage("restore")
+        raise ReadOnlyObjStorageError("restore")
 
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: Optional[int] = DEFAULT_LIMIT,
     ) -> Iterator[CompositeObjId]:
-        raise NonIterableObjStorage("__len__")
+        raise NonIterableObjStorageError("__len__")
 
     def get(self, obj_id: ObjId) -> bytes:
         try:

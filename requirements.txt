@@ -3,6 +3,7 @@
 # dependency lines, see https://pip.readthedocs.org/en/1.1/requirements.html
 
 click
+deprecated
 msgpack
 typing-extensions >= 3.7.4
 
