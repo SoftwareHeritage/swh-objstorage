@@ -27,13 +27,12 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
             "cls": "multiplexer",
             "objstorages": [
                 {
-                    "cls": "filtered",
-                    "storage_conf": {
+                    "cls": "read-only",
+                    "storage": {
                         "cls": "pathslicing",
                         "root": root1,
                         "slicing": "0:2/2:4",
                     },
-                    "filters_conf": [{"type": "readonly"}],
                 },
                 {
                     "cls": "pathslicing",

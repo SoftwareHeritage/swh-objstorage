@@ -23,8 +23,6 @@ def get_cls(sto: ObjStorageInterface) -> Optional[str]:
     for cls, v in OBJSTORAGE_IMPLEMENTATIONS.items():
         if v == "_construct_multiplexer_objstorage":
             v = "swh.objstorage.multiplexer.multiplexer_objstorage.MultiplexerObjStorage"
-        if v == "_construct_filtered_objstorage":
-            v = "swh.objstorage.multiplexer.filer.read_write_filer.ReadObjStorageFilter"
         if f"{sto.__class__.__module__}.{sto.__class__.__name__}" == v:
             return cls
     return None
