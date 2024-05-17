@@ -19,6 +19,7 @@ from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
+    timed,
 )
 
 from .http import HttpFiler
@@ -57,6 +58,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         # FIXME: hopefully this blew up during instantiation
         return True
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         return self.wf.exists(self._path(obj_id))
 
@@ -86,15 +88,18 @@ class SeaweedFilerObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
             return
 
         self.wf.put(io.BytesIO(self.compress(content)), self._path(obj_id))
 
+    @timed
     def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         try:
             obj = self.wf.get(self._path(obj_id))

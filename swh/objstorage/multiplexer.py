@@ -8,12 +8,17 @@ import queue
 import threading
 from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 
+# note: it's required to access the statsd object form the statsd module to
+# help mocking it in tests...
+from swh.core import statsd
 from swh.model.model import Sha1
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
-from swh.objstorage.objstorage import ObjStorage
+from swh.objstorage.objstorage import ObjStorage, timed
 from swh.objstorage.utils import format_obj_id
+
+MP_COUNTER_METRICS = "swh_objstorage_multiplexer_backend_total"
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +220,7 @@ class MultiplexerObjStorage(ObjStorage):
                 )
             )
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         """Indicate if the given object is present in the storage.
 
@@ -238,6 +244,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         return obj_iterator()
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add a new object to the object storage.
 
@@ -258,6 +265,10 @@ class MultiplexerObjStorage(ObjStorage):
             always readable as well, any id will be valid to retrieve a
             content.
         """
+        # note: we do not have per-backend statsd metrics here because the
+        # threading scaffolding to manage IO with backends makes it a bit
+        # harder to do in a nice manner; plus metrics should be available in
+        # the backend objstorages themselves.
         self.wrap_call(
             self.get_write_threads(obj_id),
             "add",
@@ -298,11 +309,23 @@ class MultiplexerObjStorage(ObjStorage):
             obj_id=obj_id,
         ).pop()
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         corrupted_exc: Optional[ObjCorruptedError] = None
-        for storage in self.get_read_threads(obj_id):
+        for i, storage in enumerate(self.get_read_threads(obj_id)):
             try:
-                return storage.get(obj_id)
+                obj = storage.get(obj_id)
+                statsd.statsd.increment(
+                    MP_COUNTER_METRICS,
+                    1,
+                    tags={
+                        "endpoint": "get",
+                        "name": self.name,
+                        "backend": storage.storage.name,
+                        "backend_number": i,
+                    },
+                )
+                return obj
             except ObjNotFoundError:
                 continue
             except ObjCorruptedError as exc:

@@ -16,7 +16,7 @@ from swh.objstorage.exc import (
     ObjStorageAPIError,
 )
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
-from swh.objstorage.objstorage import objid_to_default_hex
+from swh.objstorage.objstorage import objid_to_default_hex, timed
 
 
 class RemoteObjStorage(RPCClient):
@@ -61,3 +61,11 @@ class RemoteObjStorage(RPCClient):
             stream=True,
         )
         yield from msgpack.Unpacker(response.raw, raw=False)
+
+
+# XXX Maybe there is a better way of doing this, but according the automagic
+# way this class is built (via the MetaRPCClient metaclass), one cannot easily
+# just overload the methods in the class definition.
+RemoteObjStorage.get = timed(RemoteObjStorage.get)  # type: ignore
+RemoteObjStorage.add = timed(RemoteObjStorage.add)  # type: ignore
+RemoteObjStorage.__contains__ = timed(RemoteObjStorage.__contains__)  # type: ignore

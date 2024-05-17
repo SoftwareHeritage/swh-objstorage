@@ -21,6 +21,7 @@ from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
+    timed,
 )
 
 
@@ -119,6 +120,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         # FIXME: hopefully this blew up during instantiation
         return True
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         try:
             self._get_object(obj_id)
@@ -160,6 +162,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """
         return sum(1 for i in self)
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         if check_presence and obj_id in self:
             return
@@ -169,6 +172,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def restore(self, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
         return self.decompress(obj, objid_to_default_hex(obj_id))

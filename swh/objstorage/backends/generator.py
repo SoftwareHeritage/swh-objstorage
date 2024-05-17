@@ -5,7 +5,9 @@ from typing import Generator, Iterator, Optional, cast
 
 from swh.objstorage.constants import ID_HASH_ALGO
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage
+from swh.objstorage.objstorage import DEFAULT_LIMIT, ObjStorage, timed
+
+# we decorate methods with timed here to make tests pass without special care
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +191,7 @@ class RandomGeneratorObjStorage(ObjStorage):
     def check_config(self, *, check_write):
         return True
 
+    @timed
     def __contains__(self, obj_id, *args, **kwargs):
         return False
 
@@ -204,9 +207,11 @@ class RandomGeneratorObjStorage(ObjStorage):
             else:
                 i += 1
 
+    @timed
     def get(self, obj_id, *args, **kwargs):
         return next(self.content_generator)
 
+    @timed
     def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         pass
 

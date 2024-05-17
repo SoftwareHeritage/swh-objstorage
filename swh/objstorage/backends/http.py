@@ -23,6 +23,7 @@ from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
+    timed,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         """Check the configuration for this object storage"""
         return check_write is False
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
@@ -63,6 +65,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def __len__(self):
         raise NonIterableObjStorageError("__len__")
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         raise ReadOnlyObjStorageError("add")
 
@@ -79,6 +82,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     ) -> Iterator[CompositeObjId]:
         raise NonIterableObjStorageError("__len__")
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         try:
             resp = self.session.get(self._path(obj_id))

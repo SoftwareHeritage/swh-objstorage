@@ -131,6 +131,11 @@ class ObjStorageTestFixture:
         self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
+    def test_add_statsd(self, statsd):
+        content, obj_id = self.hash_content(b"add_get_w_id")
+        self.storage.add(content, obj_id=obj_id)
+        self.check_statsd(statsd, "add")
+
     def test_add_get_batch(self):
         content1, obj_id1 = self.hash_content(b"add_get_batch_1")
         content2, obj_id2 = self.hash_content(b"add_get_batch_2")
@@ -154,6 +159,39 @@ class ObjStorageTestFixture:
         result = list(self.storage.get_batch([obj_id]))
         assert len(result) == 1
         assert result[0] is None
+
+    def check_statsd(self, statsd, endpoint):
+        while True:
+            stats = statsd.socket.recv()
+            assert stats
+            value, unit, tags = stats.split("|")
+            if (
+                f"name:{self.storage.name}" in tags
+                and f"endpoint:{endpoint}" in tags
+                and value.startswith("swh_objstorage_request_duration_seconds:")
+            ):
+                assert unit == "ms"
+                return
+        assert False, "Missing expected statsd message"
+
+    def test_get_statsd(self, statsd):
+        content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
+        content2, obj_id2 = self.compositehash_content(b"add_get_batch_2")
+        self.storage.add(content1, obj_id1)
+        self.storage.add(content2, obj_id2)
+        while statsd.socket.recv():
+            pass
+        content = self.storage.get(obj_id1)
+        assert content == content1
+        content = self.storage.get(obj_id2)
+        assert content == content2
+        content = self.storage.get(obj_id2)
+        content3, obj_id3 = self.hash_content(b"get_missing")
+        with pytest.raises(ObjNotFoundError):
+            self.storage.get(obj_id3)
+
+        for endpoint in ("get", "get", "get"):
+            self.check_statsd(statsd, endpoint)
 
     def test_restore_content(self):
         self.storage.allow_delete = True

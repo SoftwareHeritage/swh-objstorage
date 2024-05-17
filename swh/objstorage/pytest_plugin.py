@@ -5,6 +5,7 @@
 
 import pytest
 
+from swh.core.pytest_plugin import FakeSocket
 from swh.objstorage.factory import get_objstorage
 
 
@@ -27,3 +28,21 @@ def swh_objstorage(swh_objstorage_config):
     returned by the ``swh_objstorage_config`` fixture.
     """
     return get_objstorage(**swh_objstorage_config)
+
+
+@pytest.fixture
+def statsd():
+    """Simple fixture giving a Statsd instance suitable for tests
+
+    It will replace the `swh.core.statsd.statsd` instance with this one.
+
+    The Statsd instance uses a FakeSocket as `.socket` attribute in which one
+    can get the accumulated statsd messages in a deque in `.socket.payloads`.
+    """
+
+    import swh.core.statsd
+
+    statsd = swh.core.statsd.Statsd()
+    statsd._socket = FakeSocket()
+    swh.core.statsd.statsd = statsd
+    yield statsd

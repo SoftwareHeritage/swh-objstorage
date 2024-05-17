@@ -24,7 +24,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
-from swh.objstorage.objstorage import CompressionFormat, ObjStorage
+from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
 from swh.objstorage.utils import call_async
 
 
@@ -214,6 +214,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         return True
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
@@ -240,6 +241,7 @@ class AzureCloudObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add an obj in storage if it's not there already."""
         if check_presence and obj_id in self:
@@ -267,6 +269,7 @@ class AzureCloudObjStorage(ObjStorage):
 
         return self.add(content, obj_id, check_presence=False)
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         """retrieve blob's content if found."""
         return call_async(self._get_async, obj_id)

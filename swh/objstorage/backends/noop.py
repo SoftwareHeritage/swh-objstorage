@@ -3,7 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.objstorage.objstorage import ObjStorage
+from swh.objstorage.objstorage import ObjStorage, timed
+
+# we decorate methods with timed here to make tests pass without special care
 
 
 class NoopObjStorage(ObjStorage):
@@ -21,12 +23,15 @@ class NoopObjStorage(ObjStorage):
     def check_config(self, *, check_write):
         return True
 
+    @timed
     def __contains__(self, obj_id, *args, **kwargs):
         return False
 
+    @timed
     def add(self, content, obj_id, check_presence=True, *args, **kwargs):
         pass
 
+    @timed
     def get(self, obj_id, *args, **kwargs):
         return None
 

@@ -23,6 +23,7 @@ from swh.objstorage.objstorage import (
     ObjStorage,
     compressors,
     objid_to_default_hex,
+    timed,
 )
 
 BUFSIZ = 1048576
@@ -210,6 +211,7 @@ class PathSlicingObjStorage(ObjStorage):
 
         return True
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         hex_obj_id = objid_to_default_hex(obj_id)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
@@ -250,6 +252,7 @@ class PathSlicingObjStorage(ObjStorage):
         """
         return sum(1 for i in self)
 
+    @timed
     def add(
         self,
         content: bytes,
@@ -264,6 +267,7 @@ class PathSlicingObjStorage(ObjStorage):
         with self._write_obj_file(hex_obj_id) as f:
             f.write(self.compress(content))
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)

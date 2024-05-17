@@ -10,7 +10,7 @@ from typing import Callable, List, Optional, Tuple
 
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
-from swh.objstorage.objstorage import ObjStorage
+from swh.objstorage.objstorage import ObjStorage, timed
 
 from .roshard import (
     DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
@@ -38,15 +38,18 @@ class WineryObjStorage(ObjStorage):
         else:
             self.winery = WineryWriter(**kwargs)
 
+    @timed
     def get(self, obj_id: ObjId) -> bytes:
         return self.winery.get(self._hash(obj_id))
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
 
+    @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         return self._hash(obj_id) in self.winery
 
+    @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         self.winery.add(content, self._hash(obj_id), check_presence)
 
