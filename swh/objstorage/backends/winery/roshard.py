@@ -332,8 +332,8 @@ class ROShard:
         return self.throttler.throttle_get(self.shard.lookup, key)
 
     def close(self):
-        if self.shard:
-            self.shard.close()
+        if shard := getattr(self, "shard", None):
+            shard.close()
         self.shard = None
 
     def __del__(self):
