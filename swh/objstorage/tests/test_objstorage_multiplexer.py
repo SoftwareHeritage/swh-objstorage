@@ -262,7 +262,9 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
     assert obj_id_p in corrupt_storage
     assert obj_id_p in ok_storage
 
-    with caplog.at_level(logging.WARNING, "swh.objstorage.multiplexer"):
+    with caplog.at_level(logging.WARNING, "swh.core.statsd"), caplog.at_level(
+        logging.WARNING, "swh.objstorage.multiplexer"
+    ):
         assert multiplexer.get(obj_id_p) == content_p
 
     corrupt_get.assert_called_once_with(obj_id_p)
