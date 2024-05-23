@@ -11,8 +11,17 @@ from typing import Dict, List, Tuple
 import pytest
 
 from swh.objstorage.backends.in_memory import InMemoryObjStorage
-from swh.objstorage.exc import ObjCorruptedError, ReadOnlyObjStorageError
-from swh.objstorage.multiplexer import MP_COUNTER_METRICS, MultiplexerObjStorage
+from swh.objstorage.exc import (
+    NoBackendsLeftError,
+    ObjCorruptedError,
+    ReadOnlyObjStorageError,
+)
+from swh.objstorage.multiplexer import (
+    MP_BACKEND_DISABLED_METRICS,
+    MP_BACKEND_ENABLED_METRICS,
+    MP_COUNTER_METRICS,
+    MultiplexerObjStorage,
+)
 from swh.objstorage.objstorage import DURATION_METRICS, compute_hashes
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -275,5 +284,109 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
         "was reported as corrupted by backend 'corrupted_objstorage'"
         in caplog.records[0].message
     )
+
+
+def test_multiplexer_transient_error_fallback(mocker, caplog, statsd):
+    content_p = b"contains_present"
+    obj_id_p = compute_hashes(content_p)
+
+    class TimeoutInMemoryObjStorage(InMemoryObjStorage):
+        name = "timeout-in-memory"
+
+        def get(self, obj_id):
+            raise TimeoutError("Always timeout", obj_id)
+
+    timeout_storage = TimeoutInMemoryObjStorage(name="always-timeout")
+    timeout_get = mocker.spy(timeout_storage, "get")
+
+    ok_storage = InMemoryObjStorage()
+    ok_get = mocker.spy(ok_storage, "get")
+
+    multiplexer = MultiplexerObjStorage(
+        objstorages=[timeout_storage, ok_storage],
+        read_exception_cooldown=2,
+        name="my-multiplexer",
+    )
+    multiplexer.add(content_p, obj_id=obj_id_p)
+
+    assert obj_id_p in timeout_storage
+    assert obj_id_p in ok_storage
+
+    with caplog.at_level(
+        logging.WARNING, "swh.objstorage.multiplexer.multiplexer_objstorage"
+    ):
+        assert multiplexer.get(obj_id_p) == content_p
+
+    timeout_get.assert_called_once_with(obj_id_p)
+    ok_get.assert_called_once_with(obj_id_p)
+
+    assert len(caplog.records) == 1
+    assert "always-timeout" in caplog.records[0].message
+    assert "transient" in caplog.records[0].message
     for algo, hash in obj_id_p.items():
         assert f"{algo}:{hash.hex()}" in caplog.records[0].message
+
+    assert 0 in multiplexer.reset_timers
+
+    assert (
+        MP_BACKEND_DISABLED_METRICS,
+        {
+            "backend": "always-timeout",
+            "backend_number": "0",
+            "endpoint": "get",
+            "name": "my-multiplexer",
+        },
+    ) in statsd_payloads_having_tags(statsd, name="my-multiplexer")
+
+    clear_statsd_payloads(statsd)
+
+    timeout_get.reset_mock()
+    assert multiplexer.get(obj_id_p) == content_p
+
+    timeout_get.assert_not_called()
+
+    assert MP_BACKEND_DISABLED_METRICS not in (
+        metric
+        for metric, tags in statsd_payloads_having_tags(statsd, name="my-multiplexer")
+    )
+    clear_statsd_payloads(statsd)
+
+    multiplexer.enable_backend(name="always-timeout", i=0)
+
+    assert (
+        MP_BACKEND_ENABLED_METRICS,
+        {
+            "backend": "always-timeout",
+            "backend_number": "0",
+            "name": "my-multiplexer",
+        },
+    ) in statsd_payloads_having_tags(statsd, name="my-multiplexer")
+    clear_statsd_payloads(statsd)
+
+    assert multiplexer.get(obj_id_p) == content_p
+    timeout_get.assert_called_once_with(obj_id_p)
+
+    assert (
+        MP_BACKEND_DISABLED_METRICS,
+        {
+            "backend": "always-timeout",
+            "backend_number": "0",
+            "endpoint": "get",
+            "name": "my-multiplexer",
+        },
+    ) in statsd_payloads_having_tags(statsd, name="my-multiplexer")
+
+
+def test_multiplexer_transient_error_nobackendsleft(mocker, caplog):
+    content_p = b"contains_present"
+    obj_id_p = compute_hashes(content_p)
+
+    class TimeoutInMemoryObjStorage(InMemoryObjStorage):
+        def get(self, obj_id):
+            raise TimeoutError("Always timeout", obj_id)
+
+    multiplexer = MultiplexerObjStorage(objstorages=[TimeoutInMemoryObjStorage()])
+    multiplexer.add(content_p, obj_id=obj_id_p)
+
+    with pytest.raises(NoBackendsLeftError):
+        multiplexer.get(obj_id=obj_id_p)

@@ -27,6 +27,11 @@ class ObjCorruptedError(Error):
         return _exc_message("Object corrupted", self.args)
 
 
+class NoBackendsLeftError(Error):
+    def __str__(self) -> str:
+        return _exc_message("No backends left to read from", self.args)
+
+
 class ObjStorageAPIError(Exception):
     """Specific internal exception of an object storage (mainly connection)."""
 

@@ -11,6 +11,7 @@ from swh.core.api import RPCClient
 from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import (
     Error,
+    NoBackendsLeftError,
     ObjCorruptedError,
     ObjNotFoundError,
     ObjStorageAPIError,
@@ -33,7 +34,12 @@ class RemoteObjStorage(RPCClient):
     """
 
     api_exception = ObjStorageAPIError
-    reraise_exceptions = [ObjNotFoundError, Error, ObjCorruptedError]
+    reraise_exceptions = [
+        ObjNotFoundError,
+        Error,
+        ObjCorruptedError,
+        NoBackendsLeftError,
+    ]
     backend_class = ObjStorageInterface
     name: str = "remote"
 

@@ -17,7 +17,12 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.core.config import read as config_read
 from swh.core.statsd import statsd
-from swh.objstorage.exc import Error, ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import (
+    Error,
+    NoBackendsLeftError,
+    ObjCorruptedError,
+    ObjNotFoundError,
+)
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
 
@@ -50,7 +55,12 @@ def get_objstorage():
 
 
 class ObjStorageServerApp(RPCServerApp):
-    client_exception_classes = (ObjNotFoundError, ObjCorruptedError, Error)
+    client_exception_classes = (
+        Error,
+        NoBackendsLeftError,
+        ObjCorruptedError,
+        ObjNotFoundError,
+    )
     method_decorators = [timed]
 
     def pre_add(self, kw):

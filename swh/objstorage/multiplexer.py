@@ -6,21 +6,37 @@
 import logging
 import queue
 import threading
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union
 
 # note: it's required to access the statsd object form the statsd module to
 # help mocking it in tests...
 from swh.core import statsd
 from swh.model.model import Sha1
-from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
+from swh.objstorage.exc import (
+    NoBackendsLeftError,
+    ObjCorruptedError,
+    ObjNotFoundError,
+    ObjStorageAPIError,
+)
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage, timed
 from swh.objstorage.utils import format_obj_id
 
 MP_COUNTER_METRICS = "swh_objstorage_multiplexer_backend_total"
+MP_BACKEND_DISABLED_METRICS = "swh_objstorage_multiplexer_backend_disabled_total"
+MP_BACKEND_ENABLED_METRICS = "swh_objstorage_multiplexer_backend_enabled_total"
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TRANSIENT_READ_EXCEPTIONS = (
+    "requests.exceptions.ConnectTimeout",
+    "requests.exceptions.ReadTimeout",
+    "requests.exceptions.SSLError",
+    "requests.exceptions.ConnectionError",
+    "builtins.TimeoutError",
+    "builtins.IOError",
+)
 
 
 class ObjStorageThread(threading.Thread):
@@ -163,6 +179,8 @@ class MultiplexerObjStorage(ObjStorage):
         self,
         *,
         objstorages: Iterable[Union[ObjStorageInterface, Dict]],
+        read_exception_cooldown: float = 5,
+        transient_read_exceptions: Optional[List[str]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -178,6 +196,71 @@ class MultiplexerObjStorage(ObjStorage):
             for thread, storage in zip(self.storage_threads, self.storages)
             if storage.check_config(check_write=True)
         ]
+
+        self.read_exception_cooldown = read_exception_cooldown
+        self.transient_read_exceptions = set(
+            transient_read_exceptions or DEFAULT_TRANSIENT_READ_EXCEPTIONS
+        )
+
+        self.active_readers: Set[int] = set()
+        self.reset_timers: Dict[int, threading.Timer] = {}
+        self.reset_active_readers()
+
+    def reset_active_readers(self):
+        """Reset the active readers set to all storages, and cancel all reset_failed_threads"""
+        for t in self.reset_timers.values():
+            if t.is_alive():
+                t.cancel()
+
+        self.reset_timers = {}
+        self.active_readers = set(range(len(self.storages)))
+
+    def disable_backend(self, endpoint: str, name: str, i: int) -> None:
+        """Mark read backend `name` at index `i` as failed, from endpoint `endpoint`."""
+        if i not in self.active_readers:
+            return
+
+        statsd.statsd.increment(
+            MP_BACKEND_DISABLED_METRICS,
+            1,
+            tags={
+                "endpoint": endpoint,
+                "name": self.name,
+                "backend": name,
+                "backend_number": i,
+            },
+        )
+
+        self.active_readers.remove(i)
+        if i not in self.reset_timers:
+            reset_failed_timer = threading.Timer(
+                self.read_exception_cooldown,
+                self.enable_backend,
+                kwargs={"name": name, "i": i},
+            )
+            reset_failed_timer.start()
+            self.reset_timers[i] = reset_failed_timer
+
+        if not self.active_readers:
+            raise NoBackendsLeftError(
+                "All backends disabled due to transient failures!"
+            )
+
+    def enable_backend(self, name: str, i: int):
+        """Mark a reader as available again"""
+        statsd.statsd.increment(
+            MP_BACKEND_ENABLED_METRICS,
+            1,
+            tags={
+                "name": self.name,
+                "backend": name,
+                "backend_number": i,
+            },
+        )
+
+        self.active_readers.add(i)
+        if i in self.reset_timers:
+            del self.reset_timers[i]
 
     def wrap_call(self, threads, call, *args, **kwargs):
         threads = list(threads)
@@ -239,8 +322,9 @@ class MultiplexerObjStorage(ObjStorage):
 
     def __iter__(self) -> Iterator[CompositeObjId]:
         def obj_iterator():
-            for storage in self.storages:
-                yield from storage
+            for i, storage in enumerate(self.storages):
+                if i in self.active_readers:
+                    yield from storage
 
         return obj_iterator()
 
@@ -313,6 +397,8 @@ class MultiplexerObjStorage(ObjStorage):
     def get(self, obj_id: ObjId) -> bytes:
         corrupted_exc: Optional[ObjCorruptedError] = None
         for i, storage in enumerate(self.get_read_threads(obj_id)):
+            if i not in self.active_readers:
+                continue
             try:
                 obj = storage.get(obj_id)
                 statsd.statsd.increment(
@@ -340,6 +426,21 @@ class MultiplexerObjStorage(ObjStorage):
                 corrupted_exc = exc
                 # Try reading from another storage
                 continue
+            except Exception as exc:
+                if isinstance(exc, ObjStorageAPIError):
+                    exc = exc.args[0]
+                exc_class = f"{exc.__class__.__module__}.{exc.__class__.__name__}"
+                if exc_class in self.transient_read_exceptions:
+                    logger.warning(
+                        "While reading object %s, received transient read "
+                        "exception on backend %s, marking backend as failed",
+                        format_obj_id(obj_id),
+                        storage.storage.name,
+                        exc_info=True,
+                    )
+                    self.disable_backend(endpoint="get", name=storage.storage.name, i=i)
+                    continue
+                raise
 
         if corrupted_exc:
             # The only objects we've found were corrupted, raise that exception
