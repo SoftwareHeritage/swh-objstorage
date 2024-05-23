@@ -6,6 +6,7 @@
 import logging
 import os
 import re
+from typing import Dict, List, Tuple
 
 import pytest
 
@@ -15,6 +16,30 @@ from swh.objstorage.multiplexer import MP_COUNTER_METRICS, MultiplexerObjStorage
 from swh.objstorage.objstorage import DURATION_METRICS, compute_hashes
 
 from .objstorage_testing import ObjStorageTestFixture
+
+
+def statsd_payloads_having_tags(
+    statsd, **tags: str
+) -> List[Tuple[str, Dict[str, str]]]:
+    ret = []
+    for s in statsd.socket.payloads:
+        m = re.fullmatch(
+            r"^(?P<metric_name>[^:]+):(?P<value>[^|]+)[|](?P<unit>ms|c)[|](#(?P<tags>.*))?$",
+            s.decode(),
+        )
+        if not m:
+            continue
+        payload_tags = {}
+        for tag in m.group("tags").split(","):
+            tag, value = tag.split(":", 1)
+            payload_tags[tag] = value
+        if tags.items() <= payload_tags.items():
+            ret.append((m.group("metric_name"), payload_tags))
+    return ret
+
+
+def clear_statsd_payloads(statsd) -> None:
+    statsd.socket.payloads.clear()
 
 
 class TestMultiplexerObjStorage(ObjStorageTestFixture):
@@ -86,21 +111,16 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         self.storage.add(content2, obj_id2)
         expected_payloads = [
             # first call to add()
-            f"{DURATION_METRICS}:#endpoint:add,name:multiplexer",
+            (DURATION_METRICS, {"endpoint": "add", "name": "multiplexer"}),
             # second call to add()
-            f"{DURATION_METRICS}:#endpoint:add,name:multiplexer",
+            (DURATION_METRICS, {"endpoint": "add", "name": "multiplexer"}),
         ]
-        payloads = [
-            # only check statsd entried from the multiplexer itself
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:multiplexer" in s
-        ]
+        payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert payloads == expected_payloads
 
         # add a content in the RO backend
         self.storage.storages[0].storage.add(content3, obj_id3)
-        statsd.socket.payloads.clear()
+        clear_statsd_payloads(statsd)
 
         self.storage.get(obj_id1)
         self.storage.get(obj_id2)
@@ -109,58 +129,81 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # check metrics reported by the multiplexer itself
         expected_mp_payloads = [
             # first get()
-            f"{MP_COUNTER_METRICS}:#backend:rw_backend,backend_number:1,endpoint:get,name:multiplexer",
-            f"{DURATION_METRICS}:#endpoint:get,name:multiplexer",
+            (
+                MP_COUNTER_METRICS,
+                {
+                    "backend": "rw_backend",
+                    "backend_number": "1",
+                    "endpoint": "get",
+                    "name": "multiplexer",
+                },
+            ),
+            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
             # second get()
-            f"{MP_COUNTER_METRICS}:#backend:rw_backend,backend_number:1,endpoint:get,name:multiplexer",
-            f"{DURATION_METRICS}:#endpoint:get,name:multiplexer",
+            (
+                MP_COUNTER_METRICS,
+                {
+                    "backend": "rw_backend",
+                    "backend_number": "1",
+                    "endpoint": "get",
+                    "name": "multiplexer",
+                },
+            ),
+            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
             # third get()
-            f"{MP_COUNTER_METRICS}:#backend:ro_backend,backend_number:0,endpoint:get,name:multiplexer",
-            f"{DURATION_METRICS}:#endpoint:get,name:multiplexer",
+            (
+                MP_COUNTER_METRICS,
+                {
+                    "backend": "ro_backend",
+                    "backend_number": "0",
+                    "endpoint": "get",
+                    "name": "multiplexer",
+                },
+            ),
+            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
         ]
-        mp_payloads = [
-            # only check statsd entried from the multiplexer itself
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:multiplexer" in s
-        ]
+        mp_payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert mp_payloads == expected_mp_payloads
 
         # check metrics reported by the ro backend (aka pathslicer_1)
         expected_ro_payloads = [
             # first get()
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
-            f"{DURATION_METRICS}_error_count:#endpoint:get,error_type:ObjNotFoundError,name:pathslicer_1",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (
+                f"{DURATION_METRICS}_error_count",
+                {
+                    "endpoint": "get",
+                    "error_type": "ObjNotFoundError",
+                    "name": "pathslicer_1",
+                },
+            ),
             # second get()
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
-            f"{DURATION_METRICS}_error_count:#endpoint:get,error_type:ObjNotFoundError,name:pathslicer_1",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (
+                f"{DURATION_METRICS}_error_count",
+                {
+                    "endpoint": "get",
+                    "error_type": "ObjNotFoundError",
+                    "name": "pathslicer_1",
+                },
+            ),
             # third get()
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
-            f"{DURATION_METRICS}:#endpoint:get,name:pathslicer_1",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "get", "name": "pathslicer_1"}),
         ]
-        ro_payloads = [
-            # only check statsd entried from the ro backend
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:pathslicer_1" in s
-        ]
+        ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
         assert ro_payloads == expected_ro_payloads
 
         # check metrics reported by the rw backend (aka rw_backend)
         expected_rw_payloads = [
             # first get()
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:rw_backend",
-            f"{DURATION_METRICS}:#endpoint:get,name:rw_backend",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
             # second get()
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:rw_backend",
-            f"{DURATION_METRICS}:#endpoint:get,name:rw_backend",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
         ]
-        rw_payloads = [
-            # only check statsd entried from the rw backend
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:rw_backend" in s
-        ]
+        rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
         assert rw_payloads == expected_rw_payloads
 
         # clear the statsd messages
@@ -174,41 +217,26 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # than get, so we don't have any simple stat on who answered the
         # request...
         expected_mp_payloads = [
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:multiplexer",
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:multiplexer",
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:multiplexer",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
         ]
-        mp_payloads = [
-            # only check statsd entried from the multiplexer itself
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:multiplexer" in s
-        ]
+        mp_payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert mp_payloads == expected_mp_payloads
 
         expected_ro_payloads = [
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:pathslicer_1",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
         ]
-        ro_payloads = [
-            # only check statsd entried from the ro backend
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:pathslicer_1" in s
-        ]
+        ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
         assert ro_payloads == expected_ro_payloads
 
         expected_rw_payloads = [
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:rw_backend",
-            f"{DURATION_METRICS}:#endpoint:__contains__,name:rw_backend",
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
         ]
-        rw_payloads = [
-            # only check statsd entried from the ro backend
-            re.sub(r"[:].*[|](ms|c)[|]", ":", s.decode(), 1)
-            for s in statsd.socket.payloads
-            if b"name:rw_backend" in s
-        ]
+        rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
         assert rw_payloads == expected_rw_payloads
 
 
