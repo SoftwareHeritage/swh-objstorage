@@ -11,6 +11,7 @@ from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple
 # note: it's required to access the statsd object form the statsd module to
 # help mocking it in tests...
 from swh.core import statsd
+from swh.core.api import RemoteException
 from swh.model.model import Sha1
 from swh.objstorage.exc import (
     NoBackendsLeftError,
@@ -191,11 +192,23 @@ class MultiplexerObjStorage(ObjStorage):
         self.storage_threads = [ObjStorageThread(storage) for storage in self.storages]
         for thread in self.storage_threads:
             thread.start()
-        self.write_storage_threads = [
-            thread
-            for thread, storage in zip(self.storage_threads, self.storages)
-            if storage.check_config(check_write=True)
-        ]
+
+        self.write_storage_threads = []
+        for thread, storage in zip(self.storage_threads, self.storages):
+            try:
+                checked = storage.check_config(check_write=True)
+            except PermissionError:
+                checked = False
+            except RemoteException:
+                logger.warning(
+                    "Received RemoteException when calling check_config on backend %s:",
+                    storage.name,
+                    exc_info=True,
+                )
+                checked = False
+
+            if checked:
+                self.write_storage_threads.append(thread)
 
         self.read_exception_cooldown = read_exception_cooldown
         self.transient_read_exceptions = set(
