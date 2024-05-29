@@ -91,6 +91,11 @@ def argument_error_handler(exception):
     return error_handler(exception, encode_data, status_code=400)
 
 
+@app.errorhandler(PermissionError)
+def permission_error_handler(exception):
+    return error_handler(exception, encode_data, status_code=403)
+
+
 @app.errorhandler(Exception)
 def my_error_handler(exception):
     return error_handler(exception, encode_data)

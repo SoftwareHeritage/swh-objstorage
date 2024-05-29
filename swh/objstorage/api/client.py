@@ -39,6 +39,7 @@ class RemoteObjStorage(RPCClient):
         Error,
         ObjCorruptedError,
         NoBackendsLeftError,
+        PermissionError,
     ]
     backend_class = ObjStorageInterface
     name: str = "remote"

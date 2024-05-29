@@ -4,6 +4,8 @@
 # See top-level LICENSE file for more information
 
 
+import os
+
 import pytest
 
 from swh.core.api.tests.server_testing import ServerTestFixture
@@ -40,3 +42,30 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture):
     @pytest.mark.skip("makes no sense to test this for the remote api")
     def test_delete_not_allowed_by_default(self):
         pass
+
+
+class TestRemoteObjStorageReadOnly(ServerTestFixture):
+    """Test the remote archive API on a read-only storage."""
+
+    @pytest.fixture(autouse=True)
+    def objstorage(self, tmpdir):
+        os.chmod(tmpdir, 0o500)
+        self.config = {
+            "objstorage": {
+                "cls": "pathslicing",
+                "root": str(tmpdir),
+                "slicing": "0:1/0:5",
+            },
+            "client_max_size": 8 * 1024 * 1024,
+        }
+
+        self.app = app
+        self.start_server()
+        self.storage = get_objstorage("remote", url=self.url())
+        yield
+        self.stop_server()
+        os.chmod(tmpdir, 0o700)
+
+    def test_permission_error(self):
+        with pytest.raises(PermissionError):
+            self.storage.check_config(check_write=True)
