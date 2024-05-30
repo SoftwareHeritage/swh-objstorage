@@ -185,12 +185,16 @@ def get_MockContainerClient():
             self.container_url = container_url
             self.blobs = blobs[self.container_url]
 
+        @property
+        def url(self):
+            return self.container_url
+
         @classmethod
         def from_container_url(cls, container_url):
             return cls(container_url)
 
         def get_container_properties(self):
-            return {"exists": True}
+            raise EnvironmentError("This raises an error in production")
 
         def get_blob_client(self, blob):
             return MockBlobClient(self, blob)

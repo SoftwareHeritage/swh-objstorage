@@ -5,10 +5,11 @@
 
 import asyncio
 import contextlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from itertools import product
 import string
 from typing import Iterable, Iterator, Mapping, Optional, Union
+from urllib.parse import parse_qs, urlparse
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
@@ -205,11 +206,47 @@ class AzureCloudObjStorage(ObjStorage):
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
+        now = datetime.now(tz=timezone.utc).isoformat()
         for container_client in self.get_all_container_clients():
-            props = container_client.get_container_properties()
+            parsed = urlparse(container_client.url)
+            # The query string for the container_client url contains a bunch of
+            # fields that are associated with the permissions given by the
+            # shared access signature. We treat all fields as optional, this is
+            # not a 100% bullet-proof set of checks, for instance if a
+            # connection_string is used
+            qs = parse_qs(parsed.query)
 
-            # FIXME: check_write is ignored here
-            if not props:
+            # st is the "signed start" (the signature is only valid after that
+            # date) as an ISO-8601 encoded datetime
+            if "st" in qs and qs["st"][0] > now:
+                raise ValueError(
+                    "Shared access signature is not valid yet: %s" % qs["st"][0]
+                )
+
+            # se is the "signed expiry" (the signature is invalid after that
+            # date) as an ISO-8601 encoded datetime
+            if "se" in qs and qs["se"][0] < now:
+                raise ValueError(
+                    "Shared access signature has expired: %s" % qs["se"][0]
+                )
+
+            # sr is the "signed resource". "c" means container.
+            if "sr" in qs and "c" not in qs["sr"][0]:
+                raise ValueError(
+                    "Shared access signature is not for a container service"
+                )
+
+            # sp is the "signed permissions"
+            if (
+                "sp" in qs
+                and check_write
+                # "c" allows to create new objects
+                and "c" not in qs["sp"][0]
+                # "w" allows to write to objects. Either permission is valid to
+                # write to an objstorage
+                and "w" not in qs["sp"][0]
+            ):
+                # We have neither "c" or "w" permissions, this is read-only
                 return False
 
         return True
