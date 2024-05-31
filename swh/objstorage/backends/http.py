@@ -5,10 +5,12 @@
 
 from datetime import timedelta
 import logging
-from typing import Iterator, Optional
+from typing import Dict, Iterator, Optional
 from urllib.parse import urljoin
 
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from swh.model import hashutil
 from swh.objstorage.constants import ID_HASH_ALGO
@@ -33,22 +35,45 @@ LOGGER.setLevel(logging.ERROR)
 class HTTPReadOnlyObjStorage(ObjStorage):
     """Simple ObjStorage retrieving objects from an HTTP server.
 
-    For example, can be used to retrieve objects from S3:
+    For example, can be used to retrieve objects from S3::
 
-    objstorage:
-      cls: http
-      url: https://softwareheritage.s3.amazonaws.com/content/
+      objstorage:
+        cls: http
+        url: https://softwareheritage.s3.amazonaws.com/content/
+
+    Retry strategy can be defined via the 'retry' configuration, e.g.::
+
+      objstorage:
+        cls: http
+        url: https://softwareheritage.s3.amazonaws.com/content/
+        retry:
+          total: 5
+          backoff_factor: 0.2
+          status_forcelist:
+            - 404
+            - 500
+
+    See
+    https://urllib3.readthedocs.io/en/stable/reference/urllib3.util.html#urllib3.util.Retry
+    for more details on the possible configuration entries.
+
     """
 
     name: str = "http"
 
     def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
         super().__init__(**kwargs)
-        self.session = requests.sessions.Session()
+        self.session = Session()
         self.root_path = url
         if not self.root_path.endswith("/"):
             self.root_path += "/"
         self.compression = compression
+        retry: Optional[Dict] = kwargs.get("retry")
+        if retry is not None:
+            self.retries_cfg = Retry(**retry)
+            self.session.mount(
+                self.root_path, HTTPAdapter(max_retries=self.retries_cfg)
+            )
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
