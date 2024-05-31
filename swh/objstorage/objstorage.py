@@ -162,11 +162,13 @@ class ObjStorage(metaclass=abc.ABCMeta):
         self: ObjStorageInterface,
         *,
         allow_delete: bool = False,
+        check_write: bool = True,
         **kwargs,
     ):
         # A more complete permission system could be used in place of that if
         # it becomes needed
         self.allow_delete = allow_delete
+        self.check_write = check_write
         # if no name is given in kwargs, default to name defined as class attribute
         if "name" in kwargs:
             self.name = kwargs["name"]

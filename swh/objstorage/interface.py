@@ -85,6 +85,7 @@ class ObjStorageInterface(Protocol):
     """
 
     name: str
+    check_write: bool
 
     def __init__(
         self,

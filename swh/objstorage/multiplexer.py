@@ -196,7 +196,7 @@ class MultiplexerObjStorage(ObjStorage):
         self.write_storage_threads = []
         for thread, storage in zip(self.storage_threads, self.storages):
             try:
-                checked = storage.check_config(check_write=True)
+                checked = storage.check_config(check_write=storage.check_write)
             except PermissionError:
                 checked = False
             except RemoteException:

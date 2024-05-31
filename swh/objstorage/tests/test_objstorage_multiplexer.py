@@ -390,3 +390,20 @@ def test_multiplexer_transient_error_nobackendsleft(mocker, caplog):
 
     with pytest.raises(NoBackendsLeftError):
         multiplexer.get(obj_id=obj_id_p)
+
+
+def test_multiplexer_check_config(mocker, caplog):
+    """Ensure check_config call to backend respects their read-only nature."""
+
+    class ReadOnlyObjStorage(InMemoryObjStorage):
+        """Read-only objstorage."""
+
+        def check_config(self, check_write):
+            if check_write:
+                raise ValueError("Read-only!")
+            return True
+
+    with pytest.raises(ValueError, match="Read-only"):
+        MultiplexerObjStorage(objstorages=[ReadOnlyObjStorage()])
+
+    MultiplexerObjStorage(objstorages=[ReadOnlyObjStorage(check_write=False)])
