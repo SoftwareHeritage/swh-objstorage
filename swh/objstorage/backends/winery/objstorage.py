@@ -62,7 +62,7 @@ class WineryObjStorage(ObjStorage):
     def delete(self, obj_id: ObjId):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
-        return self.winery.delete(obj_id)
+        return self.winery.delete(self._hash(obj_id))
 
     def _hash(self, obj_id: ObjId) -> bytes:
         return obj_id[self.PRIMARY_HASH]
@@ -283,6 +283,7 @@ class WineryWriter(WineryReader):
                     obj_id,
                 )
         self.base.delete(obj_id)
+        return True
 
     def check(self, obj_id: ObjId) -> None:
         # load all shards packing == True and not locked (i.e. packer
