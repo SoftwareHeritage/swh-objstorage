@@ -43,6 +43,7 @@ from swh.objstorage.cli import swh_cli_group
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
+from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 from swh.objstorage.utils import call_async
 
 from .winery_benchmark import (
@@ -1504,3 +1505,17 @@ def test_winery_stats(tmpdir):
     s.stats_write(k, v)
     s.__del__()
     assert os.path.getsize(s.stats_filename) > size
+
+
+class TestWineryObjStorage(ObjStorageTestFixture):
+    @pytest.fixture(autouse=True)
+    def objstorage(self, file_backed_pool, storage):
+        self.storage = storage
+
+    @pytest.mark.skip("This interface is not supported as such by winery")
+    def test_restore_content(self):
+        pass
+
+    @pytest.mark.skip("Winery has more extended signatures than the interface expects")
+    def test_types(self):
+        pass
