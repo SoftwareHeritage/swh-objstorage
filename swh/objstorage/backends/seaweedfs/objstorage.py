@@ -10,7 +10,8 @@ import logging
 from typing import Iterator, Optional
 from urllib.parse import urlparse
 
-from swh.model import hashutil
+from typing_extensions import Literal
+
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
@@ -33,7 +34,7 @@ class SeaweedFilerObjStorage(ObjStorage):
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    PRIMARY_HASH = "sha1"
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
     name: str = "seaweedfs"
 
     def __init__(
@@ -142,7 +143,12 @@ class SeaweedFilerObjStorage(ObjStorage):
             self.wf.iterfiles(startdir, last_file_name=lastfilename), limit
         ):
             bytehex = fname.rsplit("/", 1)[-1]
-            yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(bytehex)}
+            if self.PRIMARY_HASH == "sha1":
+                yield {"sha1": bytes.fromhex(bytehex)}
+            elif self.PRIMARY_HASH == "sha256":
+                yield {"sha256": bytes.fromhex(bytehex)}
+            else:
+                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     # internal methods
     def _path(self, obj_id: ObjId):

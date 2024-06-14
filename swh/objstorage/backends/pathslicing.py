@@ -167,7 +167,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: Literal["sha1"] = "sha1"
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
     name: str = "pathslicing"
 
     def __init__(
@@ -239,7 +239,12 @@ class PathSlicingObjStorage(ObjStorage):
                 if not is_valid_filename(f, algo=self.PRIMARY_HASH):
                     logger.warning("__iter__ skipping over invalid file %s/%s", root, f)
                     continue
-                yield {self.PRIMARY_HASH: bytes.fromhex(f)}
+                if self.PRIMARY_HASH == "sha1":
+                    yield {"sha1": bytes.fromhex(f)}
+                elif self.PRIMARY_HASH == "sha256":
+                    yield {"sha256": bytes.fromhex(f)}
+                else:
+                    raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     def __len__(self) -> int:
         """Compute the number of objects available in the storage.

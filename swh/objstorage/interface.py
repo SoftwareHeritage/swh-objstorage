@@ -73,6 +73,7 @@ class ObjStorageInterface(Protocol):
     """
 
     name: str
+    PRIMARY_HASH: Literal["sha1", "sha256"]
 
     def __init__(
         self,

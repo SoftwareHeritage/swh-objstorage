@@ -105,8 +105,8 @@ class Worker:
         assert isinstance(
             storage, WineryObjStorage
         ), f"winery_benchmark passed unexpected {storage.__class__.__name__}"
-        self.stats = Stats(storage.winery.args.get("output_dir"))
-        self.storage = storage
+        self.stats: Stats = Stats(storage.winery.args.get("output_dir"))
+        self.storage: WineryObjStorage = storage
 
     def run(self, time_remaining: datetime.timedelta) -> WorkerKind:
         raise NotImplementedError

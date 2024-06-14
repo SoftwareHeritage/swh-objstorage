@@ -21,8 +21,8 @@ from azure.storage.blob import (
     generate_container_sas,
 )
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
+from typing_extensions import Literal
 
-from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
@@ -106,7 +106,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH = "sha1"
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
     name: str = "azure"
 
     def __init__(
@@ -201,7 +201,7 @@ class AzureCloudObjStorage(ObjStorage):
     def _internal_id(self, obj_id: ObjId) -> str:
         """Internal id is the hex version in objstorage."""
         primary_hash = obj_id[self.PRIMARY_HASH]
-        return hashutil.hash_to_hex(primary_hash)
+        return primary_hash.hex()
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -266,7 +266,12 @@ class AzureCloudObjStorage(ObjStorage):
         """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():
-                yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(obj.name)}
+                if self.PRIMARY_HASH == "sha1":
+                    yield {"sha1": bytes.fromhex(obj.name)}
+                elif self.PRIMARY_HASH == "sha256":
+                    yield {"sha256": bytes.fromhex(obj.name)}
+                else:
+                    raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.

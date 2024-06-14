@@ -175,8 +175,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
     ) -> Iterator[ObjId]:
         it = iter(self)
         if last_obj_id:
-            last_obj_id_hex = objid_to_default_hex(last_obj_id)
-            it = dropwhile(lambda x: objid_to_default_hex(x) <= last_obj_id_hex, it)
+            last_obj_id_hex = objid_to_default_hex(last_obj_id, self.PRIMARY_HASH)
+            it = dropwhile(
+                lambda x: objid_to_default_hex(x, self.PRIMARY_HASH) <= last_obj_id_hex,
+                it,
+            )
         return islice(it, limit)
 
     def download_url(

@@ -53,7 +53,13 @@ def assert_objid_lists_compatible(
         keys = set(left).intersection(set(right))
         assert keys, f"{left} and {right} have no keys in common"
         for key in keys:
-            assert left[key] == right[key], f"{left} and {right} have mismatched {key}"  # type: ignore[literal-required]
+            assert left[key] == right[key], (  # type: ignore[literal-required]
+                f"{left} and {right} have mismatched {key}.\n"
+                + f"{key} for list1:\n"
+                + "\n".join(i[key].hex() for i in list1)  # type: ignore[literal-required]
+                + f"\n{key} for list2\n"
+                + "\n".join(i[key].hex() for i in list2)  # type: ignore[literal-required]
+            )
 
 
 class ObjStorageTestFixture:
@@ -70,7 +76,7 @@ class ObjStorageTestFixture:
             obj_id = objid_for_content(content)
             self.storage.add(content, obj_id, check_presence=False)
             all_ids.append(obj_id)
-        all_ids.sort(key=lambda d: d["sha1"])
+        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
         return all_ids
 
     def test_types(self):

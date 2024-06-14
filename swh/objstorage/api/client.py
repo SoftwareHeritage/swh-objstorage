@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Literal, Optional
 
 import msgpack
 
@@ -32,6 +32,8 @@ class RemoteObjStorage(RPCClient):
         session: The session to send requests.
 
     """
+
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
 
     api_exception = ObjStorageAPIError
     reraise_exceptions = [

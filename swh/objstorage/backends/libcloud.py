@@ -13,8 +13,8 @@ from urllib.parse import urlencode
 from libcloud.storage import providers
 import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
+from typing_extensions import Literal
 
-from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
@@ -60,7 +60,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       kwargs: extra arguments are passed through to the LibCloud driver
     """
 
-    PRIMARY_HASH = "sha1"
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
     name: str = "cloud"
 
     def __init__(
@@ -148,7 +148,12 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             if self.path_prefix:
                 name = name[len(self.path_prefix) :]
 
-            yield {self.PRIMARY_HASH: hashutil.hash_to_bytes(name)}
+            if self.PRIMARY_HASH == "sha1":
+                yield {"sha1": bytes.fromhex(name)}
+            elif self.PRIMARY_HASH == "sha256":
+                yield {"sha256": bytes.fromhex(name)}
+            else:
+                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -194,7 +199,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         """Get the full path to an object"""
         primary_hash = obj_id[self.PRIMARY_HASH]
 
-        hex_primary_hash = hashutil.hash_to_hex(primary_hash)
+        hex_primary_hash = primary_hash.hex()
         if self.path_prefix:
             return self.path_prefix + hex_primary_hash
         else:

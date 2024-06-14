@@ -8,6 +8,8 @@ import logging
 from multiprocessing import Process
 from typing import Callable, List, Optional, Tuple
 
+from typing_extensions import Literal
+
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
-    PRIMARY_HASH = "sha256"
+    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha256"
     name: str = "winery"
 
     def __init__(self, **kwargs):
