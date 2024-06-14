@@ -19,7 +19,14 @@ class Stats:
 
         self._stats_active = True
         if not os.path.exists(d):
-            os.makedirs(d)
+            try:
+                os.makedirs(d)
+            except FileExistsError:
+                # This exception can happen, even when os.makedirs(d,
+                # exist_ok=True) is used, when two concurrent processes try to
+                # create the directory at the same time: one of the two
+                # processes will receive the exception.
+                pass
         self._stats = collections.Counter()
         self._stats_filename = f"{d}/{os.getpid()}.csv"
         self._stats_fd = open(self.stats_filename, "a")
