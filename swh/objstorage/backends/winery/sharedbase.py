@@ -485,6 +485,23 @@ class SharedBase(Database):
         )
         return cur.fetchone()[0]
 
+    def list_signatures(
+        self, after_id: Optional[bytes] = None, limit: Optional[int] = None
+    ) -> Iterator[bytes]:
+        with self.pool.connection() as db:
+            cur = db.execute(
+                """SELECT signature
+                   FROM signature2shard
+                   WHERE state = 'present'
+                   AND signature > %s
+                   ORDER BY signature
+                   LIMIT %s
+                """,
+                (after_id or b"", limit),
+            )
+            for row in cur:
+                yield row[0]
+
     def delete(self, obj_id):
         with self.pool.connection() as db:
             db.execute(

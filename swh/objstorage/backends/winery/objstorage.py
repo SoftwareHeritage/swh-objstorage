@@ -6,12 +6,13 @@
 from functools import partial
 import logging
 from multiprocessing import Process
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterator, List, Optional, Tuple
 
 from typing_extensions import Literal
 
+from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
 from .roshard import (
@@ -63,6 +64,27 @@ class WineryObjStorage(ObjStorage):
     def _hash(self, obj_id: ObjId) -> bytes:
         return obj_id[self.PRIMARY_HASH]
 
+    def __iter__(self) -> Iterator[CompositeObjId]:
+        if self.PRIMARY_HASH != "sha256":
+            raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
+        for signature in self.winery.list_signatures():
+            yield {"sha256": signature}
+
+    def list_content(
+        self,
+        last_obj_id: Optional[ObjId] = None,
+        limit: Optional[int] = DEFAULT_LIMIT,
+    ) -> Iterator[CompositeObjId]:
+        if self.PRIMARY_HASH != "sha256":
+            raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
+
+        after_id: Optional[bytes] = None
+        if last_obj_id:
+            after_id = self._hash(last_obj_id)
+
+        for signature in self.winery.list_signatures(after_id=after_id, limit=limit):
+            yield {"sha256": signature}
+
     def on_shutdown(self):
         self.winery.on_shutdown()
 
@@ -74,6 +96,11 @@ class WineryBase:
 
     def __contains__(self, obj_id):
         return self.base.contains(obj_id)
+
+    def list_signatures(
+        self, after_id: Optional[bytes] = None, limit: Optional[int] = None
+    ) -> Iterator[bytes]:
+        yield from self.base.list_signatures(after_id, limit)
 
     def on_shutdown(self):
         return
