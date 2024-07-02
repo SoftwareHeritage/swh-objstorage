@@ -18,6 +18,7 @@ from swh.objstorage.exc import (
     ObjCorruptedError,
     ObjNotFoundError,
     ObjStorageAPIError,
+    ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
@@ -182,9 +183,11 @@ class MultiplexerObjStorage(ObjStorage):
         objstorages: Iterable[Union[ObjStorageInterface, Dict]],
         read_exception_cooldown: float = 5,
         transient_read_exceptions: Optional[List[str]] = None,
+        readonly: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.readonly = readonly
         self.storages = [
             get_objstorage(**sto) if isinstance(sto, dict) else sto
             for sto in objstorages
@@ -194,21 +197,22 @@ class MultiplexerObjStorage(ObjStorage):
             thread.start()
 
         self.write_storage_threads = []
-        for thread, storage in zip(self.storage_threads, self.storages):
-            try:
-                checked = storage.check_config(check_write=True)
-            except PermissionError:
-                checked = False
-            except RemoteException:
-                logger.warning(
-                    "Received RemoteException when calling check_config on backend %s:",
-                    storage.name,
-                    exc_info=True,
-                )
-                checked = False
+        if not readonly:
+            for thread, storage in zip(self.storage_threads, self.storages):
+                try:
+                    checked = storage.check_config(check_write=True)
+                except PermissionError:
+                    checked = False
+                except RemoteException:
+                    logger.warning(
+                        "Received RemoteException when calling check_config on backend %s:",
+                        storage.name,
+                        exc_info=True,
+                    )
+                    checked = False
 
-            if checked:
-                self.write_storage_threads.append(thread)
+                if checked:
+                    self.write_storage_threads.append(thread)
 
         self.read_exception_cooldown = read_exception_cooldown
         self.transient_read_exceptions = set(
@@ -362,6 +366,9 @@ class MultiplexerObjStorage(ObjStorage):
             always readable as well, any id will be valid to retrieve a
             content.
         """
+        if self.readonly:
+            raise ReadOnlyObjStorageError("add")
+
         # note: we do not have per-backend statsd metrics here because the
         # threading scaffolding to manage IO with backends makes it a bit
         # harder to do in a nice manner; plus metrics should be available in
@@ -380,6 +387,9 @@ class MultiplexerObjStorage(ObjStorage):
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage."""
+        if self.readonly:
+            raise ReadOnlyObjStorageError("add_batch")
+
         write_threads = list(self.get_write_threads())
         results = self.wrap_call(
             write_threads,
@@ -399,6 +409,9 @@ class MultiplexerObjStorage(ObjStorage):
         }
 
     def restore(self, content: bytes, obj_id: ObjId) -> None:
+        if self.readonly:
+            raise ReadOnlyObjStorageError("restore")
+
         return self.wrap_call(
             self.get_write_threads(obj_id),
             "restore",
@@ -484,5 +497,8 @@ class MultiplexerObjStorage(ObjStorage):
             raise exception
 
     def delete(self, obj_id: ObjId):
+        if self.readonly:
+            raise ReadOnlyObjStorageError("delete")
+
         super().delete(obj_id)  # Check delete permission
         return all(self.wrap_call(self.get_write_threads(obj_id), "delete", obj_id))
