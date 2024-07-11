@@ -459,10 +459,13 @@ class MultiplexerObjStorage(ObjStorage):
                 if exc_class in self.transient_read_exceptions:
                     logger.warning(
                         "While reading object %s, received transient read "
-                        "exception on backend %s, marking backend as failed",
+                        "exception on backend %s, marking backend as failed.\n"
+                        "%s: %s",
                         format_obj_id(obj_id),
                         storage.storage.name,
-                        exc_info=True,
+                        exc_class,
+                        exc,
+                        exc_info=False,
                     )
                     self.disable_backend(endpoint="get", name=storage.storage.name, i=i)
                     continue

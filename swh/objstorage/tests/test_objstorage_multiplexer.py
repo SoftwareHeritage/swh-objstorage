@@ -325,6 +325,11 @@ def test_multiplexer_transient_error_fallback(mocker, caplog, statsd):
     assert "transient" in caplog.records[0].message
     for algo, hash in obj_id_p.items():
         assert f"{algo}:{hash.hex()}" in caplog.records[0].message
+    # We don’t want to see a full stack trace as it will very likely
+    # be noise as it is a transient error.
+    assert "raise TimeoutError" not in caplog.text
+    # But we still want to know which exception it was
+    assert "TimeoutError" in caplog.text
 
     assert 0 in multiplexer.reset_timers
 
