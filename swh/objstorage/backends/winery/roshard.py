@@ -19,7 +19,7 @@ from systemd.daemon import notify
 
 from swh.perfecthash import Shard, ShardCreator
 
-from .sharedbase import SharedBase
+from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
 from .throttler import Throttler
 
@@ -172,6 +172,31 @@ class Pool(object):
                 else:
                     raise
 
+    @staticmethod
+    def record_shard_mapped(base: SharedBase, shard_name: str):
+        """Record a shard as mapped, bailing out after a few attempts.
+
+        Multiple attempts are used to handle a race condition when two hosts
+        attempt to record the shard as mapped at the same time. In this
+        situation, one of the two hosts will succeed and the other one will
+        fail, the sleep delay can be kept short and linear.
+
+        """
+        outer_exc = None
+        for attempt in range(5):
+            try:
+                base.record_shard_mapped(host=socket.gethostname(), name=shard_name)
+                break
+            except Exception as exc:
+                outer_exc = exc
+                logger.warning(
+                    "Failed to mark shard %s as mapped, retrying...", shard_name
+                )
+                time.sleep(attempt + 1)
+        else:
+            assert outer_exc is not None
+            raise outer_exc
+
     def manage_images(
         self,
         base_dsn: str,
@@ -219,6 +244,8 @@ class Pool(object):
             for shard_name, shard_state in shards:
                 mapped_state = mapped_images.get(shard_name)
                 if mapped_state == "ro":
+                    if shard_state == ShardState.PACKED:
+                        self.record_shard_mapped(base, shard_name)
                     continue
                 elif shard_state.image_available:
                     check_mapped = self.image_mapped(shard_name)
@@ -247,9 +274,7 @@ class Pool(object):
                                     shard_name,
                                     attempt / 10,
                                 )
-                        base.record_shard_mapped(
-                            name=shard_name, host=socket.gethostname()
-                        )
+                        self.record_shard_mapped(base, shard_name)
                         did_something = True
                     else:
                         logger.debug(
@@ -258,9 +283,7 @@ class Pool(object):
                             shard_name,
                         )
                         self.image_map(shard_name, options="ro")
-                        base.record_shard_mapped(
-                            name=shard_name, host=socket.gethostname()
-                        )
+                        self.record_shard_mapped(base, shard_name)
                         did_something = True
                     mapped_images[shard_name] = "ro"
                 elif manage_rw_images:
