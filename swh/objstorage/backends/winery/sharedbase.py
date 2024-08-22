@@ -104,7 +104,7 @@ class TemporaryShardLocker:
 
 
 class SharedBase(Database):
-    current_version: int = 1
+    current_version: int = 2
 
     def __init__(
         self, base_dsn: str, application_name: str = "SWH Winery SharedBase", **kwargs

@@ -41,11 +41,15 @@ CREATE TABLE t_read (
     bytes integer NOT NULL
 );
 
+CREATE INDEX t_read_updated ON t_read USING brin(updated);
+
 CREATE TABLE t_write (
     id serial PRIMARY KEY,
     updated timestamp NOT NULL,
     bytes integer NOT NULL
 );
+
+CREATE INDEX t_write_updated ON t_write USING brin(updated);
 
 CREATE TABLE shard_template (
     key BYTEA PRIMARY KEY,
