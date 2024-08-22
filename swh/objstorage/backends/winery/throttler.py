@@ -12,6 +12,8 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
+THROTTLER_WINDOW = datetime.timedelta(seconds=5 * 60)
+
 
 class LeakyBucket:
     """
@@ -121,8 +123,9 @@ class IOThrottler(Database):
             )
             cur.execute(
                 f"DELETE FROM t_{self.name} WHERE id IN ("
-                f"SELECT id FROM t_{self.name} WHERE updated < NOW() - INTERVAL '30 days' "
-                " FOR UPDATE SKIP LOCKED)"
+                f"SELECT id FROM t_{self.name} WHERE updated < NOW() - %s "
+                " FOR UPDATE SKIP LOCKED)",
+                [2 * THROTTLER_WINDOW],
             )
         self.sync_interval = 60
 
@@ -130,7 +133,8 @@ class IOThrottler(Database):
         with self.pool.connection() as db:
             cur = db.execute(
                 f"SELECT COUNT(*), SUM(bytes) FROM t_{self.name} "
-                "WHERE bytes > 0 AND updated > NOW() - INTERVAL '5 minutes'"
+                "WHERE bytes > 0 AND updated > NOW() - %s",
+                [THROTTLER_WINDOW],
             )
             return cur.fetchone()
 
