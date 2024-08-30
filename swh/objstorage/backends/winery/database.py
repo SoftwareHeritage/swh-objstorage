@@ -27,9 +27,9 @@ class Database(abc.ABC):
                     "fallback_application_name": "SWH Winery",
                     "autocommit": True,
                 },
-                name=f"pool-{self.application_name}"
-                if self.application_name
-                else "pool",
+                name=(
+                    f"pool-{self.application_name}" if self.application_name else "pool"
+                ),
                 min_size=0,
                 max_size=4,
                 open=True,

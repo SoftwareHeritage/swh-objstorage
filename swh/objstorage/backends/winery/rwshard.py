@@ -87,8 +87,7 @@ class ShardIdleTimeoutCallback(Protocol):
     """A function which takes a :class:`RWShard` as `shard` argument, used as
     idle timeout callback for :class:`RWShard`."""
 
-    def __call__(self, shard: "RWShard") -> None:
-        ...
+    def __call__(self, shard: "RWShard") -> None: ...
 
 
 class RWShard(Database):

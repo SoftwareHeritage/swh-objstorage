@@ -118,16 +118,13 @@ class NullDecompressor:
 
 
 class _CompressorProtocol(Protocol):
-    def compress(self, data: bytes) -> bytes:
-        ...
+    def compress(self, data: bytes) -> bytes: ...
 
-    def flush(self) -> bytes:
-        ...
+    def flush(self) -> bytes: ...
 
 
 class _DecompressorProtocol(Protocol):
-    def decompress(self, data: bytes) -> bytes:
-        ...
+    def decompress(self, data: bytes) -> bytes: ...
 
     unused_data: bytes
 

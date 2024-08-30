@@ -34,9 +34,9 @@ def cloud_provider_mock():
     # register the cloud MockCloudObjStorage class defined in this file so the
     # helper test function get_cls() defined in objstorage_testing works OK and
     # ObjStorageTestFixture.test_name() is green here
-    OBJSTORAGE_IMPLEMENTATIONS[
-        "cloud"
-    ] = f"{MockCloudObjStorage.__module__}.{MockCloudObjStorage.__name__}"
+    OBJSTORAGE_IMPLEMENTATIONS["cloud"] = (
+        f"{MockCloudObjStorage.__module__}.{MockCloudObjStorage.__name__}"
+    )
     try:
         yield
     finally:

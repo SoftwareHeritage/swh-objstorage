@@ -23,9 +23,9 @@ from swh.core.api import remote_api_endpoint
 from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT
 
-COMPOSITE_OBJID_KEYS: FrozenSet[
-    Literal["sha1", "sha1_git", "sha256", "blake2s256"]
-] = frozenset(("sha1", "sha1_git", "sha256", "blake2s256"))
+COMPOSITE_OBJID_KEYS: FrozenSet[Literal["sha1", "sha1_git", "sha256", "blake2s256"]] = (
+    frozenset(("sha1", "sha1_git", "sha256", "blake2s256"))
+)
 
 
 class CompositeObjId(TypedDict, total=False):
@@ -91,8 +91,7 @@ class ObjStorageInterface(Protocol):
         *,
         name: str = "",
         **kwargs,
-    ):
-        ...
+    ): ...
 
     @remote_api_endpoint("check_config")
     def check_config(self, *, check_write):
@@ -270,8 +269,7 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
-        ...
+    def __iter__(self) -> Iterator[CompositeObjId]: ...
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
