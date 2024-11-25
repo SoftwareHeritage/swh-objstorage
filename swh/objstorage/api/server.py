@@ -86,8 +86,13 @@ app = ObjStorageServerApp(
 objstorage = None
 
 
-@app.errorhandler(Error)
+@app.errorhandler(ObjNotFoundError)
 def argument_error_handler(exception):
+    return error_handler(exception, encode_data, status_code=404)
+
+
+@app.errorhandler(Error)
+def objnotfound_error_handler(exception):
     return error_handler(exception, encode_data, status_code=400)
 
 
