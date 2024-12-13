@@ -4,15 +4,28 @@
 # See top-level LICENSE file for more information
 
 import inspect
-from typing import Optional, Tuple
+from typing import Iterable, Optional
 
 import pytest
 import requests
 
 from swh.core.config import get_swh_backend_module, list_swh_backends
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
-from swh.objstorage.objstorage import compute_hash, decompressors
+from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.objstorage import decompressors, objid_for_content
+
+FIRST_OBJID = {
+    "sha1": b"\x00" * 20,
+    "sha1_git": b"\x00" * 20,
+    "sha256": b"\x00" * 32,
+    "blake2s256": "\x00" * 32,
+}
+LAST_OBJID = {
+    "sha1": b"\xff" * 20,
+    "sha1_git": b"\xff" * 20,
+    "sha256": b"\xff" * 32,
+    "blake2s256": "\xff" * 32,
+}
 
 
 def get_cls(sto: ObjStorageInterface) -> Optional[str]:
@@ -27,6 +40,22 @@ def get_cls(sto: ObjStorageInterface) -> Optional[str]:
     return None
 
 
+def assert_objid_lists_compatible(
+    iter1: Iterable[ObjId], iter2: Iterable[ObjId]
+) -> None:
+    """Check that two object id lists are compatible: same length,
+    and hashes are subsets of one another"""
+    list1 = list(iter1)
+    list2 = list(iter2)
+    assert len(list1) == len(list2), f"Mismatched lengths {len(list1)} != {len(list2)}"
+
+    for left, right in zip(list1, list2):
+        keys = set(left).intersection(set(right))
+        assert keys, f"{left} and {right} have no keys in common"
+        for key in keys:
+            assert left[key] == right[key], f"{left} and {right} have mismatched {key}"  # type: ignore[literal-required]
+
+
 class ObjStorageTestFixture:
     num_objects = 1200
 
@@ -38,9 +67,9 @@ class ObjStorageTestFixture:
         all_ids = []
         for i in range(num_objects):
             content = b"content %d" % i
-            obj_id = compute_hash(content)
+            obj_id = objid_for_content(content)
             self.storage.add(content, obj_id, check_presence=False)
-            all_ids.append({"sha1": obj_id})
+            all_ids.append(obj_id)
         all_ids.sort(key=lambda d: d["sha1"])
         return all_ids
 
@@ -81,12 +110,8 @@ class ObjStorageTestFixture:
         assert self.storage.name == get_cls(self.storage)
 
     def hash_content(self, content):
-        obj_id = compute_hash(content)
+        obj_id = objid_for_content(content)
         return content, obj_id
-
-    def compositehash_content(self, content) -> Tuple[bytes, CompositeObjId]:
-        obj_id = compute_hash(content)
-        return content, {"sha1": obj_id}
 
     def assertContentMatch(self, obj_id, expected_content):  # noqa
         content = self.storage.get(obj_id)
@@ -103,20 +128,8 @@ class ObjStorageTestFixture:
         assert obj_id_p in self.storage
         assert obj_id_m not in self.storage
 
-    def test_contains_composite(self):
-        content_p, obj_id_p = self.compositehash_content(b"contains_present")
-        content_m, obj_id_m = self.compositehash_content(b"contains_missing")
-        self.storage.add(content_p, obj_id=obj_id_p)
-        assert obj_id_p in self.storage
-        assert obj_id_m not in self.storage
-
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
-        self.storage.add(content, obj_id=obj_id)
-        self.assertContentMatch(obj_id, content)
-
-    def test_add_get_w_composite_id(self):
-        content, obj_id = self.compositehash_content(b"add_get_w_id")
         self.storage.add(content, obj_id=obj_id)
         self.assertContentMatch(obj_id, content)
 
@@ -146,15 +159,6 @@ class ObjStorageTestFixture:
         assert cr1 == content1
         assert cr2 == content2
 
-    def test_add_get_batch_composite(self):
-        content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
-        content2, obj_id2 = self.compositehash_content(b"add_get_batch_2")
-        self.storage.add(content1, obj_id1)
-        self.storage.add(content2, obj_id2)
-        cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
-        assert cr1 == content1
-        assert cr2 == content2
-
     def test_get_batch_unexisting_content(self):
         content, obj_id = self.hash_content(b"get_batch_unexisting_content")
         result = list(self.storage.get_batch([obj_id]))
@@ -176,8 +180,8 @@ class ObjStorageTestFixture:
         assert False, "Missing expected statsd message"
 
     def test_get_statsd(self, statsd):
-        content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
-        content2, obj_id2 = self.compositehash_content(b"add_get_batch_2")
+        content1, obj_id1 = self.hash_content(b"add_get_batch_1")
+        content2, obj_id2 = self.hash_content(b"add_get_batch_2")
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
         while statsd.socket.recv():
@@ -214,33 +218,13 @@ class ObjStorageTestFixture:
 
         assert obj_id in e.value.args
 
-    def test_get_missing_composite(self):
-        content, obj_id = self.compositehash_content(b"get_missing")
-        with pytest.raises(ObjNotFoundError) as e:
-            self.storage.get(obj_id)
-
-        assert obj_id in e.value.args
-
     def test_check_missing(self):
         content, obj_id = self.hash_content(b"check_missing")
         with pytest.raises(ObjNotFoundError):
             self.storage.check(obj_id)
 
-    def test_check_missing_composite(self):
-        content, obj_id = self.compositehash_content(b"check_missing")
-        with pytest.raises(ObjNotFoundError):
-            self.storage.check(obj_id)
-
     def test_check_present(self):
         content, obj_id = self.hash_content(b"check_present")
-        self.storage.add(content, obj_id)
-        try:
-            self.storage.check(obj_id)
-        except ObjCorruptedError:
-            self.fail("Integrity check failed")
-
-    def test_check_present_composite(self):
-        content, obj_id = self.compositehash_content(b"check_present")
         self.storage.add(content, obj_id)
         try:
             self.storage.check(obj_id)
@@ -253,23 +237,9 @@ class ObjStorageTestFixture:
         with pytest.raises(ObjNotFoundError):
             self.storage.delete(obj_id)
 
-    def test_delete_missing_composite(self):
-        self.storage.allow_delete = True
-        content, obj_id = self.compositehash_content(b"missing_content_to_delete")
-        with pytest.raises(ObjNotFoundError):
-            self.storage.delete(obj_id)
-
     def test_delete_present(self):
         self.storage.allow_delete = True
         content, obj_id = self.hash_content(b"content_to_delete")
-        self.storage.add(content, obj_id=obj_id)
-        assert self.storage.delete(obj_id)
-        with pytest.raises(ObjNotFoundError):
-            self.storage.get(obj_id)
-
-    def test_delete_present_composite(self):
-        self.storage.allow_delete = True
-        content, obj_id = self.compositehash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         assert self.storage.delete(obj_id)
         with pytest.raises(ObjNotFoundError):
@@ -289,54 +259,12 @@ class ObjStorageTestFixture:
             self.storage.delete(obj_id)
 
     def test_add_batch(self):
-        contents = {}
-        expected_content_add = 0
-        expected_content_add_bytes = 0
-        for i in range(50):
-            content = b"Test content %02d" % i
-            content, obj_id = self.hash_content(content)
-            contents[obj_id] = content
-            expected_content_add_bytes += len(content)
-            expected_content_add += 1
-
-        ret = self.storage.add_batch(contents)
-
-        assert ret == {
-            "object:add": expected_content_add,
-            "object:add:bytes": expected_content_add_bytes,
-        }
-
-        for obj_id in contents:
-            assert obj_id in self.storage
-
-    def test_add_batch_list(self):
         contents = []
         expected_content_add = 0
         expected_content_add_bytes = 0
         for i in range(50):
             content = b"Test content %02d" % i
             content, obj_id = self.hash_content(content)
-            contents.append((obj_id, content))
-            expected_content_add_bytes += len(content)
-            expected_content_add += 1
-
-        ret = self.storage.add_batch(contents)
-
-        assert ret == {
-            "object:add": expected_content_add,
-            "object:add:bytes": expected_content_add_bytes,
-        }
-
-        for obj_id, content in contents:
-            assert obj_id in self.storage
-
-    def test_add_batch_list_composite(self):
-        contents = []
-        expected_content_add = 0
-        expected_content_add_bytes = 0
-        for i in range(50):
-            content = b"Test content %02d" % i
-            content, obj_id = self.compositehash_content(content)
             contents.append((obj_id, content))
             expected_content_add_bytes += len(content)
             expected_content_add += 1
@@ -357,8 +285,7 @@ class ObjStorageTestFixture:
         obj_ids = self.fill_objstorage(self.num_objects)
 
         sto_obj_ids = list(self.storage)
-        assert len(sto_obj_ids) == len(obj_ids)
-        assert sto_obj_ids == obj_ids
+        assert_objid_lists_compatible(obj_ids, sto_obj_ids)
 
     @pytest.mark.skip_on_cloud
     def test_list_content_all(self):
@@ -366,8 +293,7 @@ class ObjStorageTestFixture:
         all_ids = self.fill_objstorage(self.num_objects)
 
         ids = list(self.storage.list_content(limit=None))
-        assert len(ids) == len(all_ids)
-        assert ids == all_ids
+        assert_objid_lists_compatible(all_ids, ids)
 
     @pytest.mark.skip_on_cloud
     def test_list_content_limit(self):
@@ -375,8 +301,7 @@ class ObjStorageTestFixture:
         all_ids = self.fill_objstorage(self.num_objects)
 
         ids = list(self.storage.list_content(limit=10))
-        assert len(ids) == 10
-        assert ids == all_ids[:10]
+        assert_objid_lists_compatible(all_ids[:10], ids)
 
     @pytest.mark.skip_on_cloud
     def test_list_content_limit_and_last(self):
@@ -385,27 +310,23 @@ class ObjStorageTestFixture:
 
         id0 = self.num_objects - 105
         ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
-        assert len(ids) == 100
-        assert ids == all_ids[id0 + 1 : id0 + 101]
+        assert_objid_lists_compatible(all_ids[id0 + 1 : id0 + 101], ids)
 
         # check proper behavior at the end of the range
         id0 = self.num_objects - 51
         ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
-        assert len(ids) == 50
-        assert ids == all_ids[-50:]
+        assert_objid_lists_compatible(all_ids[-50:], ids)
 
         # check proper behavior after the end of the range
         ids = list(self.storage.list_content(last_obj_id=all_ids[-1], limit=100))
         assert not ids
 
-        ids = list(
-            self.storage.list_content(last_obj_id={"sha1": b"\xff" * 20}, limit=100)
-        )
+        ids = list(self.storage.list_content(last_obj_id=LAST_OBJID, limit=100))
         assert not ids
 
     def test_download_url(self):
         content = b"foo"
-        obj_id = compute_hash(content)
+        obj_id = objid_for_content(content)
         self.storage.add(content, obj_id)
         url = self.storage.download_url(obj_id)
         if url is not None:
@@ -413,4 +334,4 @@ class ObjStorageTestFixture:
             assert decompress(requests.get(url).content) == content
 
             with pytest.raises(ObjNotFoundError):
-                self.storage.download_url(b"\xff" * 20)
+                self.storage.download_url(LAST_OBJID)

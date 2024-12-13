@@ -59,10 +59,7 @@ class WineryObjStorage(ObjStorage):
         return self.winery.delete(obj_id)
 
     def _hash(self, obj_id: ObjId) -> bytes:
-        if isinstance(obj_id, dict):
-            return obj_id[self.PRIMARY_HASH]
-        else:
-            return obj_id
+        return obj_id[self.PRIMARY_HASH]
 
     def on_shutdown(self):
         self.winery.on_shutdown()

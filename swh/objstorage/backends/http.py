@@ -19,7 +19,7 @@ from swh.objstorage.exc import (
     ObjNotFoundError,
     ReadOnlyObjStorageError,
 )
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     CompressionFormat,
@@ -84,7 +84,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         raise NonIterableObjStorageError("__iter__")
 
     def __len__(self):
@@ -104,7 +104,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[CompositeObjId]:
+    ) -> Iterator[ObjId]:
         raise NonIterableObjStorageError("__len__")
 
     @timed
@@ -126,10 +126,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return self._path(obj_id)
 
     def _hash(self, obj_id: ObjId) -> bytes:
-        if isinstance(obj_id, dict):
-            return obj_id[ID_HASH_ALGO]
-        else:
-            return obj_id
+        return obj_id[ID_HASH_ALGO]
 
     def _path(self, obj_id):
         return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))

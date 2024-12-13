@@ -111,7 +111,7 @@ def index():
 def list_content():
     last_obj_id = request.args.get("last_obj_id")
     if last_obj_id:
-        last_obj_id = bytes.fromhex(last_obj_id)
+        last_obj_id = {"sha1": bytes.fromhex(last_obj_id)}
     limit: Optional[str] = request.args.get("limit")
     if limit:
         limit = int(limit)

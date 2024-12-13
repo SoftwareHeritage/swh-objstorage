@@ -6,7 +6,7 @@
 from typing import Dict, Iterator
 
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
 
@@ -28,16 +28,13 @@ class InMemoryObjStorage(ObjStorage):
         return True
 
     def _state_key(self, obj_id: ObjId) -> bytes:
-        if isinstance(obj_id, dict):
-            return obj_id[self.PRIMARY_HASH]
-        else:
-            return obj_id
+        return obj_id[self.PRIMARY_HASH]
 
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         return self._state_key(obj_id) in self.state
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         for id_ in sorted(self.state):
             yield {self.PRIMARY_HASH: id_}
 

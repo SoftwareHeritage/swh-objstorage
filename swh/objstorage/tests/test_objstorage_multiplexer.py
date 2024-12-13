@@ -22,7 +22,7 @@ from swh.objstorage.multiplexer import (
     MP_COUNTER_METRICS,
     MultiplexerObjStorage,
 )
-from swh.objstorage.objstorage import DURATION_METRICS, compute_hashes
+from swh.objstorage.objstorage import DURATION_METRICS, objid_for_content
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -95,14 +95,8 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
     def test_delete_missing(self, allow_delete):
         super().test_delete_missing()
 
-    def test_delete_missing_composite(self, allow_delete):
-        super().test_delete_missing_composite()
-
     def test_delete_present(self, allow_delete):
         super().test_delete_present()
-
-    def test_delete_present_composite(self, allow_delete):
-        super().test_delete_present_composite()
 
     def test_access_readonly(self):
         # Add a content to the readonly storage
@@ -113,9 +107,9 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         assert obj_id not in self.storage
 
     def test_get_statsd_multiplexer(self, statsd):
-        content1, obj_id1 = self.compositehash_content(b"add_get_batch_1")
-        content2, obj_id2 = self.compositehash_content(b"add_get_batch_2")
-        content3, obj_id3 = self.compositehash_content(b"add_get_batch_3")
+        content1, obj_id1 = self.hash_content(b"add_get_batch_1")
+        content2, obj_id2 = self.hash_content(b"add_get_batch_2")
+        content3, obj_id3 = self.hash_content(b"add_get_batch_3")
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
         expected_payloads = [
@@ -251,7 +245,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
 
 def test_multiplexer_corruption_fallback(mocker, caplog):
     content_p = b"contains_present"
-    obj_id_p = compute_hashes(content_p)
+    obj_id_p = objid_for_content(content_p)
 
     class CorruptedInMemoryObjStorage(InMemoryObjStorage):
         name = "corrupted_objstorage"
@@ -289,7 +283,7 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
 
 def test_multiplexer_transient_error_fallback(mocker, caplog, statsd):
     content_p = b"contains_present"
-    obj_id_p = compute_hashes(content_p)
+    obj_id_p = objid_for_content(content_p)
 
     class TimeoutInMemoryObjStorage(InMemoryObjStorage):
         name = "timeout-in-memory"
@@ -385,7 +379,7 @@ def test_multiplexer_transient_error_fallback(mocker, caplog, statsd):
 
 def test_multiplexer_transient_error_nobackendsleft(mocker, caplog):
     content_p = b"contains_present"
-    obj_id_p = compute_hashes(content_p)
+    obj_id_p = objid_for_content(content_p)
 
     class TimeoutInMemoryObjStorage(InMemoryObjStorage):
         def get(self, obj_id):

@@ -358,7 +358,7 @@ def winery_clean_deleted_objects(ctx):
 def import_directories(ctx, directory):
     """Import a local directory in an existing objstorage."""
     from swh.objstorage.factory import get_objstorage
-    from swh.objstorage.objstorage import compute_hash
+    from swh.objstorage.objstorage import objid_for_content
 
     objstorage = get_objstorage(**ctx.obj["config"]["objstorage"])
     nobj = 0
@@ -370,7 +370,7 @@ def import_directories(ctx, directory):
                 path = os.path.join(root, name)
                 with open(path, "rb") as f:
                     content = f.read()
-                objstorage.add(content, obj_id=compute_hash(content))
+                objstorage.add(content, obj_id=objid_for_content(content))
                 volume += os.stat(path).st_size
                 nobj += 1
     click.echo(

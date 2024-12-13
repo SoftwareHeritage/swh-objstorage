@@ -5,32 +5,20 @@
 
 import abc
 import bz2
-import collections
 from datetime import timedelta
 import functools
 from itertools import dropwhile, islice
 import lzma
-from typing import (
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Callable, Dict, Iterable, Iterator, Literal, Optional, Tuple
 import zlib
 
 from typing_extensions import Protocol
 
 from swh.core import statsd
 from swh.model import hashutil
-from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
+from swh.objstorage.interface import ObjId, ObjStorageInterface, objid_from_dict
 
 DURATION_METRICS = "swh_objstorage_request_duration_seconds"
 
@@ -58,17 +46,10 @@ def objid_to_default_hex(
 ) -> str:
     """Converts SHA1 hashes and multi-hashes to the hexadecimal representation
     of the SHA1."""
-    if isinstance(obj_id, bytes):
-        return hashutil.hash_to_hex(obj_id)
-    elif isinstance(obj_id, str):
-        return obj_id
-    else:
-        return hashutil.hash_to_hex(obj_id[algo])
+    return hashutil.hash_to_hex(obj_id[algo])
 
 
-def compute_hashes(
-    content: bytes, hash_names: Iterable[str] = hashutil.DEFAULT_ALGORITHMS
-) -> Dict[str, bytes]:
+def objid_for_content(content: bytes) -> ObjId:
     """Compute the content's hashes.
 
     Args:
@@ -80,24 +61,11 @@ def compute_hashes(
         A dict mapping algo name to hash value
 
     """
-    return hashutil.MultiHash.from_data(
-        content,
-        hash_names=hash_names,
-    ).digest()
-
-
-def compute_hash(content: bytes, algo: str = ID_HASH_ALGO) -> bytes:
-    """Compute the content's hash.
-
-    Args:
-        content: The raw content to hash
-        hash_name: Hash's name
-
-    Returns:
-        The computed hash for the content
-
-    """
-    return compute_hashes(content, [algo])[algo]
+    return objid_from_dict(
+        hashutil.MultiHash.from_data(
+            content,
+        ).digest()
+    )
 
 
 class NullCompressor:
@@ -170,16 +138,11 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     def add_batch(
         self: ObjStorageInterface,
-        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
+        contents: Iterable[Tuple[ObjId, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
-        contents_pairs: Iterable[Tuple[ObjId, bytes]]
-        if isinstance(contents, collections.abc.Mapping):
-            contents_pairs = contents.items()
-        else:
-            contents_pairs = contents
-        for obj_id, content in contents_pairs:
+        for obj_id, content in contents:
             if check_presence and obj_id in self:
                 continue
             self.add(content, obj_id, check_presence=False)
@@ -209,7 +172,7 @@ class ObjStorage(metaclass=abc.ABCMeta):
         self: ObjStorageInterface,
         last_obj_id: Optional[ObjId] = None,
         limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[CompositeObjId]:
+    ) -> Iterator[ObjId]:
         it = iter(self)
         if last_obj_id:
             last_obj_id_hex = objid_to_default_hex(last_obj_id)
@@ -230,20 +193,14 @@ class ObjStorage(metaclass=abc.ABCMeta):
 
     def check(self, obj_id: ObjId) -> None:
         """Check if a content is found and recompute its hash to check integrity."""
-        obj_content = self.get(obj_id)
-        hash_algos = [str(self.PRIMARY_HASH)]
-        if isinstance(obj_id, dict):
-            hash_algos += [algo for algo in obj_id if algo != self.PRIMARY_HASH]
-        actual_hashes = compute_hashes(obj_content, hash_algos)
-        for algo in hash_algos:
-            actual_obj_id = actual_hashes[algo]
-            expected_obj_id = obj_id
-            if isinstance(obj_id, dict):
-                expected_obj_id = obj_id[algo]  # type: ignore[literal-required]
-            if actual_obj_id != expected_obj_id:
+        obj_data = self.get(obj_id)
+        data_hashes = objid_for_content(obj_data)
+        for algo, expected_hash in obj_id.items():
+            data_hash = data_hashes[algo]  # type: ignore[literal-required]
+            if data_hash != expected_hash:
                 raise ObjCorruptedError(
-                    f"expected {algo} hash is {hashutil.hash_to_hex(expected_obj_id)}, "
-                    f"actual {algo} hash is {hashutil.hash_to_hex(actual_obj_id)}"
+                    f"expected {algo} hash is {hashutil.hash_to_hex(expected_hash)}, "
+                    f"data {algo} hash is {hashutil.hash_to_hex(data_hash)}"
                 )
 
     def compress(self, data: bytes) -> bytes:

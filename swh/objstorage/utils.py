@@ -19,9 +19,6 @@ def call_async(f, *args):
 
 
 def format_obj_id(obj_id: ObjId) -> str:
-    if isinstance(obj_id, bytes):
-        obj_id = {"sha1": obj_id}
-
     return ";".join(
         (
             "%s:%s" % (algo, obj_id[algo].hex())

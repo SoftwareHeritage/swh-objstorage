@@ -8,7 +8,6 @@ import requests
 import requests_mock
 from requests_mock.contrib import fixture
 
-from swh.model import hashutil
 from swh.objstorage.exc import (
     NonIterableObjStorageError,
     ObjCorruptedError,
@@ -16,10 +15,13 @@ from swh.objstorage.exc import (
     ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.objstorage import objid_for_content
+
+from .objstorage_testing import FIRST_OBJID
 
 
-def build_objstorage(multi_hash=False):
+@pytest.fixture
+def build_objstorage():
     """Build an HTTPReadOnlyObjStorage suitable for tests
 
     this instancaite 2 ObjStorage, one HTTPReadOnlyObjStorage (the "front" one
@@ -33,10 +35,7 @@ def build_objstorage(multi_hash=False):
     objids = []
     for i in range(100):
         content = f"some content {i}".encode()
-        if multi_hash:
-            obj_id = hashutil.MultiHash.from_data(content).digest()
-        else:
-            obj_id = compute_hash(content)
+        obj_id = objid_for_content(content)
         objids.append(obj_id)
         sto_back.add(content, obj_id=obj_id)
 
@@ -47,15 +46,17 @@ def build_objstorage(multi_hash=False):
 
     def get_cb(request, context):
         dirname, basename = request.path.rsplit("/", 1)
-        objid = bytes.fromhex(basename)
-        if dirname == "/content" and objid in sto_back:
-            return sto_back.get(objid)
+        primary_hash = bytes.fromhex(basename)
+        back_objid = {sto_back.PRIMARY_HASH: primary_hash}
+        if dirname == "/content" and back_objid in sto_back:
+            return sto_back.get(back_objid)
         context.status_code = 404
 
     def head_cb(request, context):
         dirname, basename = request.path.rsplit("/", 1)
-        objid = bytes.fromhex(basename)
-        if dirname != "/content" or objid not in sto_back:
+        primary_hash = bytes.fromhex(basename)
+        back_objid = {sto_back.PRIMARY_HASH: primary_hash}
+        if dirname != "/content" or back_objid not in sto_back:
             context.status_code = 404
             return b"Not Found"
         return b"Found"
@@ -63,12 +64,12 @@ def build_objstorage(multi_hash=False):
     mock.register_uri(requests_mock.GET, requests_mock.ANY, content=get_cb)
     mock.register_uri(requests_mock.HEAD, requests_mock.ANY, content=head_cb)
 
-    return sto_front, sto_back, objids
+    yield sto_front, sto_back, objids
+    mock.cleanUp()
 
 
-@pytest.mark.parametrize("multi_hash", [False, True])
-def test_http_objstorage(multi_hash):
-    sto_front, sto_back, objids = build_objstorage(multi_hash)
+def test_http_objstorage(build_objstorage):
+    sto_front, sto_back, objids = build_objstorage
 
     for objid in objids:
         assert objid in sto_front
@@ -76,50 +77,48 @@ def test_http_objstorage(multi_hash):
         assert sto_front.get(objid).decode().startswith("some content ")
 
 
-def test_http_objstorage_missing():
-    sto_front, sto_back, objids = build_objstorage()
+def test_http_objstorage_missing(build_objstorage):
+    sto_front, _, _ = build_objstorage
 
-    assert b"\x00" * 20 not in sto_front
+    assert FIRST_OBJID not in sto_front
 
 
-def test_http_objstorage_get_missing():
-    sto_front, sto_back, objids = build_objstorage()
+def test_http_objstorage_get_missing(build_objstorage):
+    sto_front, _, _ = build_objstorage
 
     with pytest.raises(ObjNotFoundError):
-        sto_front.get(b"\x00" * 20)
+        sto_front.get(FIRST_OBJID)
 
 
-@pytest.mark.parametrize("multi_hash", [False, True])
-def test_http_objstorage_check(multi_hash):
-    sto_front, sto_back, objids = build_objstorage(multi_hash)
+def test_http_objstorage_check(build_objstorage):
+    sto_front, sto_back, objids = build_objstorage
     for objid in objids:
         assert sto_front.check(objid) is None  # no Exception means OK
 
     # create an invalid object in the in-memory objstorage
     invalid_content = b"p0wn3d content"
-    fake_objid = b"\x01" * 20
-    sto_back.add(invalid_content, fake_objid)
+    sto_back.add(invalid_content, FIRST_OBJID)
 
     # the http objstorage should report it as invalid
     with pytest.raises(ObjCorruptedError):
-        sto_front.check(fake_objid)
+        sto_front.check(FIRST_OBJID)
 
 
-def test_http_objstorage_read_only():
-    sto_front, sto_back, objids = build_objstorage()
+def test_http_objstorage_read_only(build_objstorage):
+    sto_front, sto_back, objids = build_objstorage
 
     content = b""
-    obj_id = compute_hash(content)
+    obj_id = objid_for_content(content)
     with pytest.raises(ReadOnlyObjStorageError):
         sto_front.add(content, obj_id=obj_id)
     with pytest.raises(ReadOnlyObjStorageError):
-        sto_front.restore(b"", obj_id=compute_hash(b""))
+        sto_front.restore(b"", obj_id=objid_for_content(b""))
     with pytest.raises(ReadOnlyObjStorageError):
         sto_front.delete(b"\x00" * 20)
 
 
-def test_http_objstorage_not_iterable():
-    sto_front, sto_back, objids = build_objstorage()
+def test_http_objstorage_not_iterable(build_objstorage):
+    sto_front, _, _ = build_objstorage
 
     with pytest.raises(NonIterableObjStorageError):
         len(sto_front)
@@ -133,9 +132,8 @@ def test_http_cannonical_url():
     assert sto.root_path == url + "/"
 
 
-@pytest.mark.parametrize("multi_hash", [False, True])
-def test_http_objstorage_download_url(multi_hash):
-    sto_front, sto_back, objids = build_objstorage(multi_hash)
+def test_http_objstorage_download_url(build_objstorage):
+    sto_front, _, objids = build_objstorage
 
     for objid in objids:
         assert objid in sto_front

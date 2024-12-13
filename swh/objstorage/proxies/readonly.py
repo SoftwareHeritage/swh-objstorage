@@ -7,7 +7,7 @@ from typing import Dict, Iterator, Union
 
 from swh.objstorage.exc import ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
+from swh.objstorage.interface import ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -28,7 +28,7 @@ class ReadOnlyProxyObjStorage(ObjStorage):
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         """Iterates over the content of each storages
 
         Warning: The `__iter__` methods frequently have bad performance. You

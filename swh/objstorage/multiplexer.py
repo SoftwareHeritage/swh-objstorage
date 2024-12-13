@@ -6,13 +6,12 @@
 import logging
 import queue
 import threading
-from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
 
 # note: it's required to access the statsd object form the statsd module to
 # help mocking it in tests...
 from swh.core import statsd
 from swh.core.api import RemoteException
-from swh.model.model import Sha1
 from swh.objstorage.exc import (
     NoBackendsLeftError,
     ObjCorruptedError,
@@ -21,7 +20,7 @@ from swh.objstorage.exc import (
     ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
+from swh.objstorage.interface import ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage, timed
 from swh.objstorage.utils import format_obj_id
 
@@ -337,7 +336,7 @@ class MultiplexerObjStorage(ObjStorage):
                 return True
         return False
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         def obj_iterator():
             for i, storage in enumerate(self.storages):
                 if i in self.active_readers:
@@ -383,7 +382,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     def add_batch(
         self,
-        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
+        contents: Iterable[Tuple[ObjId, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage."""

@@ -16,7 +16,7 @@ from swh.objstorage.exc import (
     ObjNotFoundError,
     ObjStorageAPIError,
 )
-from swh.objstorage.interface import CompositeObjId, ObjId, ObjStorageInterface
+from swh.objstorage.interface import ObjId, ObjStorageInterface
 from swh.objstorage.objstorage import objid_to_default_hex, timed
 
 
@@ -47,14 +47,14 @@ class RemoteObjStorage(RPCClient):
     def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         yield from self.list_content()
 
     def list_content(
         self,
         last_obj_id: Optional[ObjId] = None,
         limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[CompositeObjId]:
+    ) -> Iterator[ObjId]:
         params: Dict[str, Any] = {}
         if limit:
             params["limit"] = limit

@@ -8,11 +8,14 @@ import os
 
 import pytest
 
-from swh.model import hashutil
-from swh.objstorage.constants import ID_DIGEST_LENGTH
 from swh.objstorage.exc import ObjCorruptedError
+from swh.objstorage.objstorage import objid_to_default_hex
 
-from .objstorage_testing import ObjStorageTestFixture
+from .objstorage_testing import (
+    FIRST_OBJID,
+    ObjStorageTestFixture,
+    assert_objid_lists_compatible,
+)
 
 
 class TestPathSlicingObjStorage(ObjStorageTestFixture):
@@ -28,14 +31,16 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         }
 
     def content_path(self, obj_id):
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id)
         return self.storage.slicer.get_path(hex_obj_id)
 
     def test_iter(self):
         content, obj_id = self.hash_content(b"iter")
         assert not list(iter(self.storage))
         self.storage.add(content, obj_id=obj_id)
-        assert list(iter(self.storage)) == [{self.storage.PRIMARY_HASH: obj_id}]
+        assert list(iter(self.storage)) == [
+            {self.storage.PRIMARY_HASH: obj_id[self.storage.PRIMARY_HASH]}
+        ]
 
     def test_len(self):
         content, obj_id = self.hash_content(b"len")
@@ -59,14 +64,14 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         for i in range(100):
             content, obj_id = self.hash_content(b"content %d" % i)
             self.storage.add(content, obj_id=obj_id)
-            all_ids.append({self.storage.PRIMARY_HASH: obj_id})
+            all_ids.append(obj_id)
         all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
 
-        ids = list(self.storage.iter_from(b"\x00" * ID_DIGEST_LENGTH))
-        assert ids == all_ids
+        ids = list(self.storage.iter_from(FIRST_OBJID))
+        assert_objid_lists_compatible(ids, all_ids)
 
         ids = list(self.storage.iter_from(all_ids[0]))
-        assert ids == all_ids[1:]
+        assert_objid_lists_compatible(ids, all_ids[1:])
 
         ids = list(self.storage.iter_from(all_ids[-1], n_leaf=True))
         n_leaf = ids[-1]
@@ -79,7 +84,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         ids = ids[:-1]
         assert n_leaf == 2  # beware, this depends on the hash algo
         assert len(ids) == 1
-        assert ids == all_ids[-1:]
+        assert_objid_lists_compatible(ids, all_ids[-1:])
 
     def test_fdatasync_default(self, mocker):
         content, obj_id = self.hash_content(b"check_fdatasync")
@@ -137,12 +142,12 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
     def test__iter__skip_tmpfile(self, caplog):
         content, obj_id = self.hash_content(b"skip_tmpfile")
         self.storage.add(content, obj_id=obj_id)
-        path = self.storage.slicer.get_path(obj_id.hex())
+        path = self.content_path(obj_id)
 
-        dir = os.path.dirname(path)
-        bogus_path = os.path.join(dir, "bogus_file")
-        with open(bogus_path, "w") as f:
-            f.write("bogus")
+        dirname = os.path.dirname(path)
+        bogus_path = os.path.join(dirname, "bogus_file")
+        with open(bogus_path, "wb") as f:
+            f.write(b"bogus")
 
         with caplog.at_level(logging.WARNING, "swh.objstorage.backends.pathslicing"):
             for _ in self.storage:
@@ -156,15 +161,15 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
     def test_iter_from_skip_tmpfile(self, caplog):
         content, obj_id = self.hash_content(b"skip_tmpfile")
         self.storage.add(content, obj_id=obj_id)
-        path = self.storage.slicer.get_path(obj_id.hex())
+        path = self.content_path(obj_id)
 
-        dir = os.path.dirname(path)
-        bogus_path = os.path.join(dir, "bogus_file")
-        with open(bogus_path, "w") as f:
-            f.write("bogus")
+        dirname = os.path.dirname(path)
+        bogus_path = os.path.join(dirname, "bogus_file")
+        with open(bogus_path, "wb") as f:
+            f.write(b"bogus")
 
         with caplog.at_level(logging.WARNING, "swh.objstorage.backends.pathslicing"):
-            for _ in self.storage.iter_from(obj_id=b"\x00" * 20):
+            for _ in self.storage.iter_from(FIRST_OBJID):
                 pass
 
         assert len(caplog.records) == 1, [log.getMessage() for log in caplog.records]

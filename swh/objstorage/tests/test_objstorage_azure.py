@@ -17,7 +17,6 @@ from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 import pytest
 
-from swh.model.hashutil import hash_to_hex
 import swh.objstorage.backends.azure
 from swh.objstorage.exc import ObjCorruptedError
 from swh.objstorage.factory import get_objstorage
@@ -327,7 +326,7 @@ class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
         for i in range(100):
             content, obj_id = self.hash_content(b"test_content_%02d" % i)
             self.storage.add(content, obj_id=obj_id)
-            hex_obj_id = hash_to_hex(obj_id)
+            hex_obj_id = self.storage._internal_id(obj_id)
             prefix = hex_obj_id[0]
             assert (
                 self.ContainerClient(self.storage.container_urls[prefix])

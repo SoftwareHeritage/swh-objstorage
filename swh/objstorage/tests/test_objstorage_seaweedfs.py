@@ -14,7 +14,11 @@ from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjCorruptedError
-from swh.objstorage.objstorage import compute_hash, decompressors
+from swh.objstorage.objstorage import (
+    decompressors,
+    objid_for_content,
+    objid_to_default_hex,
+)
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
 
@@ -248,9 +252,9 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
         all_ids = []
         for i in range(num_objects):
             content = b"content %d" % i
-            obj_id = compute_hash(content)
+            obj_id = objid_for_content(content)
             self.mock.content[path(obj_id)] = self.storage.compress(content)
-            all_ids.append({"sha1": obj_id})
+            all_ids.append(obj_id)
         all_ids.sort(key=lambda d: d["sha1"])
         return all_ids
 
@@ -285,7 +289,8 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
         for i in range(20):
             content, obj_id = self.hash_content(b"test slicing %i" % i)
             self.storage.add(content, obj_id=obj_id)
-            assert slicer.get_path(obj_id.hex()) in self.mock.content
+            hex_obj_id = objid_to_default_hex(obj_id)
+            assert slicer.get_path(hex_obj_id) in self.mock.content
 
 
 class TestSeaweedObjStorageWithCompression(TestSeaweedObjStorage):

@@ -5,22 +5,11 @@
 
 
 from datetime import timedelta
-from typing import (
-    Any,
-    Dict,
-    FrozenSet,
-    Iterable,
-    Iterator,
-    Mapping,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, FrozenSet, Iterable, Iterator, Optional, Tuple
 
 from typing_extensions import Literal, Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-from swh.model.model import Sha1
 from swh.objstorage.constants import DEFAULT_LIMIT
 
 COMPOSITE_OBJID_KEYS: FrozenSet[Literal["sha1", "sha1_git", "sha256", "blake2s256"]] = (
@@ -28,37 +17,36 @@ COMPOSITE_OBJID_KEYS: FrozenSet[Literal["sha1", "sha1_git", "sha256", "blake2s25
 )
 
 
-class CompositeObjId(TypedDict, total=False):
+class ObjId(TypedDict, total=False):
+    """Type of object ids, corresponding to ``{hash: value for hash in SUPPORTED_HASHES}``"""
+
     sha1: bytes
     sha1_git: bytes
     sha256: bytes
     blake2s256: bytes
 
 
-def objid_from_dict(d: Dict[str, Any]) -> CompositeObjId:
-    filtered: CompositeObjId = {}
+CompositeObjId = ObjId
+
+
+def objid_from_dict(d: Dict[str, Any]) -> ObjId:
+    """Generate an object id from a dict of optional hashes"""
+    filtered: ObjId = {}
 
     for key in COMPOSITE_OBJID_KEYS:
         value = d.get(key)
         if value is None:
             continue
         if not isinstance(value, bytes):
-            raise TypeError(
-                "value for %s is %s, not bytes" % (key, value.__class__.__name__)
-            )
+            raise TypeError(f"value for {key} is {value.__class__.__name__}, not bytes")
         filtered[key] = value
 
     if not filtered:
         raise ValueError(
-            "dict is missing at least one of %s" % ", ".join(COMPOSITE_OBJID_KEYS)
+            f"dict is missing at least one of {', '.join(COMPOSITE_OBJID_KEYS)}"
         )
 
     return filtered
-
-
-ObjId = Union[bytes, CompositeObjId]
-"""Type of object ids, which should be ``{hash: value for hash in SUPPORTED_HASHES}``;
-but single sha1 hashes are supported for legacy clients"""
 
 
 @runtime_checkable
@@ -144,14 +132,13 @@ class ObjStorageInterface(Protocol):
     @remote_api_endpoint("content/add/batch")
     def add_batch(
         self,
-        contents: Union[Mapping[Sha1, bytes], Iterable[Tuple[ObjId, bytes]]],
+        contents: Iterable[Tuple[ObjId, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage.
 
         Args:
-            contents: either mapping from [ID_HASH_ALGO] checksums to object contents,
-                or list of pairs of dict hashes and object contents
+            contents: list of pairs of composite object ids and object contents
 
         Returns:
             the summary of objects added to the storage (count of object,
@@ -269,11 +256,11 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def __iter__(self) -> Iterator[CompositeObjId]: ...
+    def __iter__(self) -> Iterator[ObjId]: ...
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
-    ) -> Iterator[CompositeObjId]:
+    ) -> Iterator[ObjId]:
         """Generates known object ids.
 
         Args:

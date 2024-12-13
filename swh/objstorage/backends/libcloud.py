@@ -16,7 +16,7 @@ from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -129,7 +129,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         else:
             return True
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         """Iterate over the objects present in the storage
 
         Warning: Iteration over the contents of a cloud-based object storage
@@ -192,14 +192,13 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
     def _object_path(self, obj_id: ObjId) -> str:
         """Get the full path to an object"""
-        if isinstance(obj_id, dict):
-            obj_id = obj_id[self.PRIMARY_HASH]
+        primary_hash = obj_id[self.PRIMARY_HASH]
 
-        hex_obj_id = hashutil.hash_to_hex(obj_id)
+        hex_primary_hash = hashutil.hash_to_hex(primary_hash)
         if self.path_prefix:
-            return self.path_prefix + hex_obj_id
+            return self.path_prefix + hex_primary_hash
         else:
-            return hex_obj_id
+            return hex_primary_hash
 
     def _get_object(self, obj_id: ObjId):
         """Get a Libcloud wrapper for an object pointer.

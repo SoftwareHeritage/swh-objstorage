@@ -24,7 +24,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.model import hashutil
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
 from swh.objstorage.utils import call_async
 
@@ -200,9 +200,8 @@ class AzureCloudObjStorage(ObjStorage):
 
     def _internal_id(self, obj_id: ObjId) -> str:
         """Internal id is the hex version in objstorage."""
-        if isinstance(obj_id, dict):
-            obj_id = obj_id[self.PRIMARY_HASH]
-        return hashutil.hash_to_hex(obj_id)
+        primary_hash = obj_id[self.PRIMARY_HASH]
+        return hashutil.hash_to_hex(primary_hash)
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -263,7 +262,7 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             return True
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():

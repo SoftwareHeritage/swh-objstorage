@@ -31,7 +31,7 @@ from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
-from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.objstorage import objid_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +455,7 @@ class RWWorker(Worker):
         start = time.monotonic()
         while self.keep_going() and time.monotonic() < end:
             content = random_content.read(random.choice(self.payloads))
-            obj_id = compute_hash(content, "sha256")
+            obj_id = objid_for_content(content)
             self.storage.add(content=content, obj_id=obj_id)
             if self.stats.stats_active:
                 self.stats.stats_write(obj_id, content)

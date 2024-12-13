@@ -17,7 +17,7 @@ from swh.objstorage.constants import (
     is_valid_hexdigest,
 )
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -216,7 +216,7 @@ class PathSlicingObjStorage(ObjStorage):
         hex_obj_id = objid_to_default_hex(obj_id)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
-    def __iter__(self) -> Iterator[CompositeObjId]:
+    def __iter__(self) -> Iterator[ObjId]:
         """Iterate over the object identifiers currently available in the
         storage.
 
@@ -293,7 +293,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def list_content(
         self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
-    ) -> Iterator[CompositeObjId]:
+    ) -> Iterator[ObjId]:
         if last_obj_id:
             it = self.iter_from(last_obj_id)
         else:

@@ -11,7 +11,7 @@ from swh.objstorage.exc import (
     ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.objstorage import compute_hash
+from swh.objstorage.objstorage import objid_for_content
 
 
 @pytest.fixture()
@@ -37,12 +37,12 @@ def contentdata(objstorage):
     absent_content = b"non-existent content"
     data = {
         "valid_content": valid_content,
-        "valid_id": compute_hash(valid_content),
+        "valid_id": objid_for_content(valid_content),
         "invalid_content": invalid_content,
         "true_invalid_content": true_invalid_content,
-        "invalid_id": compute_hash(true_invalid_content),
+        "invalid_id": objid_for_content(true_invalid_content),
         "absent_content": absent_content,
-        "absent_id": compute_hash(absent_content),
+        "absent_id": objid_for_content(absent_content),
     }
     # store one valid and one invalid content in the actual (backend) objstorage
     for cnt in ("valid", "invalid"):
@@ -57,8 +57,21 @@ def test_can_contains(objstorage, contentdata):
 
 
 def test_can_iter(objstorage, contentdata):
-    assert {"sha1": contentdata["valid_id"]} in iter(objstorage)
-    assert {"sha1": contentdata["invalid_id"]} in iter(objstorage)
+    valid_id_items = set(contentdata["valid_id"].items())
+    invalid_id_items = set(contentdata["invalid_id"].items())
+
+    has_valid_id = False
+    has_invalid_id = False
+    known = list(iter(objstorage))
+    for value in known:
+        value_items = set(value.items())
+        if value_items <= valid_id_items:
+            has_valid_id = True
+        if value_items <= invalid_id_items:
+            has_invalid_id = True
+
+    assert has_valid_id, f"{contentdata['valid_id']} not found in {known}"
+    assert has_invalid_id, f"{contentdata['invalid_id']} not found in {known}"
 
 
 def test_can_len(objstorage, contentdata):
