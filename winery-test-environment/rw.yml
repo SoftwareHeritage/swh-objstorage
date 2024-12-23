@@ -55,7 +55,8 @@
           - postgresql
           - postgresql-contrib
           - libpq-dev
-          - python3-psycopg2
+          - python3-psycopg
+          - python3-psycopg_pool
           - acl
 
     - name: postgresql.conf max_connections = 1000
