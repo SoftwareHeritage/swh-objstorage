@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -65,8 +65,12 @@ logger = logging.getLogger(__name__)
 def needs_ceph():
     ceph = shutil.which("ceph")
 
-    if not ceph or os.environ.get("USE_CEPH", "yes") != "yes":
+    if not ceph:
         pytest.skip("the ceph CLI was not found")
+    if os.environ.get("USE_CEPH", "no") != "yes":
+        pytest.skip(
+            "the ceph-based tests have been disabled (USE_CEPH env var is not 'yes')"
+        )
 
 
 @pytest.fixture
