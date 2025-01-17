@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import importlib
-import warnings
 
 from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
@@ -28,8 +27,6 @@ OBJSTORAGE_IMPLEMENTATIONS = {
     # filters and proxies
     "multiplexer": "swh.objstorage.multiplexer.MultiplexerObjStorage",
     "read-only": "swh.objstorage.proxies.readonly.ReadOnlyProxyObjStorage",
-    # deprecated factories
-    "filtered": "_construct_filtered_objstorage",
 }
 
 
@@ -55,27 +52,10 @@ def get_objstorage(cls: str, **kwargs) -> ObjStorageInterface:
             % (cls, ", ".join(OBJSTORAGE_IMPLEMENTATIONS))
         )
 
-    if "." in class_path:
-        (module_path, class_name) = class_path.rsplit(".", 1)
-        try:
-            module = importlib.import_module(module_path, package=__package__)
-        except ImportError as e:
-            raise ValueError(f"Storage class {cls} is not available: {e.args[0]}")
-        ObjStorage = getattr(module, class_name)
-    else:
-        # used by (deprecated) filtered for which the value is a factory
-        # function rather than a class
-        ObjStorage = globals()[class_path]
+    (module_path, class_name) = class_path.rsplit(".", 1)
+    try:
+        module = importlib.import_module(module_path, package=__package__)
+    except ImportError as e:
+        raise ValueError(f"Storage class {cls} is not available: {e.args[0]}")
+    ObjStorage = getattr(module, class_name)
     return ObjStorage(**kwargs)
-
-
-def _construct_filtered_objstorage(storage_conf, filters_conf, **kwargs):
-    if len(filters_conf) != 1 or filters_conf[0]["type"] != "readonly":
-        raise ValueError("This legacy function only supports a single readonly filter")
-    warnings.warn(
-        "The 'filtered[type:readonly]' objstorage class has been deprecated, "
-        "please use a 'read-only' proxy class instead.",
-        DeprecationWarning,
-    )
-
-    return get_objstorage(cls="read-only", storage=get_objstorage(**storage_conf))
