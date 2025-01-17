@@ -36,6 +36,23 @@ testing = {file = [
 [project.entry-points."swh.cli.subcommands"]
 "swh.objstorage" = "swh.objstorage.cli"
 
+[project.entry-points."swh.objstorage.classes"]
+"pathslicing" = "swh.objstorage.backends.pathslicing:PathSlicingObjStorage"
+"remote" = "swh.objstorage.api.client:RemoteObjStorage"
+"memory" = "swh.objstorage.backends.in_memory:InMemoryObjStorage"
+"seaweedfs" = "swh.objstorage.backends.seaweedfs.objstorage:SeaweedFilerObjStorage"
+"random" = "swh.objstorage.backends.generator:RandomGeneratorObjStorage"
+"http" = "swh.objstorage.backends.http:HTTPReadOnlyObjStorage"
+"noop" = "swh.objstorage.backends.noop:NoopObjStorage"
+"azure" = "swh.objstorage.backends.azure:AzureCloudObjStorage"
+"azure-prefixed" = "swh.objstorage.backends.azure:PrefixedAzureCloudObjStorage"
+"s3" = "swh.objstorage.backends.libcloud:AwsCloudObjStorage"
+"swift" = "swh.objstorage.backends.libcloud:OpenStackCloudObjStorage"
+"winery" = "swh.objstorage.backends.winery:WineryObjStorage"
+# filters and proxies
+"multiplexer" = "swh.objstorage.multiplexer:MultiplexerObjStorage"
+"read-only" = "swh.objstorage.proxies.readonly:ReadOnlyProxyObjStorage"
+
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage"
 "Bug Reports" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues"

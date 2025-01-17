@@ -1,10 +1,9 @@
-# Copyright (C) 2016-2024  The Software Heritage developers
+# Copyright (C) 2016-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import closing
-import secrets
 import socket
 from typing import Optional
 
@@ -19,7 +18,7 @@ import pytest
 
 from swh.objstorage.backends.libcloud import CloudObjStorage
 from swh.objstorage.exc import ObjCorruptedError
-from swh.objstorage.factory import OBJSTORAGE_IMPLEMENTATIONS
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
@@ -29,18 +28,18 @@ API_SECRET_KEY = "API SECRET KEY"
 CONTAINER_NAME = "test_container"
 
 
-@pytest.fixture(scope="module", autouse=True)
-def cloud_provider_mock():
-    # register the cloud MockCloudObjStorage class defined in this file so the
-    # helper test function get_cls() defined in objstorage_testing works OK and
-    # ObjStorageTestFixture.test_name() is green here
-    OBJSTORAGE_IMPLEMENTATIONS["cloud"] = (
-        f"{MockCloudObjStorage.__module__}.{MockCloudObjStorage.__name__}"
+@pytest.fixture(autouse=True)
+def cloud_provider_mock(mocker):
+    def _get_driver(self, **kwargs):
+        return MockLibcloudDriver(**kwargs)
+
+    mocker.patch(
+        "swh.objstorage.backends.libcloud.CloudObjStorage._get_driver", _get_driver
     )
-    try:
-        yield
-    finally:
-        del OBJSTORAGE_IMPLEMENTATIONS["cloud"]
+    mocker.patch(
+        "swh.objstorage.backends.libcloud.CloudObjStorage._get_provider",
+        lambda self: None,
+    )
 
 
 class MockLibcloudObject:
@@ -57,10 +56,10 @@ class MockLibcloudObject:
 class MockLibcloudDriver:
     """Mock driver that replicates the used LibCloud API"""
 
-    def __init__(self, api_key, api_secret_key):
+    def __init__(self, **kw):
         self.containers = {CONTAINER_NAME: {}}  # Storage is initialized
-        self.api_key = api_key
-        self.api_secret_key = api_secret_key
+        self.api_key = kw.get("key", kw.get("api_key"))
+        self.api_secret_key = kw.get("secret", kw.get("api_secret_key"))
 
     def _check_credentials(self):
         # Private method may be known as another name in Libcloud but is used
@@ -103,12 +102,13 @@ class MockLibcloudDriver:
         obj = MockLibcloudObject(obj_id, content)
         container[obj_id] = obj
 
+    def get_object_cdn_url(self, obj, ex_expiry=24.0):
+        # XXX tests should probably not pass with this implem...
+        return None
+
 
 class MockCloudObjStorage(CloudObjStorage):
     """Cloud object storage that uses a mocked driver"""
-
-    def _get_driver(self, **kwargs):
-        return MockLibcloudDriver(**kwargs)
 
     def _get_provider(self):
         # Implement this for the abc requirement, but behavior is defined in
@@ -122,8 +122,9 @@ class TestCloudObjStorage(ObjStorageTestFixture):
 
     @pytest.fixture(autouse=True)
     def objstorage(self):
-        self.storage = MockCloudObjStorage(
-            CONTAINER_NAME,
+        self.storage = get_objstorage(
+            "s3",
+            container_name=CONTAINER_NAME,
             api_key=API_KEY,
             api_secret_key=API_SECRET_KEY,
             compression=self.compression,
@@ -209,11 +210,11 @@ else:
 
 @pytest.fixture(scope="class")
 def moto_server():
-    container_name = secrets.token_hex(10)
+    container_name = CONTAINER_NAME
     port = _find_free_port()
     moto_config = {
-        "key": "testing",
-        "secret": "testing",
+        "key": API_KEY,
+        "secret": API_SECRET_KEY,
         "host": "localhost",
         "port": port,
         "secure": False,

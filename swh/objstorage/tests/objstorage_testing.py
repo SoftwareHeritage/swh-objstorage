@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,8 +9,8 @@ from typing import Optional, Tuple
 import pytest
 import requests
 
+from swh.core.config import get_swh_backend_module, list_swh_backends
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.factory import OBJSTORAGE_IMPLEMENTATIONS
 from swh.objstorage.interface import CompositeObjId, ObjStorageInterface
 from swh.objstorage.objstorage import compute_hash, decompressors
 
@@ -20,9 +20,10 @@ def get_cls(sto: ObjStorageInterface) -> Optional[str]:
     ObjStorage object (mostly a reverse of the OBJSTORAGE_IMPLEMENTATIONS dict
     defined in factory.py)
     """
-    for cls, v in OBJSTORAGE_IMPLEMENTATIONS.items():
-        if f"{sto.__class__.__module__}.{sto.__class__.__name__}" == v:
-            return cls
+    for backend in list_swh_backends("objstorage"):
+        mod, cls = get_swh_backend_module("objstorage", backend)
+        if sto.__class__ is cls:
+            return backend
     return None
 
 
