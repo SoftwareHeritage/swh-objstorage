@@ -26,18 +26,18 @@ backend.
    (swh-objstorage) ~/swh$ cat >local.yml <<EOF
    objstorage:
      cls: pathslicing
-     args:
-       root: /tmp/objstorage
-       slicing: 0:2/2:4/4:6
+     root: /tmp/objstorage
+     slicing: 0:2/2:4/4:6
    EOF
    (swh-objstorage) ~/swh$ mkdir /tmp/objstorage
-   (swh-objstorage) ~/swh$ swh objstorage -C local.yml serve -p 15003
+   (swh-objstorage) ~/swh$ swh objstorage -C local.yml rpc-serve -p 15003
    INFO:swh.core.config:Loading config file local.yml
    ======== Running on http://0.0.0.0:15003 ========
    (Press CTRL+C to quit)
 
 Now we have an API listening on http://0.0.0.0:15003 we can use to store and
-retrieve objects from. I an other terminal:
+retrieve objects from. In an other terminal, you can import all the files from
+a local directory in this objstorage:
 
 .. code-block:: console
 
@@ -45,8 +45,7 @@ retrieve objects from. I an other terminal:
    (swh-objstorage) ~/swh$ cat >remote.yml <<EOF
    objstorage:
      cls: remote
-     args:
-       url: http://127.0.0.1:15003
+     url: http://127.0.0.1:15003
    EOF
    (swh-objstorage) ~/swh$ swh objstorage -C remote.yml import .
    INFO:swh.core.config:Loading config file remote.yml
