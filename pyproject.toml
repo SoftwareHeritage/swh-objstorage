@@ -41,7 +41,6 @@ testing = {file = [
 "remote" = "swh.objstorage.api.client:RemoteObjStorage"
 "memory" = "swh.objstorage.backends.in_memory:InMemoryObjStorage"
 "seaweedfs" = "swh.objstorage.backends.seaweedfs.objstorage:SeaweedFilerObjStorage"
-"random" = "swh.objstorage.backends.generator:RandomGeneratorObjStorage"
 "http" = "swh.objstorage.backends.http:HTTPReadOnlyObjStorage"
 "noop" = "swh.objstorage.backends.noop:NoopObjStorage"
 "azure" = "swh.objstorage.backends.azure:AzureCloudObjStorage"
