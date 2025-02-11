@@ -1217,11 +1217,16 @@ class WineryBenchOptions:
 
 
 @pytest.fixture
-def bench_options(pytestconfig, postgresql_dsn, rbd_map_options) -> WineryBenchOptions:
+def bench_options(
+    pytestconfig, postgresql_dsn, rbd_map_options, tmpdir
+) -> WineryBenchOptions:
     output_dir = pytestconfig.getoption("--winery-bench-output-directory")
     shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
     pack_immediately = pytestconfig.getoption("--winery-bench-pack-immediately")
     duration = pytestconfig.getoption("--winery-bench-duration")
+
+    if not output_dir:
+        output_dir = str(tmpdir)
 
     storage_config = {
         "output_dir": output_dir,

@@ -70,7 +70,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--winery-bench-output-directory",
         help="Directory in which the performance results are stored",
-        default="/tmp/winery",
+        default=None,
     )
     parser.addoption(
         "--winery-bench-rw-workers",
