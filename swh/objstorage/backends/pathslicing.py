@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,12 +8,13 @@ from itertools import islice
 import logging
 import os
 import tempfile
-from typing import Iterator, List, Literal, Optional
+from typing import Iterator, List, Optional
 
 from swh.objstorage.constants import (
     DEFAULT_LIMIT,
     ID_HASH_ALGO,
     ID_HEXDIGEST_LENGTH,
+    LiteralPrimaryHash,
     is_valid_hexdigest,
 )
 from swh.objstorage.exc import ObjNotFoundError
@@ -35,7 +36,7 @@ FILE_MODE = 0o644
 logger = logging.getLogger(__name__)
 
 
-def is_valid_filename(filename: str, algo: Literal["sha1", "sha256"] = ID_HASH_ALGO):
+def is_valid_filename(filename: str, algo: LiteralPrimaryHash = ID_HASH_ALGO):
     """Checks that the file points to a valid hexdigest for the given algo."""
 
     return is_valid_hexdigest(os.path.basename(filename), algo)
@@ -167,7 +168,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
+    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
     name: str = "pathslicing"
 
     def __init__(

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,13 +7,13 @@
 from datetime import timedelta
 from typing import Any, Dict, FrozenSet, Iterable, Iterator, Optional, Tuple
 
-from typing_extensions import Literal, Protocol, TypedDict, runtime_checkable
+from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
-from swh.objstorage.constants import DEFAULT_LIMIT
+from swh.objstorage.constants import DEFAULT_LIMIT, LiteralHash, LiteralPrimaryHash
 
-COMPOSITE_OBJID_KEYS: FrozenSet[Literal["sha1", "sha1_git", "sha256", "blake2s256"]] = (
-    frozenset(("sha1", "sha1_git", "sha256", "blake2s256"))
+COMPOSITE_OBJID_KEYS: FrozenSet[LiteralHash] = frozenset(
+    ("sha1", "sha1_git", "sha256", "blake2s256")
 )
 
 
@@ -73,7 +73,7 @@ class ObjStorageInterface(Protocol):
     """
 
     name: str
-    PRIMARY_HASH: Literal["sha1", "sha256"]
+    PRIMARY_HASH: LiteralPrimaryHash
 
     def __init__(
         self,

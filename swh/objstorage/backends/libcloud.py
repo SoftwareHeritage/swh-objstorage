@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024  The Software Heritage developers
+# Copyright (C) 2016-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,10 +13,9 @@ from urllib.parse import urlencode
 from libcloud.storage import providers
 import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
-from typing_extensions import Literal
 
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import LiteralPrimaryHash, ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -60,7 +59,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       kwargs: extra arguments are passed through to the LibCloud driver
     """
 
-    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
+    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
     name: str = "cloud"
 
     def __init__(

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,11 +10,9 @@ import logging
 from typing import Iterator, Optional
 from urllib.parse import urlparse
 
-from typing_extensions import Literal
-
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import LiteralPrimaryHash, ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     CompressionFormat,
@@ -34,7 +32,7 @@ class SeaweedFilerObjStorage(ObjStorage):
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    PRIMARY_HASH: Literal["sha1", "sha256"] = "sha1"
+    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
     name: str = "seaweedfs"
 
     def __init__(
