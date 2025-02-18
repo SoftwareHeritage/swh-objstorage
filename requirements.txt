@@ -5,7 +5,6 @@
 click
 deprecated
 msgpack
-typing-extensions >= 3.7.4
 
 # seaweedfs backend
 requests

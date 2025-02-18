@@ -5,9 +5,18 @@
 
 
 from datetime import timedelta
-from typing import Any, Dict, FrozenSet, Iterable, Iterator, Optional, Tuple
-
-from typing_extensions import Protocol, TypedDict, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    Optional,
+    Protocol,
+    Tuple,
+    TypedDict,
+    runtime_checkable,
+)
 
 from swh.core.api import remote_api_endpoint
 from swh.objstorage.constants import DEFAULT_LIMIT, LiteralHash, LiteralPrimaryHash

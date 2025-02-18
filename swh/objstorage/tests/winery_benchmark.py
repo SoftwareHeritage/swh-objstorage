@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,11 +13,10 @@ import os
 import random
 import sys
 import time
-from typing import Any, Dict, Optional, Set, Union
+from typing import Any, Dict, Literal, Optional, Set, Union
 
 import psycopg
 import psycopg_pool
-from typing_extensions import Literal
 
 from swh.objstorage.backends.winery.objstorage import (
     WineryObjStorage,

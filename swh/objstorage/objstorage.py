@@ -9,10 +9,17 @@ from datetime import timedelta
 import functools
 from itertools import dropwhile, islice
 import lzma
-from typing import Callable, Dict, Iterable, Iterator, Literal, Optional, Tuple
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Literal,
+    Optional,
+    Protocol,
+    Tuple,
+)
 import zlib
-
-from typing_extensions import Protocol
 
 from swh.core import statsd
 from swh.model import hashutil

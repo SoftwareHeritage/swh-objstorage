@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,10 +13,9 @@ import stat
 import subprocess
 import time
 from types import TracebackType
-from typing import Callable, Dict, Iterable, Optional, Tuple, Type
+from typing import Callable, Dict, Iterable, Literal, Optional, Tuple, Type
 
 from systemd.daemon import notify
-from typing_extensions import Literal
 
 from swh.perfecthash import Shard, ShardCreator
 
