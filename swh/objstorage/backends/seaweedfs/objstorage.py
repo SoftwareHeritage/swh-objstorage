@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import LiteralPrimaryHash, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     DEFAULT_LIMIT,
     CompressionFormat,
@@ -32,7 +32,7 @@ class SeaweedFilerObjStorage(ObjStorage):
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    PRIMARY_HASH = "sha1"
     name: str = "seaweedfs"
 
     def __init__(

@@ -15,7 +15,7 @@ import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import LiteralPrimaryHash, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -59,7 +59,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       kwargs: extra arguments are passed through to the LibCloud driver
     """
 
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    PRIMARY_HASH = "sha1"
     name: str = "cloud"
 
     def __init__(

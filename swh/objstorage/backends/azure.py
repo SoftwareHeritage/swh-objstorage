@@ -23,7 +23,7 @@ from azure.storage.blob import (
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import LiteralPrimaryHash, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
 from swh.objstorage.utils import call_async
 
@@ -105,7 +105,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    PRIMARY_HASH = "sha1"
     name: str = "azure"
 
     def __init__(

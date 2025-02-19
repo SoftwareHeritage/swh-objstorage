@@ -8,7 +8,7 @@ import logging
 from multiprocessing import Process
 from typing import Callable, Iterator, List, Optional, Tuple
 
-from swh.objstorage.constants import DEFAULT_LIMIT, LiteralPrimaryHash
+from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
-    PRIMARY_HASH: LiteralPrimaryHash = "sha256"
+    PRIMARY_HASH = "sha256"
     name: str = "winery"
 
     def __init__(self, **kwargs):

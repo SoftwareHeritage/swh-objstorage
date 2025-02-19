@@ -168,7 +168,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    PRIMARY_HASH = "sha1"
     name: str = "pathslicing"
 
     def __init__(

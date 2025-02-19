@@ -121,7 +121,7 @@ compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
 CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
 
 
-class ObjStorage(metaclass=abc.ABCMeta):
+class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
     PRIMARY_HASH: LiteralPrimaryHash = "sha1"
     compression: CompressionFormat = "none"
     name: str = "objstorage"
