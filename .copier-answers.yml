@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: v0.2.3
+_commit: v0.3.3
 _src_path: https://gitlab.softwareheritage.org/swh/devel/swh-py-template.git
 description: Software Heritage object storage
 distribution_name: swh-objstorage
@@ -7,5 +7,5 @@ have_cli: true
 have_workers: false
 package_root: swh/objstorage
 project_name: swh.objstorage
-python_minimal_version: '3.7'
+python_minimal_version: '3.11'
 readme_format: rst

@@ -7,3 +7,4 @@ swh.core[testing] >= 3.0.0
 types-pyyaml
 types-requests
 pytest-postgresql > 5
+msgpack-types
