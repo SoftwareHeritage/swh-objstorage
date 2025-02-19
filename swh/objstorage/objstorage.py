@@ -99,15 +99,16 @@ class _CompressorProtocol(Protocol):
 class _DecompressorProtocol(Protocol):
     def decompress(self, data: bytes) -> bytes: ...
 
-    unused_data: bytes
+    @property
+    def unused_data(self) -> bytes: ...
 
 
 decompressors: Dict[str, Callable[[], _DecompressorProtocol]] = {
-    "bz2": bz2.BZ2Decompressor,  # type: ignore
-    "lzma": lzma.LZMADecompressor,  # type: ignore
+    "bz2": bz2.BZ2Decompressor,
+    "lzma": lzma.LZMADecompressor,
     "gzip": lambda: zlib.decompressobj(wbits=31),
     "zlib": zlib.decompressobj,
-    "none": NullDecompressor,  # type: ignore
+    "none": NullDecompressor,
 }
 
 compressors: Dict[str, Callable[[], _CompressorProtocol]] = {
