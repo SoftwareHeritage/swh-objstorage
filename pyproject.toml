@@ -103,7 +103,9 @@ ignore = [
     "E203", # whitespaces before ':' <https://github.com/psf/black/issues/315>
     "E231", # missing whitespace after ','
     "E501", # line too long, use B950 warning from flake8-bugbear instead
-    "W503" # line break before binary operator <https://github.com/psf/black/issues/52>
+    "E701", # ellipsis gets collapsed to a single line by black
+    "E704", # ellipsis gets collapsed to a single line by black
+    "W503"  # line break before binary operator <https://github.com/psf/black/issues/52>
 ]
 max-line-length = 88
 extend-exclude = [
