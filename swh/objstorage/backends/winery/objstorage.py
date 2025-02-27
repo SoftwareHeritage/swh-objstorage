@@ -42,8 +42,9 @@ class WineryObjStorage(ObjStorage):
     def get(self, obj_id: ObjId) -> bytes:
         try:
             return self.winery.get(self._hash(obj_id))
-        except ObjNotFoundError:
-            raise ObjNotFoundError(obj_id)
+        except ObjNotFoundError as exc:
+            # re-raise exception with the passed obj_id instead of the internal winery obj_id.
+            raise ObjNotFoundError(obj_id) from exc
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
