@@ -10,10 +10,8 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from typing import Iterable, List, Optional, Tuple
 
-from swh.objstorage.backends.winery.roshard import (
-    DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-    Pool,
-)
+from swh.objstorage.backends.winery.roshard import Pool
+from swh.objstorage.backends.winery.settings import DEFAULT_IMAGE_FEATURES_UNSUPPORTED
 
 logger = logging.getLogger(__name__)
 

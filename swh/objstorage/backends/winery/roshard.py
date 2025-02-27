@@ -19,15 +19,12 @@ from systemd.daemon import notify
 
 from swh.perfecthash import Shard, ShardCreator
 
+from . import settings
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
 from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
-
-# This would be used for image features that are not supported by the kernel RBD
-# driver, e.g. exclusive-lock, object-map and fast-diff for kernels < 5.3
-DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
 
 
 class ShardNotMapped(Exception):
@@ -57,7 +54,7 @@ class Pool(object):
         rbd_data_pool_name: Optional[str] = None,
         rbd_image_features_unsupported: Tuple[
             str, ...
-        ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
+        ] = settings.DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
         rbd_map_options: str = "",
     ) -> None:
         self.use_sudo = rbd_use_sudo

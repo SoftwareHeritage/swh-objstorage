@@ -27,6 +27,7 @@ from swh.objstorage.backends.winery.objstorage import (
     shard_packer,
     stop_after_shards,
 )
+import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 from swh.objstorage.backends.winery.sleep import sleep_exponential
 from swh.objstorage.backends.winery.throttler import (
@@ -195,25 +196,39 @@ def clean_immediately(request) -> bool:
 
 
 @pytest.fixture
-def storage(
+def winery_settings(
+    postgresql_dsn,
     shard_max_size,
     pack_immediately,
     clean_immediately,
     rbd_pool_name,
     rbd_map_options,
+) -> settings.Winery:
+    return dict(
+        shards={"max_size": shard_max_size},
+        database={"db": postgresql_dsn},
+        throttler={
+            "max_write_bps": 200 * 1024 * 1024,
+            "max_read_bps": 100 * 1024 * 1024,
+        },
+        packer={
+            "pack_immediately": pack_immediately,
+            "clean_immediately": clean_immediately,
+        },
+        shards_pool={
+            "type": "rbd",
+            "pool_name": rbd_pool_name,
+            "map_options": rbd_map_options,
+        },
+    )
+
+
+@pytest.fixture
+def storage(
+    winery_settings,
     postgresql_dsn,
 ):
-    storage = get_objstorage(
-        cls="winery",
-        base_dsn=postgresql_dsn,
-        shard_max_size=shard_max_size,
-        throttle_write=200 * 1024 * 1024,
-        throttle_read=100 * 1024 * 1024,
-        pack_immediately=pack_immediately,
-        clean_immediately=clean_immediately,
-        rbd_pool_name=rbd_pool_name,
-        rbd_map_options=rbd_map_options,
-    )
+    storage = get_objstorage(cls="winery", **winery_settings)
     assert isinstance(storage, WineryObjStorage)
     logger.debug("Instantiated storage %s on rbd pool %s", storage, rbd_pool_name)
     yield storage
@@ -272,7 +287,7 @@ def test_winery_add_get(winery):
     winery.shard.drop()
 
 
-def test_winery_add_concurrent(winery, mocker):
+def test_winery_add_concurrent(winery, winery_settings, mocker):
     num_threads = 4
 
     class ManualReleaseSharedBase(SharedBase):
@@ -297,7 +312,9 @@ def test_winery_add_concurrent(winery, mocker):
 
         assert my_storage.get(obj_id) == content
 
-    storages = [get_objstorage(cls="winery", **winery.args) for _ in range(num_threads)]
+    storages = [
+        get_objstorage(cls="winery", **winery_settings) for _ in range(num_threads)
+    ]
 
     threads = [
         threading.Thread(target=add_object, args=[storage]) for storage in storages
@@ -550,7 +567,8 @@ def test_winery_sleep_exponential_negative():
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
-def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, storage):
+@pytest.mark.clean_immediately(False)
+def test_winery_standalone_packer(winery_settings, image_pool, storage):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -567,13 +585,8 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     # Pack a single shard
     assert (
         shard_packer(
-            base_dsn=postgresql_dsn,
-            shard_max_size=shard_max_size,
-            throttle_read=200 * 1024 * 1024,
-            throttle_write=200 * 1024 * 1024,
+            **winery_settings,
             stop_packing=stop_after_shards(1),
-            rbd_pool_name=image_pool.pool_name,
-            rbd_map_options=image_pool.map_options,
         )
         == 1
     )
@@ -587,7 +600,7 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     # Clean up the RW shard for the packed one
     assert (
         rw_shard_cleaner(
-            base_dsn=postgresql_dsn,
+            database=winery_settings["database"],
             min_mapped_hosts=0,
             stop_cleaning=stop_after_shards(1),
         )
@@ -603,13 +616,8 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     # Pack all remaining shards
     assert (
         shard_packer(
-            base_dsn=postgresql_dsn,
-            shard_max_size=shard_max_size,
-            throttle_read=200 * 1024 * 1024,
-            throttle_write=200 * 1024 * 1024,
+            **winery_settings,
             stop_packing=stop_after_shards(3),
-            rbd_pool_name=image_pool.pool_name,
-            rbd_map_options=image_pool.map_options,
         )
         == 3
     )
@@ -623,7 +631,7 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
     # Clean up the RW shard for the packed one
     assert (
         rw_shard_cleaner(
-            base_dsn=postgresql_dsn,
+            database=winery_settings["database"],
             min_mapped_hosts=0,
             stop_cleaning=stop_after_shards(3),
         )
@@ -636,8 +644,9 @@ def test_winery_standalone_packer(shard_max_size, image_pool, postgresql_dsn, st
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+@pytest.mark.clean_immediately(False)
 def test_winery_packer_clean_up_interrupted_shard(
-    shard_max_size, image_pool, postgresql_dsn, storage, caplog
+    image_pool, winery_settings, storage, caplog
 ):
     caplog.set_level(logging.CRITICAL)
 
@@ -661,13 +670,12 @@ def test_winery_packer_clean_up_interrupted_shard(
     with caplog.at_level(logging.WARNING, "swh.objstorage.backends.winery.roshard"):
         # Pack a single shard
         ret = shard_packer(
-            base_dsn=postgresql_dsn,
-            shard_max_size=shard_max_size,
-            throttle_read=200 * 1024 * 1024,
-            throttle_write=200 * 1024 * 1024,
+            database=winery_settings["database"],
+            shards=winery_settings["shards"],
+            shards_pool={**winery_settings["shards_pool"], "create_images": False},
+            throttler=winery_settings["throttler"],
+            packer=winery_settings.get("packer"),
             stop_packing=stop_after_shards(1),
-            rbd_pool_name=image_pool.pool_name,
-            rbd_create_images=False,
         )
 
     assert ret == 1
@@ -689,7 +697,7 @@ def test_winery_packer_clean_up_interrupted_shard(
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
 @pytest.mark.clean_immediately(False)
-def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
+def test_winery_cli_packer(image_pool, storage, tmp_path, winery_settings, cli_runner):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -704,9 +712,7 @@ def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
         assert shard_info[shard] == ShardState.FULL
 
     with open(tmp_path / "config.yml", "w") as f:
-        yaml.safe_dump(
-            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
-        )
+        yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
     result = cli_runner.invoke(
         swh_cli_group,
@@ -724,7 +730,9 @@ def test_winery_cli_packer(image_pool, storage, tmp_path, cli_runner):
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
 @pytest.mark.clean_immediately(False)
-def test_winery_cli_packer_rollback_on_error(image_pool, storage, tmp_path, cli_runner):
+def test_winery_cli_packer_rollback_on_error(
+    image_pool, storage, tmp_path, winery_settings, cli_runner
+):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -739,9 +747,7 @@ def test_winery_cli_packer_rollback_on_error(image_pool, storage, tmp_path, cli_
         assert shard_info[shard] == ShardState.FULL
 
     with open(tmp_path / "config.yml", "w") as f:
-        yaml.safe_dump(
-            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
-        )
+        yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
     # pytest-mock doesn't seem to interact very well with the cli_runner
     def failing_pack(*args, **kwargs):
@@ -769,7 +775,7 @@ def test_winery_cli_packer_rollback_on_error(image_pool, storage, tmp_path, cli_
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
-def test_winery_cli_rbd(image_pool, storage, tmp_path, cli_runner):
+def test_winery_cli_rbd(image_pool, storage, tmp_path, winery_settings, cli_runner):
     # create 4 shards
     for i in range(16):
         content = i.to_bytes(256, "little")
@@ -784,13 +790,34 @@ def test_winery_cli_rbd(image_pool, storage, tmp_path, cli_runner):
         assert shard_info[shard] == ShardState.FULL
 
     with open(tmp_path / "config.yml", "w") as f:
-        yaml.safe_dump(
-            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
-        )
+        yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
     result = cli_runner.invoke(
         swh_cli_group,
-        ("objstorage", "winery", "rbd", "--stop-instead-of-waiting"),
+        (
+            "objstorage",
+            "winery",
+            "rbd",
+            "--stop-instead-of-waiting",
+        ),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    # The RBD shard mapper was run in "read-only" mode
+    for shard in filled:
+        assert image_pool.image_mapped(shard) is None
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        (
+            "objstorage",
+            "winery",
+            "rbd",
+            "--stop-instead-of-waiting",
+            "--manage-rw-images",
+        ),
         env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
     )
 
@@ -818,7 +845,7 @@ def test_winery_cli_rbd(image_pool, storage, tmp_path, cli_runner):
 @pytest.mark.pack_immediately(True)
 @pytest.mark.clean_immediately(False)
 def test_winery_cli_rw_shard_cleaner(
-    image_pool, postgresql_dsn, storage, tmp_path, cli_runner
+    image_pool, postgresql_dsn, storage, tmp_path, winery_settings, cli_runner
 ):
     # create 4 shards
     for i in range(16):
@@ -838,9 +865,7 @@ def test_winery_cli_rw_shard_cleaner(
         assert shard_info[shard] == ShardState.PACKED
 
     with open(tmp_path / "config.yml", "w") as f:
-        yaml.safe_dump(
-            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
-        )
+        yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
     shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
@@ -883,7 +908,7 @@ def test_winery_cli_rw_shard_cleaner(
 @pytest.mark.pack_immediately(True)
 @pytest.mark.clean_immediately(False)
 def test_winery_cli_rw_shard_cleaner_rollback_on_error(
-    image_pool, postgresql_dsn, storage, tmp_path, cli_runner
+    image_pool, postgresql_dsn, storage, tmp_path, winery_settings, cli_runner
 ):
     # create 4 shards
     for i in range(16):
@@ -903,9 +928,7 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
         assert shard_info[shard] == ShardState.PACKED
 
     with open(tmp_path / "config.yml", "w") as f:
-        yaml.safe_dump(
-            {"objstorage": {"cls": "winery", **storage.winery.args}}, stream=f
-        )
+        yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
     shard_tables = set(storage.winery.base.list_shard_tables())
     for shard in filled:
@@ -944,8 +967,9 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
 
 @pytest.mark.shard_max_size(1024)
 @pytest.mark.pack_immediately(False)
+@pytest.mark.clean_immediately(False)
 def test_winery_standalone_packer_never_stop_packing(
-    image_pool, postgresql_dsn, shard_max_size, storage
+    image_pool, postgresql_dsn, shard_max_size, storage, winery_settings
 ):
     # create 4 shards
     for i in range(16):
@@ -972,13 +996,8 @@ def test_winery_standalone_packer_never_stop_packing(
 
     with pytest.raises(NoShardLeft):
         shard_packer(
-            base_dsn=postgresql_dsn,
-            shard_max_size=shard_max_size,
-            throttle_read=200 * 1024 * 1024,
-            throttle_write=200 * 1024 * 1024,
+            **winery_settings,
             wait_for_shard=wait_five_times,
-            rbd_pool_name=image_pool.pool_name,
-            rbd_map_options=image_pool.map_options,
         )
 
     assert called == list(range(5))
@@ -990,7 +1009,7 @@ def test_winery_standalone_packer_never_stop_packing(
 
     with pytest.raises(NoShardLeft):
         rw_shard_cleaner(
-            base_dsn=postgresql_dsn,
+            database=winery_settings["database"],
             min_mapped_hosts=0,
             wait_for_shard=wait_five_times,
         )

@@ -6,20 +6,15 @@
 from functools import partial
 import logging
 from multiprocessing import Process
-from typing import Callable, Iterator, List, Optional, Tuple
+from typing import Callable, Iterator, List, Optional
 
 from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
-from .roshard import (
-    DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-    Pool,
-    ROShard,
-    ROShardCreator,
-    ShardNotMapped,
-)
+from . import settings
+from .roshard import Pool, ROShard, ROShardCreator, ShardNotMapped
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -31,12 +26,33 @@ class WineryObjStorage(ObjStorage):
     PRIMARY_HASH = "sha256"
     name: str = "winery"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if kwargs.get("readonly"):
-            self.winery = WineryReader(**kwargs)
+    def __init__(
+        self,
+        database: settings.Database,
+        shards: settings.Shards,
+        shards_pool: settings.ShardsPool,
+        throttler: settings.Throttler,
+        packer: Optional[settings.Packer] = None,
+        readonly: bool = False,
+        allow_delete: bool = False,
+        name: str = "winery",
+    ) -> None:
+        super().__init__(allow_delete=allow_delete, name=name)
+
+        self.settings, legacy_kwargs = settings.populate_default_settings(
+            database=database,
+            shards=shards,
+            shards_pool=shards_pool,
+            throttler=throttler,
+            packer=(packer or {}),
+        )
+
+        self.winery: WineryReader | WineryWriter
+
+        if readonly:
+            self.winery = WineryReader(**legacy_kwargs)
         else:
-            self.winery = WineryWriter(**kwargs)
+            self.winery = WineryWriter(**legacy_kwargs)
 
     @timed
     def get(self, obj_id: ObjId) -> bytes:
@@ -325,25 +341,11 @@ def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
 
 
 def shard_packer(
-    base_dsn: str,
-    shard_max_size: int,
-    throttle_read: int,
-    throttle_write: int,
-    application_name: Optional[str] = None,
-    rbd_pool_name: str = "shards",
-    rbd_data_pool_name: Optional[str] = None,
-    rbd_image_features_unsupported: Tuple[
-        str, ...
-    ] = DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-    rbd_use_sudo: bool = True,
-    rbd_map_options: str = "",
-    rbd_create_images: bool = True,
-    rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
-        min_duration=5,
-        factor=2,
-        max_duration=60,
-        message="Waiting for RBD image mapping",
-    ),
+    database: settings.Database,
+    shards: settings.Shards,
+    shards_pool: settings.ShardsPool,
+    throttler: settings.Throttler,
+    packer: Optional[settings.Packer] = None,
     stop_packing: Callable[[int], bool] = never_stop,
     wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
@@ -357,21 +359,31 @@ def shard_packer(
     When no shards are available for packing, call the `wait_for_shard` function.
 
     Arguments:
-      base_dsn: PostgreSQL dsn for the shared database
-      shard_max_size: Max size of a shard (used to size new shards)
-      throttle_read: reads per second
-      throttle_write: writes per second
-      application_name: the application name sent to PostgreSQL
-      rbd_create_images: create images directly (or wait for RBD mapper)
-      rbd_wait_for_image: sleep function called to wait for an image (when
-       `rbd_create_images`=`False`)
-      rbd_*: passed directly to :class:`roshard.Pool`
+      database: database settings (e.g. db connection string)
+      shards: shards settings (e.g. max_size)
+      shards_pool: shards pool settings (e.g. Ceph RBD settings)
+      throttler: throttler settings
+      packer: packer settings
       stop_packing: callback to determine whether the packer should exit
       wait_for_shard: sleep function called when no shards are available to be packed
     """
-    application_name = application_name or "Winery Shard Packer"
 
-    base = SharedBase(base_dsn=base_dsn, application_name=application_name)
+    all_settings, legacy_kwargs = settings.populate_default_settings(
+        database=database,
+        shards=shards,
+        shards_pool=shards_pool,
+        throttler=throttler,
+        packer=(packer or {}),
+    )
+
+    application_name = (
+        all_settings["database"]["application_name"] or "Winery Shard Packer"
+    )
+
+    base = SharedBase(
+        base_dsn=all_settings["database"]["db"],
+        application_name=application_name,
+    )
 
     shards_packed = 0
     waited_for_shards = 0
@@ -389,22 +401,7 @@ def shard_packer(
 
         with locked:
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
-            ret = pack(
-                locked.name,
-                base_dsn=base_dsn,
-                shard_max_size=shard_max_size,
-                shared_base=base,
-                throttle_read=throttle_read,
-                throttle_write=throttle_write,
-                application_name=application_name,
-                rbd_use_sudo=rbd_use_sudo,
-                rbd_map_options=rbd_map_options,
-                rbd_create_images=rbd_create_images,
-                rbd_wait_for_image=rbd_wait_for_image,
-                rbd_pool_name=rbd_pool_name,
-                rbd_data_pool_name=rbd_data_pool_name,
-                rbd_image_features_unsupported=rbd_image_features_unsupported,
-            )
+            ret = pack(locked.name, shared_base=base, **legacy_kwargs)
             if not ret:
                 raise ValueError("Packing shard %s failed" % locked.name)
             shards_packed += 1
@@ -413,9 +410,8 @@ def shard_packer(
 
 
 def rw_shard_cleaner(
-    base_dsn: str,
+    database: settings.Database,
     min_mapped_hosts: int,
-    application_name: Optional[str] = None,
     stop_cleaning: Callable[[int], bool] = never_stop,
     wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
@@ -429,15 +425,15 @@ def rw_shard_cleaner(
     When no shards are available for packing, call the `wait_for_shard` function.
 
     Arguments:
-      base_dsn: PostgreSQL dsn for the shared database
+      database: database settings (e.g. db connection string)
       min_mapped_hosts: how many hosts should have mapped the image read-only before
         cleaning it
-      application_name: the application name sent to PostgreSQL
       stop_cleaning: callback to determine whether the cleaner should exit
       wait_for_shard: sleep function called when no shards are available to be cleaned
     """
-    application_name = application_name or "Winery RW shard cleaner"
-    base = SharedBase(base_dsn=base_dsn, application_name=application_name)
+    database = settings.database_settings_with_defaults(database)
+
+    base = SharedBase(base_dsn=database["db"])
 
     shards_cleaned = 0
     waited_for_shards = 0
@@ -460,9 +456,8 @@ def rw_shard_cleaner(
 
             ret = cleanup_rw_shard(
                 locked.name,
-                base_dsn=base_dsn,
+                base_dsn=database["db"],
                 shared_base=base,
-                application_name=application_name,
             )
             if not ret:
                 raise ValueError("Cleaning shard %s failed" % locked.name)
