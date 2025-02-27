@@ -1,5 +1,0 @@
-# libvirt specific actions
-
-- hosts: mon
-  gather_facts: no
-  become: true

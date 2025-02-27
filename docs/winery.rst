@@ -42,8 +42,3 @@ When a new object is added to the Write Shard, a new row is added to the global 
 After the content of the object is successfully added to the Write Shard, the state of the record in the global index is modified to no longer be in flight. The client is notified that the operation was successful and the object can be read from the Write Shard from that point on.
 
 When the size of the database associated with a Write Shard exceeds a threshold, it is set to be in the `packing` state. All objects it contains can be read from it by any `WineryReader` but no new object will be added to it. A process is spawned and is tasked to transform it into a Read Shard using the `Packer` class. Should it fail for any reason, a cron job will restart it when it finds Write Shards that are both in the `packing` state and not locked by any process. Packing is done by enumerating all the records from the Write Shard database and writing them into a Read Shard by the same name. Incomplete Read Shards will never be used by `WineryReader` because the global index will direct it to use the Write Shard instead. Once the packing completes, the state of the shard is modified to be readonly and from that point on the `WineryReader` will only use the Read Shard to find the objects it contains. The database containing the Write Shard is then destroyed because it is no longer useful and the process terminates on success.
-
-Benchmarks
-----------
-
-Follow the instructions at winery-test-environment/README.md

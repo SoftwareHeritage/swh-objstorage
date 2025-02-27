@@ -1,5 +1,0 @@
-ansible
-mitogen
-pandas
-matplotlib
-PyQt5

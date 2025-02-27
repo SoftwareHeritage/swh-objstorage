@@ -4,15 +4,12 @@
 # See top-level LICENSE file for more information
 
 from collections import Counter
-from dataclasses import asdict, dataclass
-import datetime
 from functools import partial
 import logging
 import os
 import shutil
 import threading
 import time
-from typing import Any, Dict
 
 from click.testing import CliRunner
 import pytest
@@ -43,19 +40,7 @@ from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
-from swh.objstorage.utils import call_async
 
-from .winery_benchmark import (
-    Bench,
-    PackWorker,
-    RBDWorker,
-    ROWorker,
-    RWShardCleanerWorker,
-    RWWorker,
-    StatsPrinter,
-    WorkerKind,
-    work,
-)
 from .winery_testing_helpers import FileBackedPool, PoolHelper
 
 logger = logging.getLogger(__name__)
@@ -89,33 +74,24 @@ def cli_runner(capsys):
 def remove_pool(request, pytestconfig):
     if os.environ.get("CEPH_HARDCODE_POOL"):
         return False
-    marker = request.node.get_closest_marker("use_benchmark_flags")
-    if marker is None:
+    else:
         return True
-
-    return pytestconfig.getoption("--winery-bench-remove-pool")
 
 
 @pytest.fixture
 def remove_images(request, pytestconfig):
     if os.environ.get("CEPH_HARDCODE_POOL"):
         return False
-    marker = request.node.get_closest_marker("use_benchmark_flags")
-    if marker is None:
+    else:
         return True
-
-    return pytestconfig.getoption("--winery-bench-remove-images")
 
 
 @pytest.fixture
 def rbd_pool_name(request, pytestconfig):
     if os.environ.get("CEPH_HARDCODE_POOL"):
         return os.environ["CEPH_HARDCODE_POOL"]
-    marker = request.node.get_closest_marker("use_benchmark_flags")
-    if marker is None:
+    else:
         return "winery-test-shards"
-
-    return pytestconfig.getoption("--winery-bench-rbd-pool")
 
 
 @pytest.fixture
@@ -154,10 +130,6 @@ def file_backed_pool(mocker, tmp_path, shard_max_size, rbd_pool_name):
     FileBackedPool.set_base_directory(tmp_path)
     mocker.patch(
         "swh.objstorage.backends.winery.roshard.Pool",
-        new=FileBackedPool,
-    )
-    mocker.patch(
-        "swh.objstorage.tests.winery_benchmark.Pool",
         new=FileBackedPool,
     )
     pool = FileBackedPool(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
@@ -1072,292 +1044,6 @@ def test_winery_ceph_pool(needs_ceph, rbd_map_options):
     assert pool.image_mapped(name) is None
     pool.remove()
     assert pool.image_list() == []
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_ro_rw(storage, image_pool, tmpdir):
-    #
-    # rw worker creates a shard
-    #
-    locked_shard = storage.winery.base.locked_shard
-    shards_info = list(storage.winery.base.list_shards())
-    assert shards_info == [(locked_shard, ShardState.WRITING)]
-    assert (
-        work("rw", storage=storage, time_remaining=datetime.timedelta(seconds=300))
-        == "rw"
-    )
-    shards_info = dict(storage.winery.base.list_shards())
-    assert shards_info[locked_shard].image_available
-    #
-    # ro worker reads a shard
-    #
-    args = {**storage.winery.args, "readonly": True}
-    assert (
-        work(
-            "ro",
-            storage=args,
-            worker_args={"ro": {"max_request": 1}},
-            time_remaining=datetime.timedelta(seconds=300),
-        )
-        == "ro"
-    )
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_pack(storage, image_pool):
-    pack_args = {
-        "base_dsn": storage.winery.args["base_dsn"],
-        "shard_max_size": storage.winery.args["shard_max_size"],
-        "throttle_read": storage.winery.args["throttle_read"],
-        "throttle_write": storage.winery.args["throttle_write"],
-        "rbd_pool_name": image_pool.pool_name,
-    }
-    assert (
-        work(
-            "pack",
-            storage=storage,
-            worker_args={"pack": pack_args},
-            time_remaining=datetime.timedelta(seconds=300),
-        )
-        == "pack"
-    )
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_rbd(storage, image_pool):
-    rbd_args = {
-        "base_dsn": storage.winery.args["base_dsn"],
-        "shard_max_size": storage.winery.args["shard_max_size"],
-        "duration": 1,
-        "rbd_pool_name": image_pool.pool_name,
-        "rbd_map_options": image_pool.map_options,
-    }
-    assert (
-        work(
-            "rbd",
-            storage=storage,
-            worker_args={"rbd": rbd_args},
-            time_remaining=datetime.timedelta(seconds=300),
-        )
-        == "rbd"
-    )
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_bench_work_rw_shard_cleaner(storage):
-    rw_shard_cleaner_args = {
-        "base_dsn": storage.winery.args["base_dsn"],
-    }
-    assert (
-        work(
-            "rw_shard_cleaner",
-            storage=storage,
-            worker_args={"rw_shard_cleaner": rw_shard_cleaner_args},
-            time_remaining=datetime.timedelta(seconds=300),
-        )
-        == "rw_shard_cleaner"
-    )
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-@pytest.mark.pack_immediately(False)
-def test_winery_bench_rw_object_limit(storage):
-    object_limit = 15
-    worker = RWWorker(
-        storage, object_limit=object_limit, single_shard=False, block_until_packed=False
-    )
-
-    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
-
-    with storage.winery.base.pool.connection() as db:
-        c = db.execute("SELECT count(*) from signature2shard")
-        assert c.fetchone() == (object_limit,)
-
-
-@pytest.mark.shard_max_size(10 * 1024 * 1024)
-@pytest.mark.pack_immediately(True)
-def test_winery_bench_rw_block_until_packed(storage, image_pool):
-    worker = RWWorker(storage, single_shard=True, block_until_packed=False)
-
-    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
-
-    packed = 0
-    for packer in storage.winery.packers:
-        packer.join()
-        assert packer.exitcode == 0
-        packed += 1
-
-    assert packed > 0, "did not have any packers to wait for"
-
-
-@pytest.mark.shard_max_size(1024 * 1024)
-@pytest.mark.pack_immediately(True)
-def test_winery_bench_rw_block_until_packed_multiple_shards(storage, image_pool):
-    # 1000 objects will create multiple shards when the limit is 1MB
-    worker = RWWorker(
-        storage, object_limit=1000, single_shard=False, block_until_packed=False
-    )
-
-    assert worker.run(time_remaining=datetime.timedelta(seconds=300)) == "rw"
-
-    packed = 0
-    for packer in storage.winery.packers:
-        packer.join()
-        assert packer.exitcode == 0
-        packed += 1
-
-    assert packed > 0, "did not have any packers to wait for"
-
-
-@dataclass
-class WineryBenchOptions:
-    storage_config: Dict[str, Any]
-    workers_per_kind: Dict[WorkerKind, int]
-    worker_args: Dict[WorkerKind, Dict]
-    duration: float
-
-
-@pytest.fixture
-def bench_options(
-    pytestconfig, postgresql_dsn, rbd_map_options, tmpdir
-) -> WineryBenchOptions:
-    output_dir = pytestconfig.getoption("--winery-bench-output-directory")
-    shard_max_size = pytestconfig.getoption("--winery-bench-shard-max-size")
-    pack_immediately = pytestconfig.getoption("--winery-bench-pack-immediately")
-    duration = pytestconfig.getoption("--winery-bench-duration")
-
-    if not output_dir:
-        output_dir = str(tmpdir)
-
-    storage_config = {
-        "output_dir": output_dir,
-        "shard_max_size": shard_max_size,
-        "pack_immediately": pack_immediately,
-        "base_dsn": postgresql_dsn,
-        "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
-        "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
-        "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
-    }
-    workers_per_kind: Dict[WorkerKind, int] = {
-        "ro": pytestconfig.getoption("--winery-bench-ro-workers"),
-        "rw": pytestconfig.getoption("--winery-bench-rw-workers"),
-        "stats": (
-            1 if pytestconfig.getoption("--winery-bench-stats-interval") > 0 else 0
-        ),
-    }
-    worker_args: Dict[WorkerKind, Dict] = {
-        "ro": {
-            "max_request": pytestconfig.getoption(
-                "--winery-bench-ro-worker-max-request"
-            )
-        },
-        "pack": {
-            "base_dsn": postgresql_dsn,
-            "output_dir": output_dir,
-            "shard_max_size": shard_max_size,
-            "rbd_create_images": False,
-            "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
-            "throttle_read": pytestconfig.getoption("--winery-bench-throttle-read"),
-            "throttle_write": pytestconfig.getoption("--winery-bench-throttle-write"),
-        },
-        "stats": {
-            "base_dsn": postgresql_dsn,
-            "shard_max_size": shard_max_size,
-            "interval": pytestconfig.getoption("--winery-bench-stats-interval"),
-        },
-        "rw_shard_cleaner": {
-            "base_dsn": postgresql_dsn,
-        },
-        "rbd": {
-            "base_dsn": postgresql_dsn,
-            "shard_max_size": shard_max_size,
-            "rbd_pool_name": pytestconfig.getoption("--winery-bench-rbd-pool"),
-            "rbd_map_options": rbd_map_options,
-            "duration": duration,
-        },
-    }
-
-    if not pack_immediately:
-        worker_args["rw"] = {"block_until_packed": False}
-        workers_per_kind["pack"] = pytestconfig.getoption("--winery-bench-pack-workers")
-        workers_per_kind["rw_shard_cleaner"] = 1
-        workers_per_kind["rbd"] = 1
-
-    return WineryBenchOptions(
-        storage_config,
-        workers_per_kind,
-        worker_args,
-        duration,
-    )
-
-
-# Only run this one on a Ceph image pool as we won’t be running “real”
-# benchmarks using the file-backed backend.
-@pytest.mark.use_benchmark_flags
-def test_winery_bench_real(bench_options, ceph_pool):
-    count = call_async(Bench(**asdict(bench_options)).run)
-    assert count > 0
-
-
-@pytest.mark.use_benchmark_flags
-def test_winery_bench_fake(bench_options, mocker):
-    class _ROWorker(ROWorker):
-        def run(self, time_remaining: datetime.timedelta):
-            logger.info(
-                "running ro for %s, time remaining: %s",
-                bench_options.duration,
-                time_remaining,
-            )
-            return "ro"
-
-    class _RWWorker(RWWorker):
-        def run(self, time_remaining: datetime.timedelta):
-            logger.info(
-                "running rw for %s, time remaining: %s",
-                bench_options.duration,
-                time_remaining,
-            )
-            return "rw"
-
-    class _PackWorker(PackWorker):
-        def run(self):
-            logger.info("running pack for %s", bench_options.duration)
-            return "pack"
-
-    class _RBDWorker(RBDWorker):
-        def run(self):
-            logger.info("running rbd for %s", bench_options.duration)
-            return "rbd"
-
-    class _RWShardCleanerWorker(RWShardCleanerWorker):
-        def run(self):
-            logger.info("running rw_shard_cleaner for %s", bench_options.duration)
-            return "rw_shard_cleaner"
-
-    class _StatsPrinter(StatsPrinter):
-        def run(self, time_remaining: datetime.timedelta):
-            logger.info(
-                "running stats for %s, remaining: %s",
-                bench_options.duration,
-                time_remaining,
-            )
-            return "stats"
-
-    mocker.patch("swh.objstorage.tests.winery_benchmark.ROWorker", _ROWorker)
-    mocker.patch("swh.objstorage.tests.winery_benchmark.RWWorker", _RWWorker)
-    mocker.patch("swh.objstorage.tests.winery_benchmark.PackWorker", _PackWorker)
-    mocker.patch("swh.objstorage.tests.winery_benchmark.RBDWorker", _RBDWorker)
-    mocker.patch(
-        "swh.objstorage.tests.winery_benchmark.RWShardCleanerWorker",
-        _RWShardCleanerWorker,
-    )
-    mocker.patch("swh.objstorage.tests.winery_benchmark.StatsPrinter", _StatsPrinter)
-    mocker.patch(
-        "swh.objstorage.tests.winery_benchmark.Bench.timeout", side_effect=lambda: True
-    )
-
-    count = call_async(Bench(**asdict(bench_options)).run)
-    assert count == sum(bench_options.workers_per_kind.values())
 
 
 def test_winery_leaky_bucket_tick(mocker):

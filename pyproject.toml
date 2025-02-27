@@ -110,7 +110,6 @@ ignore = [
 max-line-length = 88
 extend-exclude = [
     "build",
-    "winery-test-environment/mitogen-strategy",
 ]
 
 [tool.pytest.ini_options]
