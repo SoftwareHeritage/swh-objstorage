@@ -65,4 +65,4 @@ class ReadOnlyProxyObjStorage(ObjStorage):
         raise ReadOnlyObjStorageError("restore")
 
     def delete(self, *args, **kwargs):
-        raise ReadOnlyObjStorageError("dalete")
+        raise ReadOnlyObjStorageError("delete")
