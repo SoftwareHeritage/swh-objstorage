@@ -32,7 +32,6 @@ from swh.objstorage.backends.winery.objstorage import (
 )
 from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 from swh.objstorage.backends.winery.sleep import sleep_exponential
-from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.backends.winery.throttler import (
     BandwidthCalculator,
     IOThrottler,
@@ -1487,24 +1486,6 @@ def test_winery_throttler(postgresql_dsn):
 
     assert t.throttle_add(writer, key, content) is True
     assert t.throttle_get(reader, key) == content
-
-
-def test_winery_stats(tmpdir):
-    s = Stats(None)
-    assert s.stats_active is False
-    s = Stats(tmpdir / "stats")
-    assert s.stats_active is True
-    assert os.path.exists(s.stats_filename)
-    size = os.path.getsize(s.stats_filename)
-    s._stats_flush_interval = 0
-    k = "KEY"
-    v = "CONTENT"
-    s.stats_read(k, v)
-    s.stats_write(k, v)
-    s.stats_read(k, v)
-    s.stats_write(k, v)
-    s.__del__()
-    assert os.path.getsize(s.stats_filename) > size
 
 
 class TestWineryObjStorage(ObjStorageTestFixture):

@@ -134,7 +134,6 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
     shard_max_size = config["shard_max_size"]
     throttle_read = config.get("throttle_read", 200 * 1024 * 1024)
     throttle_write = config.get("throttle_write", 200 * 1024 * 1024)
-    output_dir = config.get("output_dir")
     rbd_pool_name = config.get("rbd_pool_name", "shards")
     rbd_data_pool_name = config.get("rbd_data_pool_name")
     rbd_use_sudo = config.get("rbd_use_sudo", True)
@@ -158,7 +157,6 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         rbd_use_sudo=rbd_use_sudo,
         rbd_map_options=rbd_map_options,
         rbd_create_images=rbd_create_images,
-        output_dir=output_dir,
         stop_packing=stop_packing,
     )
 

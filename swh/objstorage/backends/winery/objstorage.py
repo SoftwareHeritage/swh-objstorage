@@ -23,7 +23,6 @@ from .roshard import (
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
-from .stats import Stats
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +148,6 @@ class WineryReader(WineryBase):
 
 
 def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
-    stats = Stats(kwargs.get("output_dir"))
     rw = RWShard(shard, **kwargs)
 
     count = rw.count()
@@ -158,9 +156,6 @@ def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
             ro.add(content, obj_id)
-            if stats.stats_active:
-                stats.stats_read(obj_id, content)
-                stats.stats_write(obj_id, content)
             if i % 100 == 99:
                 logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
 
@@ -344,7 +339,6 @@ def shard_packer(
         max_duration=60,
         message="Waiting for RBD image mapping",
     ),
-    output_dir: Optional[str] = None,
     stop_packing: Callable[[int], bool] = never_stop,
     wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
@@ -367,7 +361,6 @@ def shard_packer(
       rbd_wait_for_image: sleep function called to wait for an image (when
        `rbd_create_images`=`False`)
       rbd_*: passed directly to :class:`roshard.Pool`
-      output_dir: output directory for statistics
       stop_packing: callback to determine whether the packer should exit
       wait_for_shard: sleep function called when no shards are available to be packed
     """
@@ -395,7 +388,6 @@ def shard_packer(
                 locked.name,
                 base_dsn=base_dsn,
                 shard_max_size=shard_max_size,
-                output_dir=output_dir,
                 shared_base=base,
                 throttle_read=throttle_read,
                 throttle_write=throttle_write,

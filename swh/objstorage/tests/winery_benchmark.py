@@ -27,7 +27,6 @@ from swh.objstorage.backends.winery.objstorage import (
 )
 from swh.objstorage.backends.winery.roshard import Pool
 from swh.objstorage.backends.winery.sharedbase import ShardState
-from swh.objstorage.backends.winery.stats import Stats
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.objstorage import objid_for_content
@@ -104,7 +103,6 @@ class Worker:
         assert isinstance(
             storage, WineryObjStorage
         ), f"winery_benchmark passed unexpected {storage.__class__.__name__}"
-        self.stats: Stats = Stats(storage.winery.args.get("output_dir"))
         self.storage: WineryObjStorage = storage
 
     def run(self, time_remaining: datetime.timedelta) -> WorkerKind:
@@ -391,8 +389,6 @@ class ROWorker(Worker):
                         break
                     content = self.storage.get(obj_id={"sha256": obj_id})
                     assert content is not None
-                    if self.stats.stats_active:
-                        self.stats.stats_read(obj_id, content)
 
         elapsed = time.monotonic() - start
         logger.info("Worker(ro, %s): finished (%.2fs)", os.getpid(), elapsed)
@@ -456,8 +452,6 @@ class RWWorker(Worker):
             content = random_content.read(random.choice(self.payloads))
             obj_id = objid_for_content(content)
             self.storage.add(content=content, obj_id=obj_id)
-            if self.stats.stats_active:
-                self.stats.stats_write(obj_id, content)
             self.count += 1
         self.finalize()
         elapsed = time.monotonic() - start
