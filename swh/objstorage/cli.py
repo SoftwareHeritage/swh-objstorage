@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -102,6 +102,14 @@ def winery(ctx):
     if config["cls"] != "winery":
         raise click.ClickException("winery packer only works on a winery objstorage")
 
+    from swh.objstorage.backends.winery.objstorage import WineryObjStorage
+
+    ctx.obj["winery_settings"], ctx.obj["winery_legacy_kwargs"] = (
+        WineryObjStorage.populate_default_settings(
+            **{k: v for k, v in config.items() if k in WineryObjStorage.SETTINGS}
+        )
+    )
+
 
 @winery.command("packer")
 @click.option("--stop-after-shards", type=click.INT, default=None)
@@ -111,11 +119,8 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
     import signal
 
     from swh.objstorage.backends.winery.objstorage import shard_packer
-    from swh.objstorage.backends.winery.roshard import (
-        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-    )
 
-    config = ctx.obj["config"]["objstorage"]
+    settings = ctx.obj["winery_settings"]
 
     signal_received = False
 
@@ -130,53 +135,28 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         signal_received = True
 
-    base_dsn = config["base_dsn"]
-    shard_max_size = config["shard_max_size"]
-    throttle_read = config.get("throttle_read", 200 * 1024 * 1024)
-    throttle_write = config.get("throttle_write", 200 * 1024 * 1024)
-    rbd_pool_name = config.get("rbd_pool_name", "shards")
-    rbd_data_pool_name = config.get("rbd_data_pool_name")
-    rbd_use_sudo = config.get("rbd_use_sudo", True)
-    rbd_image_features_unsupported = tuple(
-        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
-    )
-    rbd_create_images = config.get("rbd_create_images", True)
-    rbd_map_options = config.get("rbd_map_options", "")
-
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
-    ret = shard_packer(
-        base_dsn=base_dsn,
-        shard_max_size=shard_max_size,
-        throttle_read=throttle_read,
-        throttle_write=throttle_write,
-        rbd_pool_name=rbd_pool_name,
-        rbd_data_pool_name=rbd_data_pool_name,
-        rbd_image_features_unsupported=rbd_image_features_unsupported,
-        rbd_use_sudo=rbd_use_sudo,
-        rbd_map_options=rbd_map_options,
-        rbd_create_images=rbd_create_images,
-        stop_packing=stop_packing,
-    )
+    ret = shard_packer(**settings, stop_packing=stop_packing)
 
     logger.info("Packed %s shards", ret)
 
 
 @winery.command("rbd")
 @click.option("--stop-instead-of-waiting", is_flag=True)
+@click.option("--manage-rw-images", is_flag=True)
 @click.pass_context
-def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
+def winery_rbd(
+    ctx, stop_instead_of_waiting: bool = False, manage_rw_images: bool = True
+):
     """Run a winery RBD image manager process"""
     import signal
 
-    from swh.objstorage.backends.winery.roshard import (
-        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-        Pool,
-    )
+    from swh.objstorage.backends.winery.roshard import Pool
     from swh.objstorage.backends.winery.sleep import sleep_exponential
 
-    config = ctx.obj["config"]["objstorage"]
+    legacy_kwargs = ctx.obj["winery_legacy_kwargs"]
 
     stop_on_next_iteration = False
 
@@ -202,32 +182,21 @@ def winery_rbd(ctx, stop_instead_of_waiting: bool = False):
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
 
-    base_dsn = config["base_dsn"]
-    shard_max_size = config["shard_max_size"]
-    rbd_pool_name = config.get("rbd_pool_name", "shards")
-    rbd_data_pool_name = config.get("rbd_data_pool_name")
-    rbd_use_sudo = config.get("rbd_use_sudo", True)
-    rbd_image_features_unsupported = tuple(
-        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
-    )
-    rbd_manage_rw_images = config.get("rbd_manage_rw_images", True)
-    rbd_map_options = config.get("rbd_map_options", "")
-
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
     pool = Pool(
-        shard_max_size=shard_max_size,
-        rbd_pool_name=rbd_pool_name,
-        rbd_data_pool_name=rbd_data_pool_name,
-        rbd_use_sudo=rbd_use_sudo,
-        rbd_image_features_unsupported=rbd_image_features_unsupported,
-        rbd_map_options=rbd_map_options,
+        shard_max_size=legacy_kwargs["shard_max_size"],
+        rbd_pool_name=legacy_kwargs["rbd_pool_name"],
+        rbd_data_pool_name=legacy_kwargs["rbd_data_pool_name"],
+        rbd_use_sudo=legacy_kwargs["rbd_use_sudo"],
+        rbd_image_features_unsupported=legacy_kwargs["rbd_image_features_unsupported"],
+        rbd_map_options=legacy_kwargs["rbd_map_options"],
     )
 
     pool.manage_images(
-        base_dsn=base_dsn,
-        manage_rw_images=rbd_manage_rw_images,
+        base_dsn=legacy_kwargs["base_dsn"],
+        manage_rw_images=manage_rw_images,
         wait_for_image=wait_for_image,
         stop_running=stop_running,
     )
@@ -257,7 +226,7 @@ def winery_rw_shard_cleaner(
     from swh.objstorage.backends.winery.objstorage import rw_shard_cleaner
     from swh.objstorage.backends.winery.sleep import sleep_exponential
 
-    config = ctx.obj["config"]["objstorage"]
+    settings = ctx.obj["winery_settings"]
 
     stop_on_next_iteration = False
 
@@ -285,13 +254,11 @@ def winery_rw_shard_cleaner(
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
 
-    base_dsn = config["base_dsn"]
-
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
     ret = rw_shard_cleaner(
-        base_dsn=base_dsn,
+        database=settings["database"],
         min_mapped_hosts=min_mapped_hosts,
         stop_cleaning=stop_cleaning,
         wait_for_shard=wait_for_shard,
@@ -307,21 +274,10 @@ def winery_clean_deleted_objects(ctx):
     import signal
 
     from swh.objstorage.backends.winery.objstorage import deleted_objects_cleaner
-    from swh.objstorage.backends.winery.roshard import (
-        DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-        Pool,
-    )
+    from swh.objstorage.backends.winery.roshard import Pool
     from swh.objstorage.backends.winery.sharedbase import SharedBase
 
-    config = ctx.obj["config"]["objstorage"]
-    base_dsn = config["base_dsn"]
-    shard_max_size = config["shard_max_size"]
-    rbd_pool_name = config.get("rbd_pool_name", "shards")
-    rbd_data_pool_name = config.get("rbd_data_pool_name")
-    rbd_use_sudo = config.get("rbd_use_sudo", True)
-    rbd_image_features_unsupported = tuple(
-        config.get("rbd_image_features_unsupported", DEFAULT_IMAGE_FEATURES_UNSUPPORTED)
-    )
+    legacy_kwargs = ctx.obj["legacy_kwargs"]
 
     stop_on_next_iteration = False
 
@@ -337,14 +293,14 @@ def winery_clean_deleted_objects(ctx):
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
-    base = SharedBase(base_dsn=base_dsn)
+    base = SharedBase(base_dsn=legacy_kwargs["base_dsn"])
 
     pool = Pool(
-        shard_max_size=shard_max_size,
-        rbd_pool_name=rbd_pool_name,
-        rbd_data_pool_name=rbd_data_pool_name,
-        rbd_use_sudo=rbd_use_sudo,
-        rbd_image_features_unsupported=rbd_image_features_unsupported,
+        shard_max_size=legacy_kwargs["shard_max_size"],
+        rbd_pool_name=legacy_kwargs["rbd_pool_name"],
+        rbd_data_pool_name=legacy_kwargs["rbd_data_pool_name"],
+        rbd_use_sudo=legacy_kwargs["rbd_use_sudo"],
+        rbd_image_features_unsupported=legacy_kwargs["rbd_image_features_unsupported"],
     )
 
     deleted_objects_cleaner(base, pool, stop_running)
