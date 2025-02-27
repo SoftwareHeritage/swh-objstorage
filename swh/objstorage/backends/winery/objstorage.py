@@ -9,7 +9,7 @@ from multiprocessing import Process
 from typing import Callable, Iterator, List, Optional, Tuple
 
 from swh.objstorage.constants import DEFAULT_LIMIT
-from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
@@ -55,9 +55,13 @@ class WineryObjStorage(ObjStorage):
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+        if not isinstance(self.winery, WineryWriter):
+            raise ReadOnlyObjStorageError("add")
         self.winery.add(content, self._hash(obj_id), check_presence)
 
     def delete(self, obj_id: ObjId):
+        if not isinstance(self.winery, WineryWriter):
+            raise ReadOnlyObjStorageError("delete")
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
         return self.winery.delete(self._hash(obj_id))
