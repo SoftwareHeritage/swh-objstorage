@@ -52,7 +52,9 @@ class WineryObjStorage(ObjStorage):
         if readonly:
             self.writer = None
         else:
-            self.writer = WineryWriter(**legacy_kwargs)
+            self.writer = WineryWriter(
+                packer_settings=self.settings["packer"], **legacy_kwargs
+            )
 
     @timed
     def get(self, obj_id: ObjId) -> bytes:
@@ -168,7 +170,7 @@ class WineryReader:
         return content
 
 
-def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
+def pack(shard, packer_settings: settings.Packer, shared_base=None, **kwargs) -> bool:
     rw = RWShard(shard, **kwargs)
 
     count = rw.count()
@@ -187,7 +189,7 @@ def pack(shard, shared_base=None, clean_immediately=False, **kwargs) -> bool:
     if not shared_base:
         shared_base = SharedBase(**kwargs)
     shared_base.shard_packing_ends(shard)
-    if clean_immediately:
+    if packer_settings["clean_immediately"]:
         cleanup_rw_shard(shard, shared_base=shared_base, **kwargs)
     return True
 
@@ -207,13 +209,11 @@ def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
 class WineryWriter:
     def __init__(
         self,
-        pack_immediately: bool = True,
-        clean_immediately: bool = True,
+        packer_settings: settings.Packer,
         rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
-        self.pack_immediately = pack_immediately
-        self.clean_immediately = clean_immediately
+        self.packer_settings = packer_settings
         self.args = kwargs
         self.base = SharedBase(**self.args)
         self.shards_filled: List[str] = []
@@ -272,7 +272,7 @@ class WineryWriter:
             filled_name = self.shard.name
             self.release_shard(new_state=ShardState.FULL)
             self.shards_filled.append(filled_name)
-            if self.pack_immediately:
+            if self.packer_settings["pack_immediately"]:
                 self.pack(filled_name)
 
     def delete(self, obj_id: bytes):
@@ -308,7 +308,7 @@ class WineryWriter:
             target=pack,
             kwargs={
                 "shard": shard_name,
-                "clean_immediately": self.clean_immediately,
+                "packer_settings": self.packer_settings,
                 **self.args,
             },
         )
@@ -399,7 +399,12 @@ def shard_packer(
 
         with locked:
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
-            ret = pack(locked.name, shared_base=base, **legacy_kwargs)
+            ret = pack(
+                locked.name,
+                packer_settings=all_settings["packer"],
+                shared_base=base,
+                **legacy_kwargs,
+            )
             if not ret:
                 raise ValueError("Packing shard %s failed" % locked.name)
             shards_packed += 1

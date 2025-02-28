@@ -145,6 +145,5 @@ def populate_default_settings(
     if packer is not None:
         packer = packer_settings_with_defaults(packer)
         settings["packer"] = packer
-        legacy_kwargs.update(packer)
 
     return settings, legacy_kwargs

@@ -489,7 +489,7 @@ def test_winery_base_record_shard_mapped(winery_writer):
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 @pytest.mark.clean_immediately(False)
-def test_winery_pack(winery_writer, image_pool):
+def test_winery_pack(winery_settings, winery_writer, image_pool):
     shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
@@ -497,7 +497,7 @@ def test_winery_pack(winery_writer, image_pool):
     winery_writer.base.set_shard_state(ShardState.FULL)
     winery_writer.base.shard_packing_starts(shard)
 
-    assert pack(shard, **winery_writer.args)
+    assert pack(shard, packer_settings=winery_settings["packer"], **winery_writer.args)
     assert winery_writer.base.get_shard_state(shard) == ShardState.PACKED
 
     assert cleanup_rw_shard(shard, **winery_writer.args)
@@ -1031,14 +1031,17 @@ def test_winery_standalone_packer_never_stop_packing(
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_get_object(winery_writer, winery_reader, image_pool):
+def test_winery_get_object(winery_settings, winery_writer, winery_reader, image_pool):
     shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
     winery_writer.add(content=content, obj_id=sha256)
     winery_writer.base.set_shard_state(ShardState.FULL)
     winery_writer.base.shard_packing_starts(shard)
-    assert pack(shard, **winery_writer.args) is True
+    assert (
+        pack(shard, packer_settings=winery_settings["packer"], **winery_writer.args)
+        is True
+    )
     assert winery_reader.get(sha256) == content
 
 
