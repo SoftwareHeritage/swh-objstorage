@@ -6,7 +6,7 @@
 from functools import partial
 import logging
 from multiprocessing import Process
-from typing import Callable, Iterator, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional
 
 from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
@@ -124,8 +124,8 @@ class WineryReader:
     def __init__(self, **kwargs):
         self.args = kwargs
         self.base = SharedBase(**self.args)
-        self.ro_shards = {}
-        self.rw_shards = {}
+        self.ro_shards: Dict[str, ROShard] = {}
+        self.rw_shards: Dict[str, RWShard] = {}
 
     def __contains__(self, obj_id):
         return self.base.contains(obj_id)
