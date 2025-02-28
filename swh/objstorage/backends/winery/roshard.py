@@ -322,7 +322,7 @@ class Pool(object):
 
 
 class ROShard:
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, throttler_settings, **kwargs):
         self.pool = Pool.from_kwargs(**kwargs)
         image_status = self.pool.image_mapped(name)
 
@@ -331,7 +331,9 @@ class ROShard:
                 f"RBD image for {name} isn't mapped{' read-only' if image_status=='rw' else ''}"
             )
 
-        self.throttler = Throttler(**kwargs)
+        self.throttler = Throttler(
+            throttler_settings=throttler_settings, db=kwargs["base_dsn"]
+        )
         self.name = name
         self.path = self.pool.image_path(self.name)
         self.shard = None
@@ -381,13 +383,14 @@ class ROShardCreator:
       rbd_wait_for_image: function called when waiting for a shard to be mapped
       shard_max_size: the size of the shard, passed to :class:`Pool`
       rbd_*: other RBD-related :class:`Pool` arguments
-      throttle_*: :class:`Throttler` arguments
+      throttler_settings: passed to the :class:`Throttler`
     """
 
     def __init__(
         self,
         name: str,
         count: int,
+        throttler_settings: settings.Throttler,
         rbd_create_images: bool = True,
         rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
             min_duration=5,
@@ -398,7 +401,9 @@ class ROShardCreator:
         **kwargs,
     ):
         self.pool = Pool.from_kwargs(**kwargs)
-        self.throttler = Throttler(**kwargs)
+        self.throttler = Throttler(
+            throttler_settings=throttler_settings, db=kwargs["base_dsn"]
+        )
         self.name = name
         self.count = count
         self.path = self.pool.image_path(self.name)

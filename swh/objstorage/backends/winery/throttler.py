@@ -8,6 +8,7 @@ import datetime
 import logging
 import time
 
+from . import settings
 from .database import Database
 
 logger = logging.getLogger(__name__)
@@ -99,15 +100,18 @@ class IOThrottler(Database):
     bandwidth is shared equally between instances.
     """
 
-    def __init__(self, name, **kwargs):
-        super().__init__(
-            dsn=kwargs["base_dsn"],
-            application_name=kwargs.get("application_name", "SWH Winery Throttler"),
-        )
+    def __init__(
+        self,
+        name: str,
+        max_speed: int,
+        db: str,
+        application_name: str = "SWH Winery Throttler",
+    ):
+        super().__init__(dsn=db, application_name=application_name)
         self.name = name
         self.init_db()
         self.last_sync = 0
-        self.max_speed = kwargs["throttle_" + name]
+        self.max_speed = max_speed
         self.bucket = LeakyBucket(self.max_speed)
         self.bandwidth = BandwidthCalculator()
 
@@ -178,9 +182,17 @@ class Throttler:
     cumulated bandwidth reported by each Throttler instance.
     """
 
-    def __init__(self, **kwargs):
-        self.read = IOThrottler("read", **kwargs)
-        self.write = IOThrottler("write", **kwargs)
+    def __init__(self, throttler_settings: settings.Throttler, db):
+        self.read = IOThrottler(
+            name="read",
+            max_speed=throttler_settings["max_read_bps"],
+            db=db,
+        )
+        self.write = IOThrottler(
+            name="write",
+            max_speed=throttler_settings["max_write_bps"],
+            db=db,
+        )
 
     def throttle_get(self, fun, key):
         content = fun(key)

@@ -497,7 +497,12 @@ def test_winery_pack(winery_settings, winery_writer, image_pool):
     winery_writer.base.set_shard_state(ShardState.FULL)
     winery_writer.base.shard_packing_starts(shard)
 
-    assert pack(shard, packer_settings=winery_settings["packer"], **winery_writer.args)
+    assert pack(
+        shard,
+        packer_settings=winery_settings["packer"],
+        throttler_settings=winery_settings["throttler"],
+        **winery_writer.args,
+    )
     assert winery_writer.base.get_shard_state(shard) == ShardState.PACKED
 
     assert cleanup_rw_shard(shard, **winery_writer.args)
@@ -1039,7 +1044,12 @@ def test_winery_get_object(winery_settings, winery_writer, winery_reader, image_
     winery_writer.base.set_shard_state(ShardState.FULL)
     winery_writer.base.shard_packing_starts(shard)
     assert (
-        pack(shard, packer_settings=winery_settings["packer"], **winery_writer.args)
+        pack(
+            shard,
+            packer_settings=winery_settings["packer"],
+            throttler_settings=winery_settings["throttler"],
+            **winery_writer.args,
+        )
         is True
     )
     assert winery_reader.get(sha256) == content
@@ -1170,7 +1180,7 @@ def test_winery_bandwidth_calculator(mocker):
 def test_winery_io_throttler(postgresql_dsn, mocker):
     sleep = mocker.spy(time, "sleep")
     speed = 100
-    i = IOThrottler("read", base_dsn=postgresql_dsn, throttle_read=100)
+    i = IOThrottler(name="read", db=postgresql_dsn, max_speed=100)
     count = speed
     i.add(count)
     sleep.assert_not_called()
@@ -1189,7 +1199,10 @@ def test_winery_io_throttler(postgresql_dsn, mocker):
 
 
 def test_winery_throttler(postgresql_dsn):
-    t = Throttler(base_dsn=postgresql_dsn, throttle_read=100, throttle_write=100)
+    t = Throttler(
+        db=postgresql_dsn,
+        throttler_settings={"max_write_bps": 100, "max_read_bps": 100},
+    )
 
     base = {}
     key = "KEY"

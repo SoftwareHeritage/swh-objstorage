@@ -47,13 +47,17 @@ class WineryObjStorage(ObjStorage):
             packer=(packer or {}),
         )
 
-        self.reader = WineryReader(**legacy_kwargs)
+        self.reader = WineryReader(
+            throttler_settings=self.settings["throttler"], **legacy_kwargs
+        )
 
         if readonly:
             self.writer = None
         else:
             self.writer = WineryWriter(
-                packer_settings=self.settings["packer"], **legacy_kwargs
+                packer_settings=self.settings["packer"],
+                throttler_settings=self.settings["throttler"],
+                **legacy_kwargs,
             )
 
     @timed
@@ -121,8 +125,9 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(self, **kwargs):
+    def __init__(self, throttler_settings: settings.Throttler, **kwargs):
         self.args = kwargs
+        self.throttler_settings = throttler_settings
         self.base = SharedBase(**self.args)
         self.ro_shards: Dict[str, ROShard] = {}
         self.rw_shards: Dict[str, RWShard] = {}
@@ -138,7 +143,9 @@ class WineryReader:
     def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
             try:
-                shard = ROShard(name, **self.args)
+                shard = ROShard(
+                    name=name, throttler_settings=self.throttler_settings, **self.args
+                )
             except ShardNotMapped:
                 return None
             self.ro_shards[name] = shard
@@ -170,12 +177,20 @@ class WineryReader:
         return content
 
 
-def pack(shard, packer_settings: settings.Packer, shared_base=None, **kwargs) -> bool:
+def pack(
+    shard,
+    packer_settings: settings.Packer,
+    throttler_settings: settings.Throttler,
+    shared_base=None,
+    **kwargs,
+) -> bool:
     rw = RWShard(shard, **kwargs)
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
-    with ROShardCreator(shard, count, **kwargs) as ro:
+    with ROShardCreator(
+        shard, count, throttler_settings=throttler_settings, **kwargs
+    ) as ro:
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
             ro.add(content, obj_id)
@@ -210,10 +225,12 @@ class WineryWriter:
     def __init__(
         self,
         packer_settings: settings.Packer,
+        throttler_settings: settings.Throttler,
         rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
         self.packer_settings = packer_settings
+        self.throttler_settings = throttler_settings
         self.args = kwargs
         self.base = SharedBase(**self.args)
         self.shards_filled: List[str] = []
@@ -309,6 +326,7 @@ class WineryWriter:
             kwargs={
                 "shard": shard_name,
                 "packer_settings": self.packer_settings,
+                "throttler_settings": self.throttler_settings,
                 **self.args,
             },
         )
@@ -402,6 +420,7 @@ def shard_packer(
             ret = pack(
                 locked.name,
                 packer_settings=all_settings["packer"],
+                throttler_settings=all_settings["throttler"],
                 shared_base=base,
                 **legacy_kwargs,
             )

@@ -139,8 +139,6 @@ def populate_default_settings(
 
     if throttler is not None:
         settings["throttler"] = throttler
-        legacy_kwargs["throttle_read"] = throttler["max_read_bps"]
-        legacy_kwargs["throttle_write"] = throttler["max_write_bps"]
 
     if packer is not None:
         packer = packer_settings_with_defaults(packer)
