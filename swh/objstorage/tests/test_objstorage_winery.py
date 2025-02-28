@@ -242,13 +242,18 @@ def storage(
 
 
 @pytest.fixture
-def winery(storage):
-    return storage.winery
+def winery_reader(storage):
+    return storage.reader
 
 
-def test_winery_sharedbase(winery):
-    base = winery.base
-    shard1 = winery.shard.name
+@pytest.fixture
+def winery_writer(storage):
+    return storage.writer
+
+
+def test_winery_sharedbase(winery_writer):
+    base = winery_writer.base
+    shard1 = winery_writer.shard.name
     assert shard1 is not None
     assert shard1 == base.locked_shard
 
@@ -258,36 +263,35 @@ def test_winery_sharedbase(winery):
 
     assert base.get_shard_state(shard1) == ShardState.WRITING
 
-    winery.release_shard()
+    winery_writer.release_shard()
 
-    assert winery.base._locked_shard is None
+    assert winery_writer.base._locked_shard is None
     assert base.get_shard_state(shard1) == ShardState.STANDBY
 
-    shard2 = winery.base.locked_shard
+    shard2 = winery_writer.base.locked_shard
 
     assert shard1 == shard2, "Locked a different shard?"
     assert base.get_shard_state(shard1) == ShardState.WRITING
 
 
-def test_winery_add_get(winery):
-    shard = winery.base.locked_shard
+def test_winery_add_get(winery_writer, winery_reader):
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
     assert (
         sha256.hex()
         == "866878b165607851782d8d233edf0c261172ff67926330d3bbd10c705b92d24f"
     )
-    winery.add(content=content, obj_id=sha256)
-    winery.add(content=content, obj_id=sha256)
-    winery.add(content=content, obj_id=sha256, check_presence=False)
-    assert winery.base.locked_shard == shard
-    assert winery.get(sha256) == content
+    winery_writer.add(content=content, obj_id=sha256)
+    winery_writer.add(content=content, obj_id=sha256)
+    assert winery_writer.base.locked_shard == shard
+    assert winery_reader.get(sha256) == content
     with pytest.raises(ObjNotFoundError):
-        winery.get(b"unknown")
-    winery.shard.drop()
+        winery_reader.get(b"unknown")
+    winery_writer.shard.drop()
 
 
-def test_winery_add_concurrent(winery, winery_settings, mocker):
+def test_winery_add_concurrent(winery_settings, mocker):
     num_threads = 4
 
     class ManualReleaseSharedBase(SharedBase):
@@ -323,13 +327,13 @@ def test_winery_add_concurrent(winery, winery_settings, mocker):
         thread.start()
 
     for storage in reversed(storages):
-        storage.winery.base.release_obj_id.set()
+        storage.writer.base.release_obj_id.set()
 
     for thread in threads:
         thread.join()
 
-    assert winery.get(obj_id["sha256"]) == content
-    assert sum(1 for _ in winery.base.list_shards()) >= num_threads
+    assert storage.reader.get(obj_id["sha256"]) == content
+    assert sum(1 for _ in storage.reader.base.list_shards()) >= num_threads
 
     for storage in storages:
         assert isinstance(storage, WineryObjStorage)
@@ -337,49 +341,49 @@ def test_winery_add_concurrent(winery, winery_settings, mocker):
 
 
 @pytest.mark.shard_max_size(1)
-def test_winery_add_and_pack(winery, mocker):
+def test_winery_add_and_pack(winery_writer, mocker):
     mocker.patch("swh.objstorage.backends.winery.objstorage.pack", return_value=True)
-    shard = winery.base.locked_shard
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
-    winery.add(content=content, obj_id=sha256)
-    assert winery.base.locked_shard != shard
-    assert len(winery.packers) == 1
-    packer = winery.packers[0]
+    winery_writer.add(content=content, obj_id=sha256)
+    assert winery_writer.base.locked_shard != shard
+    assert len(winery_writer.packers) == 1
+    packer = winery_writer.packers[0]
     packer.join()
     assert packer.exitcode == 0
 
 
-def test_winery_delete_on_rwshard(winery):
-    shard = winery.base.locked_shard
+def test_winery_delete_on_rwshard(winery_writer, winery_reader):
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
-    winery.add(content=content, obj_id=sha256)
-    assert winery.base.locked_shard == shard
-    assert winery.get(sha256) == content
-    winery.delete(sha256)
+    winery_writer.add(content=content, obj_id=sha256)
+    assert winery_writer.base.locked_shard == shard
+    assert winery_reader.get(sha256) == content
+    winery_writer.delete(sha256)
     with pytest.raises(ObjNotFoundError):
-        winery.get(sha256)
+        winery_reader.get(sha256)
 
 
 @pytest.mark.shard_max_size(1)
 @pytest.mark.pack_immediately(True)
-def test_winery_delete_on_roshard(winery, file_backed_pool):
-    shard = winery.base.locked_shard
+def test_winery_delete_on_roshard(winery_writer, winery_reader, file_backed_pool):
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
-    winery.add(content=content, obj_id=sha256)
-    assert winery.base.locked_shard != shard
-    assert winery.packers
-    for packer in winery.packers:
+    winery_writer.add(content=content, obj_id=sha256)
+    assert winery_writer.base.locked_shard != shard
+    assert winery_writer.packers
+    for packer in winery_writer.packers:
         packer.join()
-    assert winery.get(sha256) == content
+    assert winery_reader.get(sha256) == content
     # This will only mark as deleted in SharedBase
-    winery.delete(sha256)
-    assert len(list(winery.base.deleted_objects())) == 1
+    winery_writer.delete(sha256)
+    assert len(list(winery_writer.base.deleted_objects())) == 1
     # We still should not be able to access it
     with pytest.raises(ObjNotFoundError):
-        winery.get(sha256)
+        winery_reader.get(sha256)
     # The content is still present in the roshard image at this point
     image_path = file_backed_pool.image_path(shard)
     with open(image_path, "rb") as image:
@@ -387,8 +391,10 @@ def test_winery_delete_on_roshard(winery, file_backed_pool):
     # Perform cleanup
     file_backed_pool.image_unmap(shard)
     file_backed_pool.image_map(shard, "rw")
-    deleted_objects_cleaner(winery.base, file_backed_pool, stop_running=lambda: False)
-    assert len(list(winery.base.deleted_objects())) == 0
+    deleted_objects_cleaner(
+        winery_reader.base, file_backed_pool, stop_running=lambda: False
+    )
+    assert len(list(winery_reader.base.deleted_objects())) == 0
     with open(image_path, "rb") as image:
         assert b"SOMETHING" not in image.read()
 
@@ -396,32 +402,32 @@ def test_winery_delete_on_roshard(winery, file_backed_pool):
 @pytest.mark.shard_max_size(20)
 @pytest.mark.pack_immediately(True)
 def test_winery_deleted_objects_cleaner_handles_exception(
-    winery, file_backed_pool, mocker
+    winery_writer, file_backed_pool, mocker
 ):
     from swh.objstorage.backends.winery import objstorage as winery_objstorage
 
     from ..backends.winery.roshard import ROShard
 
     # Add two objects
-    shard = winery.base.locked_shard
+    shard = winery_writer.base.locked_shard
     content1 = b"PINOT GRIS"
     sha256_1 = objid_for_content(content1)["sha256"]
-    winery.add(content=content1, obj_id=sha256_1)
+    winery_writer.add(content=content1, obj_id=sha256_1)
     content2 = b"CHARDONNAY"
     sha256_2 = objid_for_content(content2)["sha256"]
-    winery.add(content=content2, obj_id=sha256_2)
+    winery_writer.add(content=content2, obj_id=sha256_2)
 
     # This should be enough bytes to trigger packing
-    for packer in winery.packers:
+    for packer in winery_writer.packers:
         packer.join()
 
     # We should only have one roshard
     assert len(file_backed_pool.image_list()) == 1
 
     # This will only mark as deleted in SharedBase for the time being
-    winery.delete(sha256_1)
-    winery.delete(sha256_2)
-    assert len(list(winery.base.deleted_objects())) == 2
+    winery_writer.delete(sha256_1)
+    winery_writer.delete(sha256_2)
+    assert len(list(winery_writer.base.deleted_objects())) == 2
 
     # The content is still present in the roshard image at this point
     image_path = file_backed_pool.image_path(shard)
@@ -448,11 +454,11 @@ def test_winery_deleted_objects_cleaner_handles_exception(
     file_backed_pool.image_map(shard, "rw")
     with pytest.raises(OSError):
         winery_objstorage.deleted_objects_cleaner(
-            winery.base, file_backed_pool, stop_running=lambda: False
+            winery_writer.base, file_backed_pool, stop_running=lambda: False
         )
 
     # We should only have one remaining object to delete
-    assert len(list(winery.base.deleted_objects())) == 1
+    assert len(list(winery_writer.base.deleted_objects())) == 1
 
     # We should have only the content of one of the objects still in the roshard
     with open(image_path, "rb") as image:
@@ -461,72 +467,76 @@ def test_winery_deleted_objects_cleaner_handles_exception(
         assert sorted(presences) == [False, True]
 
 
-def test_winery_get_shard_info(winery):
-    assert winery.base.get_shard_info(1234) is None
-    assert winery.base.get_shard_state("nothing") is None
+def test_winery_get_shard_info(winery_reader):
+    assert winery_reader.base.get_shard_info(1234) is None
+    assert winery_reader.base.get_shard_state("nothing") is None
 
 
-def test_winery_base_record_shard_mapped(winery):
+def test_winery_base_record_shard_mapped(winery_writer):
     # Lock a shard
-    shard_name, shard_id = winery.base.create_shard(new_state=ShardState.PACKED)
+    shard_name, shard_id = winery_writer.base.create_shard(new_state=ShardState.PACKED)
 
-    assert {"test"} == winery.base.record_shard_mapped(host="test", name=shard_name)
-    assert {"test"} == winery.base.record_shard_mapped(host="test", name=shard_name)
-    assert {"test", "test2"} == winery.base.record_shard_mapped(
+    assert {"test"} == winery_writer.base.record_shard_mapped(
+        host="test", name=shard_name
+    )
+    assert {"test"} == winery_writer.base.record_shard_mapped(
+        host="test", name=shard_name
+    )
+    assert {"test", "test2"} == winery_writer.base.record_shard_mapped(
         host="test2", name=shard_name
     )
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
 @pytest.mark.clean_immediately(False)
-def test_winery_pack(winery, image_pool):
-    shard = winery.base.locked_shard
+def test_winery_pack(winery_writer, image_pool):
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
-    winery.add(content=content, obj_id=sha256)
-    winery.base.set_shard_state(ShardState.FULL)
-    winery.base.shard_packing_starts(shard)
+    winery_writer.add(content=content, obj_id=sha256)
+    winery_writer.base.set_shard_state(ShardState.FULL)
+    winery_writer.base.shard_packing_starts(shard)
 
-    assert pack(shard, **winery.args)
-    assert winery.base.get_shard_state(shard) == ShardState.PACKED
+    assert pack(shard, **winery_writer.args)
+    assert winery_writer.base.get_shard_state(shard) == ShardState.PACKED
 
-    assert cleanup_rw_shard(shard, **winery.args)
-    assert winery.base.get_shard_state(shard) == ShardState.READONLY
+    assert cleanup_rw_shard(shard, **winery_writer.args)
+    assert winery_writer.base.get_shard_state(shard) == ShardState.READONLY
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
 @pytest.mark.pack_immediately(True)
 def test_winery_writer_pack_immediately_true(image_pool, storage):
-    shard = storage.winery.base.locked_shard
+    shard = storage.writer.base.locked_shard
 
     for i in range(1024):
         content = i.to_bytes(1024, "little")
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    assert storage.winery.packers
-    for packer in storage.winery.packers:
+    assert storage.writer.packers
+    for packer in storage.writer.packers:
         packer.join()
 
-    assert storage.winery.base.locked_shard != shard
+    assert storage.writer.base.locked_shard != shard
 
-    assert storage.winery.base.get_shard_state(shard) == ShardState.READONLY
+    assert storage.writer.base.get_shard_state(shard) == ShardState.READONLY
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
 @pytest.mark.pack_immediately(False)
 def test_winery_writer_pack_immediately_false(storage):
-    shard = storage.winery.base.locked_shard
+    shard = storage.writer.base.locked_shard
 
     for i in range(1024):
         content = i.to_bytes(1024, "little")
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    assert storage.winery.base.locked_shard != shard
-    assert not storage.winery.packers
+    assert storage.writer.base.locked_shard != shard
+    assert not storage.writer.packers
 
-    assert storage.winery.base.get_shard_state(shard) == ShardState.FULL
+    assert storage.writer.base.get_shard_state(shard) == ShardState.FULL
 
 
 @pytest.mark.parametrize(
@@ -575,10 +585,10 @@ def test_winery_standalone_packer(winery_settings, image_pool, storage):
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.FULL
 
@@ -591,7 +601,7 @@ def test_winery_standalone_packer(winery_settings, image_pool, storage):
         == 1
     )
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {
         ShardState.FULL: 3,
         ShardState.PACKED: 1,
@@ -607,7 +617,7 @@ def test_winery_standalone_packer(winery_settings, image_pool, storage):
         == 1
     )
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {
         ShardState.FULL: 3,
         ShardState.READONLY: 1,
@@ -622,7 +632,7 @@ def test_winery_standalone_packer(winery_settings, image_pool, storage):
         == 3
     )
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {
         ShardState.PACKED: 3,
         ShardState.READONLY: 1,
@@ -638,7 +648,7 @@ def test_winery_standalone_packer(winery_settings, image_pool, storage):
         == 3
     )
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {ShardState.READONLY: 4}
 
 
@@ -656,7 +666,7 @@ def test_winery_packer_clean_up_interrupted_shard(
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 1
 
     shard = filled[0]
@@ -704,10 +714,10 @@ def test_winery_cli_packer(image_pool, storage, tmp_path, winery_settings, cli_r
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.FULL
 
@@ -722,7 +732,7 @@ def test_winery_cli_packer(image_pool, storage, tmp_path, winery_settings, cli_r
 
     assert result.exit_code == 0
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.PACKED
 
@@ -739,10 +749,10 @@ def test_winery_cli_packer_rollback_on_error(
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.FULL
 
@@ -766,7 +776,7 @@ def test_winery_cli_packer_rollback_on_error(
 
     assert result.exit_code == 1
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert (
             shard_info[shard] == ShardState.FULL
@@ -782,10 +792,10 @@ def test_winery_cli_rbd(image_pool, storage, tmp_path, winery_settings, cli_runn
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.FULL
 
@@ -827,7 +837,7 @@ def test_winery_cli_rbd(image_pool, storage, tmp_path, winery_settings, cli_runn
         assert image_pool.image_mapped(shard) == "rw"
 
     for shard in filled:
-        storage.winery.base.set_shard_state(name=shard, new_state=ShardState.PACKED)
+        storage.writer.base.set_shard_state(name=shard, new_state=ShardState.PACKED)
 
     result = cli_runner.invoke(
         swh_cli_group,
@@ -853,21 +863,21 @@ def test_winery_cli_rw_shard_cleaner(
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    for packer in storage.winery.packers:
+    for packer in storage.writer.packers:
         packer.join()
         assert packer.exitcode == 0
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.PACKED
 
     with open(tmp_path / "config.yml", "w") as f:
         yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
-    shard_tables = set(storage.winery.base.list_shard_tables())
+    shard_tables = set(storage.writer.base.list_shard_tables())
     for shard in filled:
         assert shard in shard_tables
 
@@ -880,7 +890,7 @@ def test_winery_cli_rw_shard_cleaner(
     assert result.exit_code == 0
 
     # No hosts have mapped the shard as remapped, so the cleaner has done nothing
-    shard_tables = set(storage.winery.base.list_shard_tables())
+    shard_tables = set(storage.writer.base.list_shard_tables())
     for shard in filled:
         assert shard in shard_tables
 
@@ -899,7 +909,7 @@ def test_winery_cli_rw_shard_cleaner(
     assert result.exit_code == 0
 
     # Now we've forced action
-    shard_tables = set(storage.winery.base.list_shard_tables())
+    shard_tables = set(storage.writer.base.list_shard_tables())
     for shard in filled:
         assert shard not in shard_tables
 
@@ -916,21 +926,21 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    for packer in storage.winery.packers:
+    for packer in storage.writer.packers:
         packer.join()
         assert packer.exitcode == 0
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.PACKED
 
     with open(tmp_path / "config.yml", "w") as f:
         yaml.safe_dump({"objstorage": {"cls": "winery", **winery_settings}}, stream=f)
 
-    shard_tables = set(storage.winery.base.list_shard_tables())
+    shard_tables = set(storage.writer.base.list_shard_tables())
     for shard in filled:
         assert shard in shard_tables
 
@@ -958,8 +968,8 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
 
     assert result.exit_code == 1
 
-    shard_tables = set(storage.winery.base.list_shard_tables())
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_tables = set(storage.writer.base.list_shard_tables())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard in shard_tables
         assert shard_info[shard] == ShardState.PACKED
@@ -977,10 +987,10 @@ def test_winery_standalone_packer_never_stop_packing(
         obj_id = objid_for_content(content)
         storage.add(content=content, obj_id=obj_id)
 
-    filled = storage.winery.shards_filled
+    filled = storage.writer.shards_filled
     assert len(filled) == 4
 
-    shard_info = dict(storage.winery.base.list_shards())
+    shard_info = dict(storage.writer.base.list_shards())
     for shard in filled:
         assert shard_info[shard] == ShardState.FULL
 
@@ -1002,7 +1012,7 @@ def test_winery_standalone_packer_never_stop_packing(
 
     assert called == list(range(5))
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {ShardState.PACKED: 4}
 
     called = []
@@ -1016,20 +1026,20 @@ def test_winery_standalone_packer_never_stop_packing(
 
     assert called == list(range(5))
 
-    shard_counts = Counter(state for _, state in storage.winery.base.list_shards())
+    shard_counts = Counter(state for _, state in storage.writer.base.list_shards())
     assert shard_counts == {ShardState.READONLY: 4}
 
 
 @pytest.mark.shard_max_size(10 * 1024 * 1024)
-def test_winery_get_object(winery, image_pool):
-    shard = winery.base.locked_shard
+def test_winery_get_object(winery_writer, winery_reader, image_pool):
+    shard = winery_writer.base.locked_shard
     content = b"SOMETHING"
     sha256 = objid_for_content(content)["sha256"]
-    winery.add(content=content, obj_id=sha256)
-    winery.base.set_shard_state(ShardState.FULL)
-    winery.base.shard_packing_starts(shard)
-    assert pack(shard, **winery.args) is True
-    assert winery.get(sha256) == content
+    winery_writer.add(content=content, obj_id=sha256)
+    winery_writer.base.set_shard_state(ShardState.FULL)
+    winery_writer.base.shard_packing_starts(shard)
+    assert pack(shard, **winery_writer.args) is True
+    assert winery_reader.get(sha256) == content
 
 
 @pytest.mark.skipif("CEPH_HARDCODE_POOL" in os.environ, reason="Ceph pool hardcoded")

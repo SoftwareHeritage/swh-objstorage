@@ -47,17 +47,17 @@ class WineryObjStorage(ObjStorage):
             packer=(packer or {}),
         )
 
-        self.winery: WineryReader | WineryWriter
+        self.reader = WineryReader(**legacy_kwargs)
 
         if readonly:
-            self.winery = WineryReader(**legacy_kwargs)
+            self.writer = None
         else:
-            self.winery = WineryWriter(**legacy_kwargs)
+            self.writer = WineryWriter(**legacy_kwargs)
 
     @timed
     def get(self, obj_id: ObjId) -> bytes:
         try:
-            return self.winery.get(self._hash(obj_id))
+            return self.reader.get(self._hash(obj_id))
         except ObjNotFoundError as exc:
             # re-raise exception with the passed obj_id instead of the internal winery obj_id.
             raise ObjNotFoundError(obj_id) from exc
@@ -67,20 +67,27 @@ class WineryObjStorage(ObjStorage):
 
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
-        return self._hash(obj_id) in self.winery
+        return self._hash(obj_id) in self.reader
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
-        if not isinstance(self.winery, WineryWriter):
+        if not self.writer:
             raise ReadOnlyObjStorageError("add")
-        self.winery.add(content, self._hash(obj_id), check_presence)
+        internal_obj_id = self._hash(obj_id)
+        if check_presence and internal_obj_id in self.reader:
+            return
+        self.writer.add(content, internal_obj_id)
 
     def delete(self, obj_id: ObjId):
-        if not isinstance(self.winery, WineryWriter):
+        if not self.writer:
             raise ReadOnlyObjStorageError("delete")
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
-        return self.winery.delete(self._hash(obj_id))
+        try:
+            return self.writer.delete(self._hash(obj_id))
+        # Re-raise ObjNotFoundError with the full object id
+        except ObjNotFoundError as exc:
+            raise ObjNotFoundError(obj_id) from exc
 
     def _hash(self, obj_id: ObjId) -> bytes:
         return obj_id[self.PRIMARY_HASH]
@@ -88,7 +95,7 @@ class WineryObjStorage(ObjStorage):
     def __iter__(self) -> Iterator[CompositeObjId]:
         if self.PRIMARY_HASH != "sha256":
             raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
-        for signature in self.winery.list_signatures():
+        for signature in self.reader.list_signatures():
             yield {"sha256": signature}
 
     def list_content(
@@ -103,17 +110,20 @@ class WineryObjStorage(ObjStorage):
         if last_obj_id:
             after_id = self._hash(last_obj_id)
 
-        for signature in self.winery.list_signatures(after_id=after_id, limit=limit):
+        for signature in self.reader.list_signatures(after_id=after_id, limit=limit):
             yield {"sha256": signature}
 
     def on_shutdown(self):
-        self.winery.on_shutdown()
+        if self.writer:
+            self.writer.on_shutdown()
 
 
-class WineryBase:
+class WineryReader:
     def __init__(self, **kwargs):
         self.args = kwargs
         self.base = SharedBase(**self.args)
+        self.ro_shards = {}
+        self.rw_shards = {}
 
     def __contains__(self, obj_id):
         return self.base.contains(obj_id)
@@ -122,16 +132,6 @@ class WineryBase:
         self, after_id: Optional[bytes] = None, limit: Optional[int] = None
     ) -> Iterator[bytes]:
         yield from self.base.list_signatures(after_id, limit)
-
-    def on_shutdown(self):
-        return
-
-
-class WineryReader(WineryBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.ro_shards = {}
-        self.rw_shards = {}
 
     def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
@@ -204,7 +204,7 @@ def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
     return True
 
 
-class WineryWriter(WineryReader):
+class WineryWriter:
     def __init__(
         self,
         pack_immediately: bool = True,
@@ -214,7 +214,8 @@ class WineryWriter(WineryReader):
     ):
         self.pack_immediately = pack_immediately
         self.clean_immediately = clean_immediately
-        super().__init__(**kwargs)
+        self.args = kwargs
+        self.base = SharedBase(**self.args)
         self.shards_filled: List[str] = []
         self.packers: List[Process] = []
         self._shard: Optional[RWShard] = None
@@ -258,10 +259,7 @@ class WineryWriter(WineryReader):
             )
         return self._shard
 
-    def add(self, content: bytes, obj_id: bytes, check_presence: bool = True) -> None:
-        if check_presence and obj_id in self:
-            return
-
+    def add(self, content: bytes, obj_id: bytes) -> None:
         with self.base.pool.connection() as db, db.transaction():
             shard = self.base.record_new_obj_id(db, obj_id)
             if shard != self.base.locked_shard_id:
@@ -285,7 +283,7 @@ class WineryWriter(WineryReader):
         # We only care about RWShard for now. ROShards will be
         # taken care in a batch job.
         if not state.image_available:
-            rwshard = self.rwshard(name)
+            rwshard = RWShard(name, **self.args)
             try:
                 rwshard.delete(obj_id)
             except KeyError:
