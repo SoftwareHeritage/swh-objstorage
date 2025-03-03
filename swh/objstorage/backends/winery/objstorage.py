@@ -18,6 +18,7 @@ from .roshard import Pool, ROShard, ROShardCreator, ShardNotMapped
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
+from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +48,11 @@ class WineryObjStorage(ObjStorage):
             packer=(packer or {}),
         )
 
-        self.reader = WineryReader(
-            throttler_settings=self.settings["throttler"], **legacy_kwargs
+        self.throttler = Throttler(
+            throttler_settings=self.settings["throttler"], db=database["db"]
         )
+
+        self.reader = WineryReader(throttler=self.throttler, **legacy_kwargs)
 
         if readonly:
             self.writer = None
@@ -125,9 +128,9 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(self, throttler_settings: settings.Throttler, **kwargs):
+    def __init__(self, throttler: Throttler, **kwargs):
         self.args = kwargs
-        self.throttler_settings = throttler_settings
+        self.throttler = throttler
         self.base = SharedBase(**self.args)
         self.ro_shards: Dict[str, ROShard] = {}
         self.rw_shards: Dict[str, RWShard] = {}
@@ -143,9 +146,7 @@ class WineryReader:
     def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
             try:
-                shard = ROShard(
-                    name=name, throttler_settings=self.throttler_settings, **self.args
-                )
+                shard = ROShard(name=name, throttler=self.throttler, **self.args)
             except ShardNotMapped:
                 return None
             self.ro_shards[name] = shard
@@ -188,9 +189,8 @@ def pack(
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
-    with ROShardCreator(
-        shard, count, throttler_settings=throttler_settings, **kwargs
-    ) as ro:
+    throttler = Throttler(throttler_settings=throttler_settings, db=kwargs["base_dsn"])
+    with ROShardCreator(shard, count, throttler=throttler, **kwargs) as ro:
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
             ro.add(content, obj_id)
