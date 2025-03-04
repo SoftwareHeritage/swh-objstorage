@@ -7,6 +7,7 @@ from collections import Counter
 import logging
 import math
 import os
+import random
 import shlex
 import socket
 import stat
@@ -230,6 +231,7 @@ class Pool(object):
                 for shard_name, shard_state in base.list_shards()
                 if not only_prefix or shard_name.startswith(only_prefix)
             ]
+            random.shuffle(shards)
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
                     "Listed %d shards in %.02f seconds",
