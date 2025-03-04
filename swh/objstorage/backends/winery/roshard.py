@@ -232,12 +232,6 @@ class Pool(object):
                 )
                 logger.debug("Mapped images: %s", Counter(mapped_images.values()))
 
-            notify(
-                f"STATUS="
-                "Enumerated {len(shards)} shards, "
-                f"mapped {len(mapped_images)} images"
-            )
-
             for shard_name, shard_state in shards:
                 mapped_state = mapped_images.get(shard_name)
                 if mapped_state == "ro":
@@ -307,6 +301,12 @@ class Pool(object):
                     mapped_images[shard_name] = "rw"
                 else:
                     logger.debug("%s shard %s, skipping", shard_state.name, shard_name)
+
+                notify(
+                    "STATUS="
+                    f"Enumerated {len(shards)} shards, "
+                    f"mapped {len(mapped_images)} images"
+                )
 
             if not notified_systemd:
                 # The first iteration has happened, all known shards should be ready
