@@ -147,9 +147,13 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
 @winery.command("rbd")
 @click.option("--stop-instead-of-waiting", is_flag=True)
 @click.option("--manage-rw-images", is_flag=True)
+@click.option("--only-prefix")
 @click.pass_context
 def winery_rbd(
-    ctx, stop_instead_of_waiting: bool = False, manage_rw_images: bool = True
+    ctx,
+    stop_instead_of_waiting: bool = False,
+    manage_rw_images: bool = True,
+    only_prefix: Optional[str] = None,
 ):
     """Run a winery RBD image manager process"""
     import signal
@@ -199,6 +203,7 @@ def winery_rbd(
         base_dsn=legacy_kwargs["base_dsn"],
         manage_rw_images=manage_rw_images,
         wait_for_image=wait_for_image,
+        only_prefix=only_prefix,
         stop_running=stop_running,
     )
 

@@ -200,6 +200,7 @@ class Pool(object):
         manage_rw_images: bool,
         wait_for_image: Callable[[int], None],
         stop_running: Callable[[], bool],
+        only_prefix: Optional[str] = None,
         application_name: Optional[str] = None,
     ) -> None:
         """Manage RBD image creation and mapping automatically.
@@ -210,6 +211,7 @@ class Pool(object):
           wait_for_image: function which is called at each loop iteration, with
             an attempt number, if no images had to be mapped recently
           stop_running: callback that returns True when the manager should stop running
+          only_prefix: only map images with the given name prefix
           application_name: the application name sent to PostgreSQL
         """
         application_name = application_name or "Winery RBD image manager"
@@ -223,7 +225,11 @@ class Pool(object):
             did_something = False
             logger.debug("Listing shards")
             start = time.monotonic()
-            shards = list(base.list_shards())
+            shards = [
+                (shard_name, shard_state)
+                for shard_name, shard_state in base.list_shards()
+                if not only_prefix or shard_name.startswith(only_prefix)
+            ]
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
                     "Listed %d shards in %.02f seconds",

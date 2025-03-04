@@ -824,6 +824,30 @@ def test_winery_cli_rbd(image_pool, storage, tmp_path, winery_settings, cli_runn
     for shard in filled:
         assert image_pool.image_mapped(shard) is None
 
+    first_shard = filled[0]
+
+    result = cli_runner.invoke(
+        swh_cli_group,
+        (
+            "objstorage",
+            "winery",
+            "rbd",
+            "--stop-instead-of-waiting",
+            "--only-prefix",
+            first_shard[:10],
+            "--manage-rw-images",
+        ),
+        env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+    )
+
+    assert result.exit_code == 0
+
+    for shard in filled:
+        if shard == first_shard:
+            assert image_pool.image_mapped(shard) == "rw"
+        else:
+            assert image_pool.image_mapped(shard) is None
+
     result = cli_runner.invoke(
         swh_cli_group,
         (
