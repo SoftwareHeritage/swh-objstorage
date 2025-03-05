@@ -182,15 +182,23 @@ class Throttler:
     cumulated bandwidth reported by each Throttler instance.
     """
 
-    def __init__(self, throttler_settings: settings.Throttler, db):
+    @staticmethod
+    def from_settings(settings: settings.Winery) -> "Throttler":
+        """Return a throttler initialized from settings"""
+        if "throttler" in settings and settings["throttler"]:
+            return Throttler(**settings["throttler"])
+        else:
+            return NoopThrottler()
+
+    def __init__(self, db: str, max_read_bps: int, max_write_bps: int):
         self.read = IOThrottler(
             name="read",
-            max_speed=throttler_settings["max_read_bps"],
+            max_speed=max_read_bps,
             db=db,
         )
         self.write = IOThrottler(
             name="write",
-            max_speed=throttler_settings["max_write_bps"],
+            max_speed=max_write_bps,
             db=db,
         )
 
@@ -201,4 +209,17 @@ class Throttler:
 
     def throttle_add(self, fun, obj_id, content):
         self.write.add(len(obj_id) + len(content))
+        return fun(obj_id, content)
+
+
+class NoopThrottler(Throttler):
+    """A throttler that does nothing"""
+
+    def __init__(self):
+        pass
+
+    def throttle_get(self, fun, key):
+        return fun(key)
+
+    def throttle_add(self, fun, obj_id, content):
         return fun(obj_id, content)

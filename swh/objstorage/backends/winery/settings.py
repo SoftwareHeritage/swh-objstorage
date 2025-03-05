@@ -73,8 +73,12 @@ def rbd_shards_pool_settings_with_defaults(
 class Throttler(TypedDict):
     """Settings for the winery throttler"""
 
+    db: NotRequired[str]
+    """Throttler database connection string"""
     max_read_bps: int
+    """Max read bytes per second"""
     max_write_bps: int
+    """Max write bytes per second"""
 
 
 class Database(TypedDict):
@@ -97,7 +101,7 @@ class Winery(TypedDict, total=False):
     database: Database
     shards: Shards
     shards_pool: RbdShardsPool
-    throttler: Throttler
+    throttler: Optional[Throttler]
     packer: Packer
 
 
@@ -138,7 +142,10 @@ def populate_default_settings(
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
 
     if throttler is not None:
-        settings["throttler"] = throttler
+        if "db" not in throttler:
+            settings["throttler"] = {"db": settings["database"]["db"], **throttler}
+        else:
+            settings["throttler"] = throttler
 
     if packer is not None:
         packer = packer_settings_with_defaults(packer)

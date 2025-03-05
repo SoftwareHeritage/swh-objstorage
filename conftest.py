@@ -15,6 +15,10 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers",
+        "use_throttler(bool): whether the winery storage should use a throttler",
+    )
+    config.addinivalue_line(
+        "markers",
         (
             "all_compression_methods: "
             "test all compression methods instead of only the most common ones"

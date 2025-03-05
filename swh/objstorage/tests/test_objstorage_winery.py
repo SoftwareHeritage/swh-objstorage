@@ -196,6 +196,15 @@ def clean_immediately(request) -> bool:
 
 
 @pytest.fixture
+def use_throttler(request) -> int:
+    marker = request.node.get_closest_marker("use_throttler")
+    if marker is None:
+        return True
+    else:
+        return marker.args[0]
+
+
+@pytest.fixture
 def winery_settings(
     postgresql_dsn,
     shard_max_size,
@@ -203,14 +212,20 @@ def winery_settings(
     clean_immediately,
     rbd_pool_name,
     rbd_map_options,
+    use_throttler,
 ) -> settings.Winery:
     return dict(
         shards={"max_size": shard_max_size},
         database={"db": postgresql_dsn},
-        throttler={
-            "max_write_bps": 200 * 1024 * 1024,
-            "max_read_bps": 100 * 1024 * 1024,
-        },
+        throttler=(
+            {
+                "db": postgresql_dsn,
+                "max_write_bps": 200 * 1024 * 1024,
+                "max_read_bps": 100 * 1024 * 1024,
+            }
+            if use_throttler
+            else None
+        ),
         packer={
             "pack_immediately": pack_immediately,
             "clean_immediately": clean_immediately,
@@ -291,6 +306,13 @@ def test_winery_add_get(winery_writer, winery_reader):
     winery_writer.shard.drop()
 
 
+@pytest.mark.parametrize(
+    (),
+    [
+        pytest.param(marks=pytest.mark.use_throttler(False), id="throttler=False"),
+        pytest.param(marks=pytest.mark.use_throttler(True), id="throttler=True"),
+    ],
+)
 def test_winery_add_concurrent(winery_settings, mocker):
     num_threads = 4
 
@@ -341,6 +363,13 @@ def test_winery_add_concurrent(winery_settings, mocker):
 
 
 @pytest.mark.shard_max_size(1)
+@pytest.mark.parametrize(
+    (),
+    [
+        pytest.param(marks=pytest.mark.use_throttler(False), id="throttler=False"),
+        pytest.param(marks=pytest.mark.use_throttler(True), id="throttler=True"),
+    ],
+)
 def test_winery_add_and_pack(winery_writer, mocker):
     mocker.patch("swh.objstorage.backends.winery.objstorage.pack", return_value=True)
     shard = winery_writer.base.locked_shard
@@ -1225,7 +1254,8 @@ def test_winery_io_throttler(postgresql_dsn, mocker):
 def test_winery_throttler(postgresql_dsn):
     t = Throttler(
         db=postgresql_dsn,
-        throttler_settings={"max_write_bps": 100, "max_read_bps": 100},
+        max_write_bps=100,
+        max_read_bps=100,
     )
 
     base = {}

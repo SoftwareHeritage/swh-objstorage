@@ -48,10 +48,7 @@ class WineryObjStorage(ObjStorage):
             packer=(packer or {}),
         )
 
-        self.throttler = Throttler(
-            throttler_settings=self.settings["throttler"], db=database["db"]
-        )
-
+        self.throttler = Throttler.from_settings(self.settings)
         self.reader = WineryReader(throttler=self.throttler, **legacy_kwargs)
 
         if readonly:
@@ -59,7 +56,7 @@ class WineryObjStorage(ObjStorage):
         else:
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
-                throttler_settings=self.settings["throttler"],
+                throttler_settings=self.settings.get("throttler"),
                 **legacy_kwargs,
             )
 
@@ -181,7 +178,7 @@ class WineryReader:
 def pack(
     shard,
     packer_settings: settings.Packer,
-    throttler_settings: settings.Throttler,
+    throttler_settings: Optional[settings.Throttler],
     shared_base=None,
     **kwargs,
 ) -> bool:
@@ -189,7 +186,7 @@ def pack(
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
-    throttler = Throttler(throttler_settings=throttler_settings, db=kwargs["base_dsn"])
+    throttler = Throttler.from_settings({"throttler": throttler_settings})
     with ROShardCreator(shard, count, throttler=throttler, **kwargs) as ro:
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
@@ -225,7 +222,7 @@ class WineryWriter:
     def __init__(
         self,
         packer_settings: settings.Packer,
-        throttler_settings: settings.Throttler,
+        throttler_settings: Optional[settings.Throttler],
         rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
