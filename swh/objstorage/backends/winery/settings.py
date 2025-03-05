@@ -13,6 +13,8 @@ DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
 class Packer(TypedDict):
     """Settings for the packer process, either external or internal"""
 
+    create_images: NotRequired[bool]
+    """Whether to create the images"""
     pack_immediately: NotRequired[bool]
     """Immediately pack shards (in a separate thread) when overflowing"""
     clean_immediately: NotRequired[bool]
@@ -21,7 +23,12 @@ class Packer(TypedDict):
 
 def packer_settings_with_defaults(values: Packer) -> Packer:
     """Hydrate Packer settings with default values"""
-    return {"pack_immediately": True, "clean_immediately": True, **values}
+    return {
+        "create_images": True,
+        "pack_immediately": True,
+        "clean_immediately": True,
+        **values,
+    }
 
 
 class Shards(TypedDict):
@@ -129,15 +136,12 @@ def populate_default_settings(
     if shards is not None:
         shards = shards_settings_with_defaults(shards)
         settings["shards"] = shards
-        legacy_kwargs["shard_max_size"] = shards["max_size"]
         legacy_kwargs["rwshard_idle_timeout"] = shards["rw_idle_timeout"]
 
     if shards_pool is not None:
         if shards_pool["type"] == "rbd":
             shards_pool = rbd_shards_pool_settings_with_defaults(shards_pool)
             settings["shards_pool"] = shards_pool
-            for k, v in shards_pool.items():
-                legacy_kwargs[f"rbd_{k}"] = v
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
 

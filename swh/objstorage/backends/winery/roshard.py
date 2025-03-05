@@ -329,9 +329,28 @@ class Pool(object):
                 attempt += 1
 
 
+def pool_from_settings(
+    shards_settings: settings.Shards, shards_pool_settings: settings.RbdShardsPool
+) -> Pool:
+    pool_type = shards_pool_settings["type"]
+    if pool_type == "rbd":
+        return Pool(
+            shard_max_size=shards_settings["max_size"],
+            rbd_use_sudo=shards_pool_settings["use_sudo"],
+            rbd_pool_name=shards_pool_settings["pool_name"],
+            rbd_data_pool_name=shards_pool_settings["data_pool_name"],
+            rbd_image_features_unsupported=shards_pool_settings[
+                "image_features_unsupported"
+            ],
+            rbd_map_options=shards_pool_settings["map_options"],
+        )
+    else:
+        raise ValueError(f"Unknown shards pool type: {pool_type}")
+
+
 class ROShard:
-    def __init__(self, name, throttler, **kwargs):
-        self.pool = Pool.from_kwargs(**kwargs)
+    def __init__(self, name, throttler, pool, **kwargs):
+        self.pool = pool
         image_status = self.pool.image_mapped(name)
 
         if image_status != "ro":
@@ -397,6 +416,7 @@ class ROShardCreator:
         name: str,
         count: int,
         throttler: Throttler,
+        pool: Pool,
         rbd_create_images: bool = True,
         rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
             min_duration=5,
@@ -406,7 +426,7 @@ class ROShardCreator:
         ),
         **kwargs,
     ):
-        self.pool = Pool.from_kwargs(**kwargs)
+        self.pool = pool
         self.throttler = throttler
         self.name = name
         self.count = count

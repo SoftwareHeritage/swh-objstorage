@@ -13,8 +13,7 @@ from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
-from . import settings
-from .roshard import Pool, ROShard, ROShardCreator, ShardNotMapped
+from . import roshard, settings
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -49,7 +48,13 @@ class WineryObjStorage(ObjStorage):
         )
 
         self.throttler = Throttler.from_settings(self.settings)
-        self.reader = WineryReader(throttler=self.throttler, **legacy_kwargs)
+        self.pool = roshard.pool_from_settings(
+            shards_settings=self.settings["shards"],
+            shards_pool_settings=self.settings["shards_pool"],
+        )
+        self.reader = WineryReader(
+            throttler=self.throttler, pool=self.pool, **legacy_kwargs
+        )
 
         if readonly:
             self.writer = None
@@ -57,6 +62,8 @@ class WineryObjStorage(ObjStorage):
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
                 throttler_settings=self.settings.get("throttler"),
+                shards_settings=self.settings["shards"],
+                shards_pool_settings=self.settings["shards_pool"],
                 **legacy_kwargs,
             )
 
@@ -125,11 +132,13 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(self, throttler: Throttler, **kwargs):
+    def __init__(self, throttler: Throttler, pool: roshard.Pool, **kwargs):
         self.args = kwargs
         self.throttler = throttler
+        self.pool = pool
+        self.base_dsn = self.args["base_dsn"]
         self.base = SharedBase(**self.args)
-        self.ro_shards: Dict[str, ROShard] = {}
+        self.ro_shards: Dict[str, roshard.ROShard] = {}
         self.rw_shards: Dict[str, RWShard] = {}
 
     def __contains__(self, obj_id):
@@ -140,11 +149,13 @@ class WineryReader:
     ) -> Iterator[bytes]:
         yield from self.base.list_signatures(after_id, limit)
 
-    def roshard(self, name) -> Optional[ROShard]:
+    def roshard(self, name) -> Optional[roshard.ROShard]:
         if name not in self.ro_shards:
             try:
-                shard = ROShard(name=name, throttler=self.throttler, **self.args)
-            except ShardNotMapped:
+                shard = roshard.ROShard(
+                    name=name, throttler=self.throttler, pool=self.pool, **self.args
+                )
+            except roshard.ShardNotMapped:
                 return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:
@@ -153,7 +164,7 @@ class WineryReader:
 
     def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
-            shard = RWShard(name, **self.args)
+            shard = RWShard(name, shard_max_size=0, base_dsn=self.base_dsn)
             self.rw_shards[name] = shard
         return self.rw_shards[name]
 
@@ -176,18 +187,29 @@ class WineryReader:
 
 
 def pack(
-    shard,
+    shard: str,
+    base_dsn: str,
     packer_settings: settings.Packer,
     throttler_settings: Optional[settings.Throttler],
-    shared_base=None,
-    **kwargs,
+    shards_settings: settings.Shards,
+    shards_pool_settings: settings.RbdShardsPool,
+    shared_base: Optional[SharedBase] = None,
 ) -> bool:
-    rw = RWShard(shard, **kwargs)
+    rw = RWShard(shard, shard_max_size=shards_settings["max_size"], base_dsn=base_dsn)
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
     throttler = Throttler.from_settings({"throttler": throttler_settings})
-    with ROShardCreator(shard, count, throttler=throttler, **kwargs) as ro:
+    pool = roshard.pool_from_settings(
+        shards_settings=shards_settings, shards_pool_settings=shards_pool_settings
+    )
+    with roshard.ROShardCreator(
+        name=shard,
+        count=count,
+        throttler=throttler,
+        pool=pool,
+        rbd_create_images=packer_settings["create_images"],
+    ) as ro:
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
             ro.add(content, obj_id)
@@ -199,20 +221,22 @@ def pack(
     logger.info("RO shard %s: saved", shard)
 
     if not shared_base:
-        shared_base = SharedBase(**kwargs)
+        shared_base = SharedBase(base_dsn=base_dsn)
     shared_base.shard_packing_ends(shard)
     if packer_settings["clean_immediately"]:
-        cleanup_rw_shard(shard, shared_base=shared_base, **kwargs)
+        cleanup_rw_shard(shard, shared_base=shared_base)
     return True
 
 
-def cleanup_rw_shard(shard, shared_base=None, **kwargs) -> bool:
-    rw = RWShard(shard, **{"shard_max_size": 0, **kwargs})
+def cleanup_rw_shard(shard, base_dsn=None, shared_base=None) -> bool:
+    if shared_base is not None and not base_dsn:
+        base_dsn = shared_base.dsn
+    rw = RWShard(name=shard, shard_max_size=0, base_dsn=base_dsn)
 
     rw.drop()
 
     if not shared_base:
-        shared_base = SharedBase(**kwargs)
+        shared_base = SharedBase(base_dsn=base_dsn)
     shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
 
     return True
@@ -223,11 +247,15 @@ class WineryWriter:
         self,
         packer_settings: settings.Packer,
         throttler_settings: Optional[settings.Throttler],
+        shards_settings: settings.Shards,
+        shards_pool_settings: settings.RbdShardsPool,
         rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
         self.packer_settings = packer_settings
         self.throttler_settings = throttler_settings
+        self.shards_settings = shards_settings
+        self.shards_pool_settings = shards_pool_settings
         self.args = kwargs
         self.base = SharedBase(**self.args)
         self.shards_filled: List[str] = []
@@ -261,10 +289,11 @@ class WineryWriter:
         """Lock a shard to be able to use it. Release it after :attr:`idle_timeout`."""
         if not self._shard:
             self._shard = RWShard(
-                self.base.locked_shard,
+                name=self.base.locked_shard,
+                base_dsn=self.args["base_dsn"],
+                shard_max_size=self.shards_settings["max_size"],
                 idle_timeout_cb=partial(self.release_shard, from_idle_handler=True),
                 idle_timeout=self.idle_timeout,
-                **self.args,
             )
             logger.debug(
                 "WineryBase: locked RWShard %s, releasing it in %s",
@@ -297,7 +326,7 @@ class WineryWriter:
         # We only care about RWShard for now. ROShards will be
         # taken care in a batch job.
         if not state.image_available:
-            rwshard = RWShard(name, **self.args)
+            rwshard = RWShard(name, shard_max_size=0, base_dsn=self.base.dsn)
             try:
                 rwshard.delete(obj_id)
             except KeyError:
@@ -322,9 +351,11 @@ class WineryWriter:
             target=pack,
             kwargs={
                 "shard": shard_name,
+                "base_dsn": self.base.dsn,
                 "packer_settings": self.packer_settings,
                 "throttler_settings": self.throttler_settings,
-                **self.args,
+                "shards_settings": self.shards_settings,
+                "shards_pool_settings": self.shards_pool_settings,
             },
         )
         p.start()
@@ -413,11 +444,15 @@ def shard_packer(
         waited_for_shards = 0
 
         with locked:
+            if locked.name is None:
+                raise RuntimeError("No shard has been locked?")
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
             ret = pack(
-                locked.name,
+                shard=locked.name,
                 packer_settings=all_settings["packer"],
                 throttler_settings=all_settings["throttler"],
+                shards_settings=all_settings["shards"],
+                shards_pool_settings=all_settings["shards_pool"],
                 shared_base=base,
                 **legacy_kwargs,
             )
@@ -488,7 +523,7 @@ def rw_shard_cleaner(
 
 def deleted_objects_cleaner(
     base: SharedBase,
-    pool: Pool,
+    pool: roshard.Pool,
     stop_running: Callable[[], bool],
 ):
     """Clean up deleted objects from RO shards and the shared database.
@@ -507,7 +542,7 @@ def deleted_objects_cleaner(
         if stop_running():
             break
         if shard_state.readonly:
-            ROShard.delete(pool, shard_name, obj_id)
+            roshard.ROShard.delete(pool, shard_name, obj_id)
         base.clean_deleted_object(obj_id)
         count += 1
 
