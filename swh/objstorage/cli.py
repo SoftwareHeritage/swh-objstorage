@@ -158,7 +158,7 @@ def winery_rbd(
     """Run a winery RBD image manager process"""
     import signal
 
-    from swh.objstorage.backends.winery.roshard import Pool
+    from swh.objstorage.backends.winery.roshard import Pool, manage_images
     from swh.objstorage.backends.winery.sleep import sleep_exponential
 
     legacy_kwargs = ctx.obj["winery_legacy_kwargs"]
@@ -199,7 +199,8 @@ def winery_rbd(
         rbd_map_options=legacy_kwargs["rbd_map_options"],
     )
 
-    pool.manage_images(
+    manage_images(
+        pool=pool,
         base_dsn=legacy_kwargs["base_dsn"],
         manage_rw_images=manage_rw_images,
         wait_for_image=wait_for_image,

@@ -170,163 +170,162 @@ class Pool(object):
                 else:
                     raise
 
-    @staticmethod
-    def record_shard_mapped(base: SharedBase, shard_name: str):
-        """Record a shard as mapped, bailing out after a few attempts.
 
-        Multiple attempts are used to handle a race condition when two hosts
-        attempt to record the shard as mapped at the same time. In this
-        situation, one of the two hosts will succeed and the other one will
-        fail, the sleep delay can be kept short and linear.
+def record_shard_mapped(base: SharedBase, shard_name: str):
+    """Record a shard as mapped, bailing out after a few attempts.
 
-        """
-        outer_exc = None
-        for attempt in range(5):
-            try:
-                base.record_shard_mapped(host=socket.gethostname(), name=shard_name)
-                break
-            except Exception as exc:
-                outer_exc = exc
-                logger.warning(
-                    "Failed to mark shard %s as mapped, retrying...", shard_name
-                )
-                time.sleep(attempt + 1)
-        else:
-            assert outer_exc is not None
-            raise outer_exc
+    Multiple attempts are used to handle a race condition when two hosts
+    attempt to record the shard as mapped at the same time. In this
+    situation, one of the two hosts will succeed and the other one will
+    fail, the sleep delay can be kept short and linear.
 
-    def manage_images(
-        self,
-        base_dsn: str,
-        manage_rw_images: bool,
-        wait_for_image: Callable[[int], None],
-        stop_running: Callable[[], bool],
-        only_prefix: Optional[str] = None,
-        application_name: Optional[str] = None,
-    ) -> None:
-        """Manage RBD image creation and mapping automatically.
+    """
+    outer_exc = None
+    for attempt in range(5):
+        try:
+            base.record_shard_mapped(host=socket.gethostname(), name=shard_name)
+            break
+        except Exception as exc:
+            outer_exc = exc
+            logger.warning("Failed to mark shard %s as mapped, retrying...", shard_name)
+            time.sleep(attempt + 1)
+    else:
+        assert outer_exc is not None
+        raise outer_exc
 
-        Arguments:
-          base_dsn: the DSN of the connection to the SharedBase
-          manage_rw_images: whether RW images should be created and mapped
-          wait_for_image: function which is called at each loop iteration, with
-            an attempt number, if no images had to be mapped recently
-          stop_running: callback that returns True when the manager should stop running
-          only_prefix: only map images with the given name prefix
-          application_name: the application name sent to PostgreSQL
-        """
-        application_name = application_name or "Winery RBD image manager"
-        base = SharedBase(base_dsn=base_dsn, application_name=application_name)
 
-        mapped_images: Dict[str, Literal["ro", "rw"]] = {}
+def manage_images(
+    pool: Pool,
+    base_dsn: str,
+    manage_rw_images: bool,
+    wait_for_image: Callable[[int], None],
+    stop_running: Callable[[], bool],
+    only_prefix: Optional[str] = None,
+    application_name: Optional[str] = None,
+) -> None:
+    """Manage RBD image creation and mapping automatically.
 
-        attempt = 0
-        notified_systemd = False
-        while not stop_running():
-            did_something = False
-            logger.debug("Listing shards")
-            start = time.monotonic()
-            shards = [
-                (shard_name, shard_state)
-                for shard_name, shard_state in base.list_shards()
-                if not only_prefix or shard_name.startswith(only_prefix)
-            ]
-            random.shuffle(shards)
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "Listed %d shards in %.02f seconds",
-                    len(shards),
-                    time.monotonic() - start,
-                )
-                logger.debug("Mapped images: %s", Counter(mapped_images.values()))
+    Arguments:
+      base_dsn: the DSN of the connection to the SharedBase
+      manage_rw_images: whether RW images should be created and mapped
+      wait_for_image: function which is called at each loop iteration, with
+        an attempt number, if no images had to be mapped recently
+      stop_running: callback that returns True when the manager should stop running
+      only_prefix: only map images with the given name prefix
+      application_name: the application name sent to PostgreSQL
+    """
+    application_name = application_name or "Winery RBD image manager"
+    base = SharedBase(base_dsn=base_dsn, application_name=application_name)
 
-            for shard_name, shard_state in shards:
-                mapped_state = mapped_images.get(shard_name)
-                if mapped_state == "ro":
-                    if shard_state == ShardState.PACKED:
-                        self.record_shard_mapped(base, shard_name)
-                    continue
-                elif shard_state.image_available:
-                    check_mapped = self.image_mapped(shard_name)
-                    if check_mapped == "ro":
-                        logger.debug(
-                            "Detected %s shard %s, already mapped read-only",
-                            shard_state.name,
-                            shard_name,
-                        )
-                    elif check_mapped == "rw":
-                        logger.info(
-                            "Detected %s shard %s, remapping read-only",
-                            shard_state.name,
-                            shard_name,
-                        )
-                        self.image_remap_ro(shard_name)
-                        attempt = 0
-                        while self.image_mapped(shard_name) != "ro":
-                            attempt += 1
-                            time.sleep(0.1)
-                            if attempt % 100 == 0:
-                                logger.warning(
-                                    "Waiting for %s shard %s to be remapped "
-                                    "read-only (for %ds)",
-                                    shard_state.name,
-                                    shard_name,
-                                    attempt / 10,
-                                )
-                        self.record_shard_mapped(base, shard_name)
-                        did_something = True
-                    else:
-                        logger.debug(
-                            "Detected %s shard %s, mapping read-only",
-                            shard_state.name,
-                            shard_name,
-                        )
-                        self.image_map(shard_name, options="ro")
-                        self.record_shard_mapped(base, shard_name)
-                        did_something = True
-                    mapped_images[shard_name] = "ro"
-                elif manage_rw_images:
-                    if os.path.exists(self.image_path(shard_name)):
-                        # Image already mapped, nothing to do
-                        pass
-                    elif not self.image_exists(shard_name):
-                        logger.info(
-                            "Detected %s shard %s, creating RBD image",
-                            shard_state.name,
-                            shard_name,
-                        )
-                        self.image_create(shard_name)
-                        did_something = True
-                    else:
-                        logger.warn(
-                            "Detected %s shard %s and RBD image exists, mapping read-write",
-                            shard_state.name,
-                            shard_name,
-                        )
-                        self.image_map(shard_name, "rw")
-                        did_something = True
-                    # Now the shard is mapped
-                    mapped_images[shard_name] = "rw"
+    mapped_images: Dict[str, Literal["ro", "rw"]] = {}
+
+    attempt = 0
+    notified_systemd = False
+    while not stop_running():
+        did_something = False
+        logger.debug("Listing shards")
+        start = time.monotonic()
+        shards = [
+            (shard_name, shard_state)
+            for shard_name, shard_state in base.list_shards()
+            if not only_prefix or shard_name.startswith(only_prefix)
+        ]
+        random.shuffle(shards)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Listed %d shards in %.02f seconds",
+                len(shards),
+                time.monotonic() - start,
+            )
+            logger.debug("Mapped images: %s", Counter(mapped_images.values()))
+
+        for shard_name, shard_state in shards:
+            mapped_state = mapped_images.get(shard_name)
+            if mapped_state == "ro":
+                if shard_state == ShardState.PACKED:
+                    record_shard_mapped(base, shard_name)
+                continue
+            elif shard_state.image_available:
+                check_mapped = pool.image_mapped(shard_name)
+                if check_mapped == "ro":
+                    logger.debug(
+                        "Detected %s shard %s, already mapped read-only",
+                        shard_state.name,
+                        shard_name,
+                    )
+                elif check_mapped == "rw":
+                    logger.info(
+                        "Detected %s shard %s, remapping read-only",
+                        shard_state.name,
+                        shard_name,
+                    )
+                    pool.image_remap_ro(shard_name)
+                    attempt = 0
+                    while pool.image_mapped(shard_name) != "ro":
+                        attempt += 1
+                        time.sleep(0.1)
+                        if attempt % 100 == 0:
+                            logger.warning(
+                                "Waiting for %s shard %s to be remapped "
+                                "read-only (for %ds)",
+                                shard_state.name,
+                                shard_name,
+                                attempt / 10,
+                            )
+                    record_shard_mapped(base, shard_name)
+                    did_something = True
                 else:
-                    logger.debug("%s shard %s, skipping", shard_state.name, shard_name)
-
-                notify(
-                    "STATUS="
-                    f"Enumerated {len(shards)} shards, "
-                    f"mapped {len(mapped_images)} images"
-                )
-
-            if not notified_systemd:
-                # The first iteration has happened, all known shards should be ready
-                notify("READY=1")
-                notified_systemd = True
-
-            if did_something:
-                attempt = 0
+                    logger.debug(
+                        "Detected %s shard %s, mapping read-only",
+                        shard_state.name,
+                        shard_name,
+                    )
+                    pool.image_map(shard_name, options="ro")
+                    record_shard_mapped(base, shard_name)
+                    did_something = True
+                mapped_images[shard_name] = "ro"
+            elif manage_rw_images:
+                if os.path.exists(pool.image_path(shard_name)):
+                    # Image already mapped, nothing to do
+                    pass
+                elif not pool.image_exists(shard_name):
+                    logger.info(
+                        "Detected %s shard %s, creating RBD image",
+                        shard_state.name,
+                        shard_name,
+                    )
+                    pool.image_create(shard_name)
+                    did_something = True
+                else:
+                    logger.warn(
+                        "Detected %s shard %s and RBD image exists, mapping read-write",
+                        shard_state.name,
+                        shard_name,
+                    )
+                    pool.image_map(shard_name, "rw")
+                    did_something = True
+                # Now the shard is mapped
+                mapped_images[shard_name] = "rw"
             else:
-                # Sleep using the current value
-                wait_for_image(attempt)
-                attempt += 1
+                logger.debug("%s shard %s, skipping", shard_state.name, shard_name)
+
+            notify(
+                "STATUS="
+                f"Enumerated {len(shards)} shards, "
+                f"mapped {len(mapped_images)} images"
+            )
+
+        if not notified_systemd:
+            # The first iteration has happened, all known shards should be ready
+            notify("READY=1")
+            notified_systemd = True
+
+        if did_something:
+            attempt = 0
+        else:
+            # Sleep using the current value
+            wait_for_image(attempt)
+            attempt += 1
 
 
 def pool_from_settings(
