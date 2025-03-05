@@ -27,6 +27,7 @@ from swh.objstorage.backends.winery.objstorage import (
     shard_packer,
     stop_after_shards,
 )
+from swh.objstorage.backends.winery.roshard import FileBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 from swh.objstorage.backends.winery.sleep import sleep_exponential
@@ -42,7 +43,7 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
-from .winery_testing_helpers import FileBackedPool, PoolHelper
+from .winery_testing_helpers import RBDPoolHelper
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def rbd_map_options():
 
 @pytest.fixture
 def ceph_pool(remove_pool, remove_images, rbd_pool_name, rbd_map_options, needs_ceph):
-    pool = PoolHelper(
+    pool = RBDPoolHelper(
         shard_max_size=10 * 1024 * 1024,
         rbd_pool_name=rbd_pool_name,
         rbd_map_options=rbd_map_options,
@@ -112,6 +113,12 @@ def ceph_pool(remove_pool, remove_images, rbd_pool_name, rbd_map_options, needs_
         pool.pool_create()
     else:
         logger.info("Not removing pool")
+
+    pool._settings_for_tests = {
+        "type": "rbd",
+        "pool_name": rbd_pool_name,
+        "map_options": rbd_map_options,
+    }
 
     yield pool
 
@@ -128,13 +135,21 @@ def ceph_pool(remove_pool, remove_images, rbd_pool_name, rbd_map_options, needs_
 
 @pytest.fixture
 def file_backed_pool(mocker, tmp_path, shard_max_size, rbd_pool_name):
-    FileBackedPool.set_base_directory(tmp_path)
-    mocker.patch(
-        "swh.objstorage.backends.winery.roshard.Pool",
-        new=FileBackedPool,
+    pool = FileBackedPool(
+        base_directory=tmp_path,
+        shard_max_size=10 * 1024 * 1024,
+        pool_name=rbd_pool_name,
     )
-    pool = FileBackedPool(shard_max_size=10 * 1024 * 1024, rbd_pool_name=rbd_pool_name)
     pool.image_unmap_all()
+    mocker.patch(
+        "swh.objstorage.backends.winery.roshard.RBDPool.from_kwargs",
+        return_value=pool,
+    )
+    pool._settings_for_tests = {
+        "type": "directory",
+        "base_directory": str(tmp_path),
+        "pool_name": rbd_pool_name,
+    }
     yield pool
 
 
@@ -210,8 +225,7 @@ def winery_settings(
     shard_max_size,
     pack_immediately,
     clean_immediately,
-    rbd_pool_name,
-    rbd_map_options,
+    image_pool,
     use_throttler,
 ) -> settings.Winery:
     return dict(
@@ -227,14 +241,11 @@ def winery_settings(
             else None
         ),
         packer={
+            "create_images": True,
             "pack_immediately": pack_immediately,
             "clean_immediately": clean_immediately,
         },
-        shards_pool={
-            "type": "rbd",
-            "pool_name": rbd_pool_name,
-            "map_options": rbd_map_options,
-        },
+        shards_pool=image_pool._settings_for_tests,
     )
 
 
@@ -434,8 +445,7 @@ def test_winery_deleted_objects_cleaner_handles_exception(
     winery_writer, file_backed_pool, mocker
 ):
     from swh.objstorage.backends.winery import objstorage as winery_objstorage
-
-    from ..backends.winery.roshard import ROShard
+    from swh.objstorage.backends.winery.roshard import ROShard
 
     # Add two objects
     shard = winery_writer.base.locked_shard
@@ -475,7 +485,9 @@ def test_winery_deleted_objects_cleaner_handles_exception(
         return None
 
     mocker.patch.object(
-        winery_objstorage.ROShard, "delete", side_effect=roshard_delete_side_effect
+        winery_objstorage.roshard.ROShard,
+        "delete",
+        side_effect=roshard_delete_side_effect,
     )
 
     # Let’s run the cleaner
@@ -527,14 +539,16 @@ def test_winery_pack(winery_settings, winery_writer, image_pool):
     winery_writer.base.shard_packing_starts(shard)
 
     assert pack(
-        shard,
+        shard=shard,
+        base_dsn=winery_settings["database"]["db"],
         packer_settings=winery_settings["packer"],
         throttler_settings=winery_settings["throttler"],
-        **winery_writer.args,
+        shards_settings=winery_settings["shards"],
+        shards_pool_settings=winery_settings["shards_pool"],
     )
     assert winery_writer.base.get_shard_state(shard) == ShardState.PACKED
 
-    assert cleanup_rw_shard(shard, **winery_writer.args)
+    assert cleanup_rw_shard(shard, base_dsn=winery_settings["database"]["db"])
     assert winery_writer.base.get_shard_state(shard) == ShardState.READONLY
 
 
@@ -716,9 +730,9 @@ def test_winery_packer_clean_up_interrupted_shard(
         ret = shard_packer(
             database=winery_settings["database"],
             shards=winery_settings["shards"],
-            shards_pool={**winery_settings["shards_pool"], "create_images": False},
+            shards_pool=winery_settings["shards_pool"],
             throttler=winery_settings["throttler"],
-            packer=winery_settings.get("packer"),
+            packer={**winery_settings.get("packer"), "create_images": False},
             stop_packing=stop_after_shards(1),
         )
 
@@ -1099,9 +1113,11 @@ def test_winery_get_object(winery_settings, winery_writer, winery_reader, image_
     assert (
         pack(
             shard,
+            base_dsn=winery_settings["database"]["db"],
             packer_settings=winery_settings["packer"],
             throttler_settings=winery_settings["throttler"],
-            **winery_writer.args,
+            shards_settings=winery_settings["shards"],
+            shards_pool_settings=winery_settings["shards_pool"],
         )
         is True
     )
@@ -1111,7 +1127,7 @@ def test_winery_get_object(winery_settings, winery_writer, winery_reader, image_
 @pytest.mark.skipif("CEPH_HARDCODE_POOL" in os.environ, reason="Ceph pool hardcoded")
 def test_winery_ceph_pool(needs_ceph, rbd_map_options):
     name = "IMAGE"
-    pool = PoolHelper(
+    pool = RBDPoolHelper(
         shard_max_size=10 * 1024 * 1024,
         rbd_pool_name="test-winery-ceph-pool",
         rbd_map_options=rbd_map_options,

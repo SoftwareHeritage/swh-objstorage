@@ -48,13 +48,12 @@ def shards_settings_with_defaults(values: Shards) -> Shards:
 class ShardsPool(TypedDict):
     """Settings for the Shards pool"""
 
-    type: Literal["rbd"]
+    type: Literal["rbd", "directory"]
 
 
-class RbdShardsPool(TypedDict):
+class RbdShardsPool(ShardsPool, TypedDict):
     """Settings for the Ceph RBD-based Shards pool"""
 
-    type: Literal["rbd"]
     use_sudo: NotRequired[bool]
     map_options: NotRequired[str]
     pool_name: NotRequired[str]
@@ -74,6 +73,32 @@ def rbd_shards_pool_settings_with_defaults(
         "image_features_unsupported": DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
         "map_options": "",
         **values,
+    }
+
+
+class DirectoryShardsPool(ShardsPool, TypedDict):
+    """Settings for the File-based Shards pool"""
+
+    base_directory: str
+    pool_name: NotRequired[str]
+
+
+def directory_shards_pool_settings_with_defaults(
+    values: ShardsPool,
+) -> DirectoryShardsPool:
+    """Hydrate RbdShards settings with default values"""
+    if values["type"] != "directory":
+        raise ValueError(
+            f"Instantiating a directory shards pool with the wrong type: {values['type']}"
+        )
+    if "base_directory" not in values:
+        raise ValueError(
+            "Missing base_directory setting for Directory-based shards pool"
+        )
+    return {
+        "type": "directory",
+        "pool_name": values.get("pool_name", "shards"),  # type: ignore[typeddict-item]
+        "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
     }
 
 
@@ -107,7 +132,7 @@ class Winery(TypedDict, total=False):
 
     database: Database
     shards: Shards
-    shards_pool: RbdShardsPool
+    shards_pool: ShardsPool
     throttler: Optional[Throttler]
     packer: Packer
 
@@ -141,6 +166,9 @@ def populate_default_settings(
     if shards_pool is not None:
         if shards_pool["type"] == "rbd":
             shards_pool = rbd_shards_pool_settings_with_defaults(shards_pool)
+            settings["shards_pool"] = shards_pool
+        elif shards_pool["type"] == "directory":
+            shards_pool = directory_shards_pool_settings_with_defaults(shards_pool)
             settings["shards_pool"] = shards_pool
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")

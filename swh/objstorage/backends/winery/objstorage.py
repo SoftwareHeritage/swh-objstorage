@@ -192,7 +192,7 @@ def pack(
     packer_settings: settings.Packer,
     throttler_settings: Optional[settings.Throttler],
     shards_settings: settings.Shards,
-    shards_pool_settings: settings.RbdShardsPool,
+    shards_pool_settings: settings.ShardsPool,
     shared_base: Optional[SharedBase] = None,
 ) -> bool:
     rw = RWShard(shard, shard_max_size=shards_settings["max_size"], base_dsn=base_dsn)
@@ -248,7 +248,7 @@ class WineryWriter:
         packer_settings: settings.Packer,
         throttler_settings: Optional[settings.Throttler],
         shards_settings: settings.Shards,
-        shards_pool_settings: settings.RbdShardsPool,
+        shards_pool_settings: settings.ShardsPool,
         rwshard_idle_timeout: float = 300,
         **kwargs,
     ):
@@ -449,12 +449,12 @@ def shard_packer(
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
             ret = pack(
                 shard=locked.name,
+                base_dsn=all_settings["database"]["db"],
                 packer_settings=all_settings["packer"],
                 throttler_settings=all_settings["throttler"],
                 shards_settings=all_settings["shards"],
                 shards_pool_settings=all_settings["shards_pool"],
                 shared_base=base,
-                **legacy_kwargs,
             )
             if not ret:
                 raise ValueError("Packing shard %s failed" % locked.name)

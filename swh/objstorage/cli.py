@@ -158,10 +158,10 @@ def winery_rbd(
     """Run a winery RBD image manager process"""
     import signal
 
-    from swh.objstorage.backends.winery.roshard import Pool, manage_images
+    from swh.objstorage.backends.winery.roshard import manage_images, pool_from_settings
     from swh.objstorage.backends.winery.sleep import sleep_exponential
 
-    legacy_kwargs = ctx.obj["winery_legacy_kwargs"]
+    settings = ctx.obj["winery_settings"]
 
     stop_on_next_iteration = False
 
@@ -190,18 +190,14 @@ def winery_rbd(
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
-    pool = Pool(
-        shard_max_size=legacy_kwargs["shard_max_size"],
-        rbd_pool_name=legacy_kwargs["rbd_pool_name"],
-        rbd_data_pool_name=legacy_kwargs["rbd_data_pool_name"],
-        rbd_use_sudo=legacy_kwargs["rbd_use_sudo"],
-        rbd_image_features_unsupported=legacy_kwargs["rbd_image_features_unsupported"],
-        rbd_map_options=legacy_kwargs["rbd_map_options"],
+    pool = pool_from_settings(
+        shards_settings=settings["shards"],
+        shards_pool_settings=settings["shards_pool"],
     )
 
     manage_images(
         pool=pool,
-        base_dsn=legacy_kwargs["base_dsn"],
+        base_dsn=settings["database"]["db"],
         manage_rw_images=manage_rw_images,
         wait_for_image=wait_for_image,
         only_prefix=only_prefix,
@@ -281,10 +277,10 @@ def winery_clean_deleted_objects(ctx):
     import signal
 
     from swh.objstorage.backends.winery.objstorage import deleted_objects_cleaner
-    from swh.objstorage.backends.winery.roshard import Pool
+    from swh.objstorage.backends.winery.roshard import pool_from_settings
     from swh.objstorage.backends.winery.sharedbase import SharedBase
 
-    legacy_kwargs = ctx.obj["legacy_kwargs"]
+    settings = ctx.obj["winery_settings"]
 
     stop_on_next_iteration = False
 
@@ -300,14 +296,11 @@ def winery_clean_deleted_objects(ctx):
     signal.signal(signal.SIGINT, set_signal_received)
     signal.signal(signal.SIGTERM, set_signal_received)
 
-    base = SharedBase(base_dsn=legacy_kwargs["base_dsn"])
+    base = SharedBase(base_dsn=settings["database"]["db"])
 
-    pool = Pool(
-        shard_max_size=legacy_kwargs["shard_max_size"],
-        rbd_pool_name=legacy_kwargs["rbd_pool_name"],
-        rbd_data_pool_name=legacy_kwargs["rbd_data_pool_name"],
-        rbd_use_sudo=legacy_kwargs["rbd_use_sudo"],
-        rbd_image_features_unsupported=legacy_kwargs["rbd_image_features_unsupported"],
+    pool = pool_from_settings(
+        shards_settings=settings["shards"],
+        shards_pool_settings=settings["shards_pool"],
     )
 
     deleted_objects_cleaner(base, pool, stop_running)

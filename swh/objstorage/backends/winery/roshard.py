@@ -7,6 +7,7 @@ from collections import Counter
 import logging
 import math
 import os
+from pathlib import Path
 import random
 import shlex
 import socket
@@ -14,7 +15,17 @@ import stat
 import subprocess
 import time
 from types import TracebackType
-from typing import Callable, Dict, Iterable, Literal, Optional, Tuple, Type
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Tuple,
+    Type,
+)
 
 from systemd.daemon import notify
 
@@ -32,7 +43,46 @@ class ShardNotMapped(Exception):
     pass
 
 
-class Pool(object):
+class Pool(Protocol):
+    def image_exists(self, image: str) -> bool:
+        """Check whether the named image exists (it does not have to be mapped)"""
+        ...
+
+    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw"]]:
+        """Check whether the image is already mapped, read-only or read-write"""
+        try:
+            image_stat = os.stat(self.image_path(image))
+        except FileNotFoundError:
+            return None
+        return "rw" if (image_stat.st_mode & 0o222) != 0 else "ro"
+
+    def image_list(self) -> List[str]:
+        """List all known images, mapped or not"""
+        ...
+
+    def image_path(self, image: str) -> str:
+        """Return a path to the image, that can be opened with :func:`open`."""
+        ...
+
+    def image_create(self, image: str) -> None:
+        """Create a new image named `image` and allocate the right amount of space."""
+        ...
+
+    def image_map(self, image: str, options: str) -> None:
+        """Map an image for use. Options can be `"ro"` to map the image read-only, or
+        `"rw"` to map the image read-write."""
+        ...
+
+    def image_unmap(self, image: str) -> None:
+        """Unmap the image. Once this is done, the image is unavailable for use."""
+        ...
+
+    def image_remap_ro(self, image: str):
+        self.image_unmap(image)
+        self.image_map(image, "ro")
+
+
+class RBDPool(Pool):
     """Manage a Ceph RBD pool for Winery shards.
 
     Arguments:
@@ -75,7 +125,7 @@ class Pool(object):
     )
 
     @classmethod
-    def from_kwargs(cls, **kwargs) -> "Pool":
+    def from_kwargs(cls, **kwargs) -> "RBDPool":
         """Create a Pool from a set of arbitrary keyword arguments"""
         return cls(**{k: kwargs[k] for k in cls.POOL_CONFIG if k in kwargs})
 
@@ -107,14 +157,6 @@ class Pool(object):
             return False
         else:
             return True
-
-    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw"]]:
-        """Check whether the image is already mapped, read-only or read-write"""
-        try:
-            image_stat = os.stat(self.image_path(image))
-        except FileNotFoundError:
-            return None
-        return "rw" if (image_stat.st_mode & 0o222) != 0 else "ro"
 
     def image_list(self):
         try:
@@ -154,10 +196,6 @@ class Pool(object):
             image,
         )
 
-    def image_remap_ro(self, image: str):
-        self.image_unmap(image)
-        self.image_map(image, "ro")
-
     def image_unmap(self, image: str):
         if os.path.exists(self.image_path(image)):
             try:
@@ -169,6 +207,88 @@ class Pool(object):
                     )
                 else:
                     raise
+
+
+class FileBackedPool(Pool):
+    """File-backed pool for Winery shards mimicking a Ceph RBD pool.
+
+    Unmapped images are represented by setting the file permission to 0o000.
+    """
+
+    def __init__(
+        self,
+        base_directory: Path,
+        pool_name: str,
+        shard_max_size: int,
+    ) -> None:
+        self.base_directory = base_directory
+        self.pool_name = pool_name
+        self.image_size = shard_max_size
+
+        self.pool_dir = self.base_directory / self.pool_name
+        self.pool_dir.mkdir(exist_ok=True)
+
+    def image_exists(self, image: str) -> bool:
+        return (self.pool_dir / image).is_file()
+
+    def image_list(self) -> List[str]:
+        return [entry.name for entry in self.pool_dir.iterdir() if entry.is_file()]
+
+    def image_path(self, image: str) -> str:
+        return str(self.pool_dir / image)
+
+    def image_create(self, image: str) -> None:
+        path = self.image_path(image)
+        if os.path.exists(path):
+            raise ValueError(f"Image {image} already exists")
+        open(path, "w").close()
+        os.truncate(path, self.image_size * 1024 * 1024)
+        self.image_map(image, "rw")
+
+    def image_map(self, image: str, options: str) -> None:
+        if "ro" in options:
+            os.chmod(self.image_path(image), 0o400)
+        else:
+            os.chmod(self.image_path(image), 0o600)
+
+    def image_unmap(self, image: str) -> None:
+        os.chmod(self.image_path(image), 0o000)
+
+    def image_unmap_all(self) -> None:
+        for entry in self.pool_dir.iterdir():
+            if entry.is_file():
+                entry.chmod(0o000)
+
+
+def pool_from_settings(
+    shards_settings: settings.Shards,
+    shards_pool_settings: settings.ShardsPool,
+) -> Pool:
+    """Return a Pool from the settings"""
+    pool_type = shards_pool_settings["type"]
+    if pool_type == "rbd":
+        rbd_settings = settings.rbd_shards_pool_settings_with_defaults(
+            shards_pool_settings
+        )
+        return RBDPool(
+            shard_max_size=shards_settings["max_size"],
+            rbd_use_sudo=rbd_settings["use_sudo"],
+            rbd_pool_name=rbd_settings["pool_name"],
+            rbd_data_pool_name=rbd_settings["data_pool_name"],
+            rbd_image_features_unsupported=rbd_settings["image_features_unsupported"],
+            rbd_map_options=rbd_settings["map_options"],
+        )
+    elif pool_type == "directory":
+        dir_settings = settings.directory_shards_pool_settings_with_defaults(
+            shards_pool_settings
+        )
+        return FileBackedPool(
+            shard_max_size=shards_settings["max_size"],
+            base_directory=Path(dir_settings["base_directory"]),
+            pool_name=dir_settings["pool_name"],
+        )
+    else:
+        raise ValueError(f"Unknown shards pool type: {pool_type}")
 
 
 def record_shard_mapped(base: SharedBase, shard_name: str):
@@ -297,7 +417,7 @@ def manage_images(
                     pool.image_create(shard_name)
                     did_something = True
                 else:
-                    logger.warn(
+                    logger.warning(
                         "Detected %s shard %s and RBD image exists, mapping read-write",
                         shard_state.name,
                         shard_name,
@@ -326,25 +446,6 @@ def manage_images(
             # Sleep using the current value
             wait_for_image(attempt)
             attempt += 1
-
-
-def pool_from_settings(
-    shards_settings: settings.Shards, shards_pool_settings: settings.RbdShardsPool
-) -> Pool:
-    pool_type = shards_pool_settings["type"]
-    if pool_type == "rbd":
-        return Pool(
-            shard_max_size=shards_settings["max_size"],
-            rbd_use_sudo=shards_pool_settings["use_sudo"],
-            rbd_pool_name=shards_pool_settings["pool_name"],
-            rbd_data_pool_name=shards_pool_settings["data_pool_name"],
-            rbd_image_features_unsupported=shards_pool_settings[
-                "image_features_unsupported"
-            ],
-            rbd_map_options=shards_pool_settings["map_options"],
-        )
-    else:
-        raise ValueError(f"Unknown shards pool type: {pool_type}")
 
 
 class ROShard:
