@@ -29,7 +29,7 @@ from typing import (
 
 from systemd.daemon import notify
 
-from swh.perfecthash import Shard, ShardCreator
+from swh.shard import Shard, ShardCreator
 
 from . import settings
 from .sharedbase import ShardState, SharedBase

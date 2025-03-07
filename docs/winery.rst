@@ -19,7 +19,7 @@ Implementation notes
 
 :py:mod:`swh.objstorage.backends.winery.sharedbase` contains the global objstorage index implementation, which associates every object id  (currently, the SHA256 of the content) to the shard it contains. The list of shards is stored in a table, associating them with a numeric id to save space, and their current :py:class:`swh.objstorage.backends.winery.sharedbase.ShardState`. The name of the shard is used to create a table (for write shards) or a RBD image (for read shards).
 
-:py:mod:`swh.objstorage.backends.winery.roshard` handles read-only shard management: classes handling the lifecycle of the shards pool, the :py:class:`swh.objstorage.backends.winery.roshard.ROShardCreator`, as well as :py:class:`swh.objstorage.backends.winery.roshard.ROShard`, a thin layer on top of :py:mod:`swh.perfecthash` used to access the objects stored inside a read-only shard.
+:py:mod:`swh.objstorage.backends.winery.roshard` handles read-only shard management: classes handling the lifecycle of the shards pool, the :py:class:`swh.objstorage.backends.winery.roshard.ROShardCreator`, as well as :py:class:`swh.objstorage.backends.winery.roshard.ROShard`, a thin layer on top of :py:mod:`swh.shard` used to access the objects stored inside a read-only shard.
 
 :py:mod:`swh.objstorage.backends.winery.rwshard` handles the database-backed write shards for all their lifecycle.
 
