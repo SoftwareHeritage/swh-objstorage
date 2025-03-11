@@ -370,6 +370,8 @@ class WineryWriter:
 
     def on_shutdown(self):
         self.release_shard()
+        for p in self.packers:
+            p.join()
 
     def __del__(self):
         for p in getattr(self, "packers", []):
