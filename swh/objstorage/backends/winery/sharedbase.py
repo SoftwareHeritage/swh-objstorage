@@ -21,24 +21,38 @@ logger = logging.getLogger(__name__)
 
 
 class ShardState(Enum):
+    """Description of the lifecycle of Winery shards"""
+
     STANDBY = "standby"
+    """The write shard is idle but ready to receive new objects as soon as it is locked."""
     WRITING = "writing"
+    """The write shard is currently locked by a WineryWriter and receiving writes."""
     FULL = "full"
+    """The write shard has reached the size threshold and will not be written to anymore,
+    it is ready to be packed."""
     PACKING = "packing"
+    """The write shard is being packed into its read-only version."""
     PACKED = "packed"
+    """The read-only shard has been finalized, the write shard is pending cleanup as soon as
+    all hosts have acknowledged the read-only shard."""
     CLEANING = "cleaning"
+    """The write shard has been locked for cleanup."""
     READONLY = "readonly"
+    """Only the read-only shard remains."""
 
     @property
     def locked(self):
+        """The state corresponds to a locked shard"""
         return self not in {self.STANDBY, self.FULL, self.PACKED, self.READONLY}
 
     @property
     def image_available(self):
+        """In this state, the read-only shard is available"""
         return self in {self.PACKED, self.CLEANING, self.READONLY}
 
     @property
     def readonly(self):
+        """In this state, the write shard is unavailable"""
         return self in {self.CLEANING, self.READONLY}
 
 
