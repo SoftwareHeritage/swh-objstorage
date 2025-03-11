@@ -127,6 +127,7 @@ class WineryObjStorage(ObjStorage):
             yield {"sha256": signature}
 
     def on_shutdown(self):
+        self.reader.on_shutdown()
         if self.writer:
             self.writer.on_shutdown()
 
@@ -184,6 +185,12 @@ class WineryReader:
         if content is None:
             raise ObjNotFoundError(obj_id)
         return content
+
+    def on_shutdown(self):
+        for shard in self.ro_shards.values():
+            shard.close()
+        self.ro_shards = {}
+        self.rw_shards = {}
 
 
 def pack(
