@@ -253,6 +253,7 @@ def winery_settings(
 def storage(
     winery_settings,
     postgresql_dsn,
+    rbd_pool_name,
 ):
     storage = get_objstorage(cls="winery", **winery_settings)
     assert isinstance(storage, WineryObjStorage)
