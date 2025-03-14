@@ -39,7 +39,7 @@ class WineryObjStorage(ObjStorage):
     ) -> None:
         super().__init__(allow_delete=allow_delete, name=name)
 
-        self.settings, legacy_kwargs = settings.populate_default_settings(
+        self.settings = settings.populate_default_settings(
             database=database,
             shards=shards,
             shards_pool=shards_pool,
@@ -53,7 +53,7 @@ class WineryObjStorage(ObjStorage):
             shards_pool_settings=self.settings["shards_pool"],
         )
         self.reader = WineryReader(
-            throttler=self.throttler, pool=self.pool, **legacy_kwargs
+            throttler=self.throttler, pool=self.pool, database=self.settings["database"]
         )
 
         if readonly:
@@ -64,7 +64,7 @@ class WineryObjStorage(ObjStorage):
                 throttler_settings=self.settings.get("throttler"),
                 shards_settings=self.settings["shards"],
                 shards_pool_settings=self.settings["shards_pool"],
-                **legacy_kwargs,
+                database_settings=self.settings["database"],
             )
 
     @timed
@@ -133,12 +133,14 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(self, throttler: Throttler, pool: roshard.Pool, **kwargs):
-        self.args = kwargs
+    def __init__(
+        self, throttler: Throttler, pool: roshard.Pool, database: settings.Database
+    ):
         self.throttler = throttler
         self.pool = pool
-        self.base_dsn = self.args["base_dsn"]
-        self.base = SharedBase(**self.args)
+        self.base = SharedBase(
+            base_dsn=database["db"], application_name=database["application_name"]
+        )
         self.ro_shards: Dict[str, roshard.ROShard] = {}
         self.rw_shards: Dict[str, RWShard] = {}
 
@@ -154,7 +156,9 @@ class WineryReader:
         if name not in self.ro_shards:
             try:
                 shard = roshard.ROShard(
-                    name=name, throttler=self.throttler, pool=self.pool, **self.args
+                    name=name,
+                    throttler=self.throttler,
+                    pool=self.pool,
                 )
             except roshard.ShardNotMapped:
                 return None
@@ -165,7 +169,7 @@ class WineryReader:
 
     def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
-            shard = RWShard(name, shard_max_size=0, base_dsn=self.base_dsn)
+            shard = RWShard(name, shard_max_size=0, base_dsn=self.base.dsn)
             self.rw_shards[name] = shard
         return self.rw_shards[name]
 
@@ -256,19 +260,20 @@ class WineryWriter:
         throttler_settings: Optional[settings.Throttler],
         shards_settings: settings.Shards,
         shards_pool_settings: settings.ShardsPool,
-        rwshard_idle_timeout: float = 300,
-        **kwargs,
+        database_settings: settings.Database,
     ):
         self.packer_settings = packer_settings
         self.throttler_settings = throttler_settings
         self.shards_settings = shards_settings
         self.shards_pool_settings = shards_pool_settings
-        self.args = kwargs
-        self.base = SharedBase(**self.args)
+        self.base = SharedBase(
+            base_dsn=database_settings["db"],
+            application_name=database_settings["application_name"],
+        )
         self.shards_filled: List[str] = []
         self.packers: List[Process] = []
         self._shard: Optional[RWShard] = None
-        self.idle_timeout = rwshard_idle_timeout
+        self.idle_timeout = shards_settings.get("rw_idle_timeout", 300)
 
     def release_shard(
         self,
@@ -297,7 +302,7 @@ class WineryWriter:
         if not self._shard:
             self._shard = RWShard(
                 name=self.base.locked_shard,
-                base_dsn=self.args["base_dsn"],
+                base_dsn=self.base.dsn,
                 shard_max_size=self.shards_settings["max_size"],
                 idle_timeout_cb=partial(self.release_shard, from_idle_handler=True),
                 idle_timeout=self.idle_timeout,
@@ -421,7 +426,7 @@ def shard_packer(
       wait_for_shard: sleep function called when no shards are available to be packed
     """
 
-    all_settings, legacy_kwargs = settings.populate_default_settings(
+    all_settings = settings.populate_default_settings(
         database=database,
         shards=shards,
         shards_pool=shards_pool,

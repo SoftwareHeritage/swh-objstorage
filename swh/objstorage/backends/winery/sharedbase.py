@@ -107,8 +107,11 @@ class SharedBase(Database):
     current_version: int = 2
 
     def __init__(
-        self, base_dsn: str, application_name: str = "SWH Winery SharedBase", **kwargs
+        self, base_dsn: str, application_name: Optional[str] = None, **kwargs
     ) -> None:
+        if application_name is None:
+            application_name = "SWH Winery SharedBase"
+
         super().__init__(
             dsn=base_dsn,
             application_name=application_name,

@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Literal, NotRequired, Optional, Tuple, TypedDict
+from typing import Literal, NotRequired, Optional, Tuple, TypedDict
 
 # This would be used for image features that are not supported by the kernel RBD
 # driver, e.g. exclusive-lock, object-map and fast-diff for kernels < 5.3
@@ -146,22 +146,18 @@ def populate_default_settings(
     shards_pool: Optional[ShardsPool] = None,
     throttler: Optional[Throttler] = None,
     packer: Optional[Packer] = None,
-) -> Tuple[Winery, Dict[str, Any]]:
+) -> Winery:
     """Given some settings for a Winery objstorage, add all the appropriate
     default settings."""
     settings: Winery = {}
-    legacy_kwargs: Dict[str, Any] = {}
 
     if database is not None:
         database = database_settings_with_defaults(database)
         settings["database"] = database
-        legacy_kwargs["base_dsn"] = database["db"]
-        legacy_kwargs["application_name"] = database["application_name"]
 
     if shards is not None:
         shards = shards_settings_with_defaults(shards)
         settings["shards"] = shards
-        legacy_kwargs["rwshard_idle_timeout"] = shards["rw_idle_timeout"]
 
     if shards_pool is not None:
         if shards_pool["type"] == "rbd":
@@ -183,4 +179,4 @@ def populate_default_settings(
         packer = packer_settings_with_defaults(packer)
         settings["packer"] = packer
 
-    return settings, legacy_kwargs
+    return settings

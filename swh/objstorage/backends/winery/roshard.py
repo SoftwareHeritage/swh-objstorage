@@ -449,7 +449,7 @@ def manage_images(
 
 
 class ROShard:
-    def __init__(self, name, throttler, pool, **kwargs):
+    def __init__(self, name, throttler, pool):
         self.pool = pool
         image_status = self.pool.image_mapped(name)
 

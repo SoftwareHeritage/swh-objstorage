@@ -107,8 +107,8 @@ def winery(ctx):
         populate_default_settings,
     )
 
-    ctx.obj["winery_settings"], ctx.obj["winery_legacy_kwargs"] = (
-        populate_default_settings(**{k: v for k, v in config.items() if k in SETTINGS})
+    ctx.obj["winery_settings"] = populate_default_settings(
+        **{k: v for k, v in config.items() if k in SETTINGS}
     )
 
 
