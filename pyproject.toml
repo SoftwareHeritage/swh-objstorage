@@ -47,7 +47,7 @@ testing = {file = [
 "azure-prefixed" = "swh.objstorage.backends.azure:PrefixedAzureCloudObjStorage"
 "s3" = "swh.objstorage.backends.libcloud:AwsCloudObjStorage"
 "swift" = "swh.objstorage.backends.libcloud:OpenStackCloudObjStorage"
-"winery" = "swh.objstorage.backends.winery.objstorage:WineryObjStorage"
+"winery" = "swh.objstorage.backends.winery:WineryObjStorage"
 # filters and proxies
 "multiplexer" = "swh.objstorage.multiplexer:MultiplexerObjStorage"
 "read-only" = "swh.objstorage.proxies.readonly:ReadOnlyProxyObjStorage"
