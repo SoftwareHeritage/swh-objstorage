@@ -13,6 +13,7 @@ from typing import Callable, ContextManager, Iterator, Optional, Protocol, Tuple
 
 import psycopg
 
+from ...exc import ReadOnlyObjStorageError
 from .database import Database
 
 logger = logging.getLogger(__name__)
@@ -99,13 +100,18 @@ class RWShard(Database):
         application_name: Optional[str] = None,
         idle_timeout_cb: Optional[ShardIdleTimeoutCallback] = None,
         idle_timeout: Optional[float] = 5,
+        readonly: bool = False,
         **kwargs,
     ):
         self._name = name
         if application_name is None:
             application_name = f"SWH Winery RW Shard {name}"
         super().__init__(dsn=base_dsn, application_name=application_name)
-        self.create()
+
+        self.readonly = readonly
+        if not self.readonly:
+            self.create()
+
         self.size = self.total_size()
         self.limit = shard_max_size
 
@@ -160,6 +166,10 @@ class RWShard(Database):
                 return size
 
     def add(self, db: psycopg.Connection, obj_id: bytes, content: bytes) -> None:
+        if self.readonly:
+            raise ReadOnlyObjStorageError(
+                f"Cannot write to shard {self._name}, objstorage is readonly"
+            )
         with self.quiesce_then_reset_idle():
             cur = db.execute(
                 f"INSERT INTO {self.table_name} (key, content) "
@@ -184,6 +194,10 @@ class RWShard(Database):
                 return c.fetchone()[0]
 
     def delete(self, obj_id: bytes) -> None:
+        if self.readonly:
+            raise ReadOnlyObjStorageError(
+                f"Cannot drop {obj_id.hex()} from shard {self._name}, objstorage is readonly"
+            )
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(f"DELETE FROM {self.table_name} WHERE key = %s", (obj_id,))
             if c.rowcount == 0:

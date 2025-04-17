@@ -169,7 +169,9 @@ class WineryReader:
 
     def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
-            shard = RWShard(name, shard_max_size=0, base_dsn=self.base.dsn)
+            shard = RWShard(
+                name, shard_max_size=0, base_dsn=self.base.dsn, readonly=True
+            )
             self.rw_shards[name] = shard
         return self.rw_shards[name]
 

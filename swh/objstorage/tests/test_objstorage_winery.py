@@ -12,6 +12,7 @@ import threading
 import time
 
 from click.testing import CliRunner
+import psycopg
 import pytest
 from pytest_postgresql import factories
 import yaml
@@ -38,7 +39,7 @@ from swh.objstorage.backends.winery.throttler import (
     Throttler,
 )
 from swh.objstorage.cli import swh_cli_group
-from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
@@ -165,8 +166,20 @@ def image_pool(request):
     return request.getfixturevalue(request.param)
 
 
+def add_guest_user(**kwargs):
+    with psycopg.connect(**kwargs) as conn:
+        conn.execute("CREATE USER guest WITH PASSWORD 'guest'")
+        conn.execute(
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO guest"
+        )
+        conn.execute(
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO guest"
+        )
+
+
 winery_postgresql_proc = factories.postgresql_proc(
     load=[
+        add_guest_user,
         partial(
             initialize_database_for_module,
             modname="objstorage.backends.winery",
@@ -181,6 +194,14 @@ winery_postgresql = factories.postgresql("winery_postgresql_proc")
 @pytest.fixture
 def postgresql_dsn(winery_postgresql):
     return winery_postgresql.info.dsn
+
+
+@pytest.fixture
+def readonly_postgresql_dsn(winery_postgresql):
+    return (
+        f"user=guest password=guest host={winery_postgresql.info.host}"
+        f" port={winery_postgresql.info.port} dbname={winery_postgresql.info.dbname}"
+    )
 
 
 @pytest.fixture
@@ -252,7 +273,6 @@ def winery_settings(
 @pytest.fixture
 def storage(
     winery_settings,
-    postgresql_dsn,
     rbd_pool_name,
 ):
     storage = get_objstorage(cls="winery", **winery_settings)
@@ -266,6 +286,24 @@ def storage(
         if thread.name.startswith("IdleHandler")
     ]
     assert not names, f"Some IdleHandlers are still alive: {','.join(names)}"
+
+
+@pytest.fixture
+def readonly_storage(
+    winery_settings,
+    readonly_postgresql_dsn,
+    rbd_pool_name,
+):
+    storage = get_objstorage(
+        cls="winery",
+        readonly=True,
+        database={"db": readonly_postgresql_dsn},
+        shards_pool=winery_settings["shards_pool"],
+        shards=winery_settings["shards"],
+        throttler=None,
+    )
+    yield storage
+    storage.on_shutdown()
 
 
 @pytest.fixture
@@ -577,6 +615,32 @@ def test_winery_writer_pack_immediately_true(image_pool, storage):
     assert storage.writer.base.locked_shard != shard
 
     assert storage.writer.base.get_shard_state(shard) == ShardState.READONLY
+
+
+@pytest.mark.shard_max_size(300 * 1024)
+@pytest.mark.pack_immediately(True)
+def test_winery_readonly_storage(image_pool, storage, readonly_storage):
+    for i in range(1024):
+        content = i.to_bytes(1024, "little")
+        obj_id = objid_for_content(content)
+        storage.add(content=content, obj_id=obj_id)
+
+    assert storage.writer.packers
+    for packer in storage.writer.packers:
+        packer.join()
+
+    for i in range(1024):
+        content = i.to_bytes(1024, "little")
+        obj_id = objid_for_content(content)
+        assert readonly_storage.get(obj_id=obj_id) == content
+
+    # Check that some RW shards were used
+    assert readonly_storage.reader.rw_shards
+
+    content = (1025).to_bytes(1024, "little")
+    obj_id = objid_for_content(content)
+    with pytest.raises(ReadOnlyObjStorageError):
+        readonly_storage.add(content=content, obj_id=obj_id)
 
 
 @pytest.mark.shard_max_size(1024 * 1024)
