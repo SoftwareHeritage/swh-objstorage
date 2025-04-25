@@ -7,6 +7,7 @@
 from contextlib import contextmanager, nullcontext
 from functools import partial
 import logging
+import platform
 from threading import Event, Thread
 import time
 from typing import Callable, ContextManager, Iterator, Optional, Protocol, Tuple
@@ -17,6 +18,8 @@ from ...exc import ReadOnlyObjStorageError
 from .database import Database
 
 logger = logging.getLogger(__name__)
+
+IS_PYPY = platform.python_implementation() == "PyPy"
 
 
 class IdleHandler(Thread):
@@ -209,7 +212,11 @@ class RWShard(Database):
                 f"COPY {self.table_name} (key, content) TO STDOUT (FORMAT BINARY)"
             ) as copy:
                 copy.set_types(["bytea", "bytea"])
-                yield from copy.rows()
+                if not IS_PYPY:
+                    yield from copy.rows()
+                else:
+                    for x, y in copy.rows():
+                        yield (x.tobytes(), y.tobytes())
 
     def count(self) -> int:
         with self.pool.connection() as db, db.cursor() as c:
