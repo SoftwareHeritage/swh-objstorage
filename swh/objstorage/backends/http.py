@@ -21,7 +21,6 @@ from swh.objstorage.exc import (
 )
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
-    DEFAULT_LIMIT,
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
@@ -99,13 +98,6 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     def restore(self, content: bytes, obj_id: ObjId) -> None:
         raise ReadOnlyObjStorageError("restore")
-
-    def list_content(
-        self,
-        last_obj_id: Optional[ObjId] = None,
-        limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
-        raise NonIterableObjStorageError("__len__")
 
     @timed
     def get(self, obj_id: ObjId) -> bytes:

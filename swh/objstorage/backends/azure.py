@@ -500,7 +500,6 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
     def get_all_container_clients(self):
         """Get all active container clients"""
         # iterate on items() to sort blob services;
-        # needed to be able to paginate in the list_content() method
         yield from (
             self.get_container_client(prefix) for prefix in sorted(self.container_urls)
         )

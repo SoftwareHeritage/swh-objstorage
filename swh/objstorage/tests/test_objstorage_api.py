@@ -35,6 +35,10 @@ class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture):
         yield
         self.stop_server()
 
+    @pytest.mark.skip("unsupported by the remote api")
+    def test_content_iterator(self):
+        pass
+
     @pytest.mark.skip("makes no sense to test this for the remote api")
     def test_delete_not_allowed(self):
         pass

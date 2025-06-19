@@ -4,14 +4,12 @@
 # See top-level LICENSE file for more information
 
 from contextlib import contextmanager
-from itertools import islice
 import logging
 import os
 import tempfile
-from typing import Iterator, List, Optional
+from typing import Iterator, List
 
 from swh.objstorage.constants import (
-    DEFAULT_LIMIT,
     ID_HASH_ALGO,
     ID_HEXDIGEST_LENGTH,
     LiteralPrimaryHash,
@@ -296,16 +294,6 @@ class PathSlicingObjStorage(ObjStorage):
         return True
 
     # Streaming methods
-
-    def list_content(
-        self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
-    ) -> Iterator[ObjId]:
-        if last_obj_id:
-            it = self.iter_from(last_obj_id)
-        else:
-            it = iter(self)
-        return islice(it, limit)
-
     def iter_from(self, obj_id, n_leaf=False):
         hex_obj_id = objid_to_default_hex(obj_id)
         slices = self.slicer.get_slices(hex_obj_id)

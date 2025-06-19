@@ -16,9 +16,6 @@ ID_HEXDIGEST_LENGTH = 40
 ID_DIGEST_LENGTH = 20
 """Size in bytes of the hash"""
 
-DEFAULT_LIMIT = 10000
-"""Default number of results of ``list_content``."""
-
 VALID_HEXCHARS = frozenset("0123456789abcdef")
 """Valid characters for hexadecimal values"""
 

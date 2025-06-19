@@ -293,43 +293,6 @@ class ObjStorageTestFixture:
         sto_obj_ids = list(self.storage)
         assert_objid_lists_compatible(obj_ids, sto_obj_ids)
 
-    @pytest.mark.skip_on_cloud
-    def test_list_content_all(self):
-        assert self.num_objects > 100
-        all_ids = self.fill_objstorage(self.num_objects)
-
-        ids = list(self.storage.list_content(limit=None))
-        assert_objid_lists_compatible(all_ids, ids)
-
-    @pytest.mark.skip_on_cloud
-    def test_list_content_limit(self):
-        assert self.num_objects > 100
-        all_ids = self.fill_objstorage(self.num_objects)
-
-        ids = list(self.storage.list_content(limit=10))
-        assert_objid_lists_compatible(all_ids[:10], ids)
-
-    @pytest.mark.skip_on_cloud
-    def test_list_content_limit_and_last(self):
-        assert self.num_objects > 110
-        all_ids = self.fill_objstorage(self.num_objects)
-
-        id0 = self.num_objects - 105
-        ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
-        assert_objid_lists_compatible(all_ids[id0 + 1 : id0 + 101], ids)
-
-        # check proper behavior at the end of the range
-        id0 = self.num_objects - 51
-        ids = list(self.storage.list_content(last_obj_id=all_ids[id0], limit=100))
-        assert_objid_lists_compatible(all_ids[-50:], ids)
-
-        # check proper behavior after the end of the range
-        ids = list(self.storage.list_content(last_obj_id=all_ids[-1], limit=100))
-        assert not ids
-
-        ids = list(self.storage.list_content(last_obj_id=LAST_OBJID, limit=100))
-        assert not ids
-
     def test_download_url(self):
         content = b"foo"
         obj_id = objid_for_content(content)

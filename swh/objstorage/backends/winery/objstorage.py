@@ -8,7 +8,6 @@ import logging
 from multiprocessing import Process
 from typing import Callable, Dict, Iterator, List, Optional
 
-from swh.objstorage.constants import DEFAULT_LIMIT
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
@@ -109,21 +108,6 @@ class WineryObjStorage(ObjStorage):
         if self.PRIMARY_HASH != "sha256":
             raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
         for signature in self.reader.list_signatures():
-            yield {"sha256": signature}
-
-    def list_content(
-        self,
-        last_obj_id: Optional[ObjId] = None,
-        limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[CompositeObjId]:
-        if self.PRIMARY_HASH != "sha256":
-            raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
-
-        after_id: Optional[bytes] = None
-        if last_obj_id:
-            after_id = self._hash(last_obj_id)
-
-        for signature in self.reader.list_signatures(after_id=after_id, limit=limit):
             yield {"sha256": signature}
 
     def on_shutdown(self):

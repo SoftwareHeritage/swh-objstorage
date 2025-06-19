@@ -3,12 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterator, Optional
-
-import msgpack
+from typing import Iterator, Optional
 
 from swh.core.api import RPCClient
-from swh.objstorage.constants import DEFAULT_LIMIT, LiteralPrimaryHash
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import (
     Error,
     NoBackendsLeftError,
@@ -17,7 +15,7 @@ from swh.objstorage.exc import (
     ObjStorageAPIError,
 )
 from swh.objstorage.interface import ObjId, ObjStorageInterface
-from swh.objstorage.objstorage import objid_to_default_hex, timed
+from swh.objstorage.objstorage import timed
 
 
 class RemoteObjStorage(RPCClient):
@@ -50,26 +48,7 @@ class RemoteObjStorage(RPCClient):
         return self.add(content, obj_id, check_presence=False)
 
     def __iter__(self) -> Iterator[ObjId]:
-        yield from self.list_content()
-
-    def list_content(
-        self,
-        last_obj_id: Optional[ObjId] = None,
-        limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
-        params: Dict[str, Any] = {}
-        if limit:
-            params["limit"] = limit
-        if last_obj_id:
-            params["last_obj_id"] = objid_to_default_hex(last_obj_id)
-        response = self.raw_verb(
-            "get",
-            "content",
-            headers={"accept": "application/x-msgpack"},
-            params=params,
-            stream=True,
-        )
-        yield from msgpack.Unpacker(response.raw, raw=False)
+        raise NotImplementedError()
 
 
 # XXX Maybe there is a better way of doing this, but according the automagic

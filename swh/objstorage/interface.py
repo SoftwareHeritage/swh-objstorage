@@ -19,7 +19,7 @@ from typing import (
 )
 
 from swh.core.api import remote_api_endpoint
-from swh.objstorage.constants import DEFAULT_LIMIT, LiteralHash, LiteralPrimaryHash
+from swh.objstorage.constants import LiteralHash, LiteralPrimaryHash
 
 COMPOSITE_OBJID_KEYS: FrozenSet[LiteralHash] = frozenset(
     ("sha1", "sha1_git", "sha256", "blake2s256")
@@ -267,21 +267,3 @@ class ObjStorageInterface(Protocol):
         ...
 
     def __iter__(self) -> Iterator[ObjId]: ...
-
-    def list_content(
-        self, last_obj_id: Optional[ObjId] = None, limit: Optional[int] = DEFAULT_LIMIT
-    ) -> Iterator[ObjId]:
-        """Generates known object ids.
-
-        Args:
-            last_obj_id: object id from which to iterate from
-                 (excluded).
-            limit (int): max number of object ids to generate. If unset (None),
-                 generate all objects (behavior might not be guaranteed for all
-                 backends).
-
-        Generates:
-            obj_id: object ids.
-
-        """
-        ...

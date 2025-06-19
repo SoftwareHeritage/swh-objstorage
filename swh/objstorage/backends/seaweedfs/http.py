@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from swh.objstorage.objstorage import DEFAULT_LIMIT
+BATCH_SIZE = 10000
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class HttpFiler:
             pool_connections=pool_maxsize, pool_maxsize=pool_maxsize
         )
         self.session.mount(self.url, adapter)
-        self.batchsize = DEFAULT_LIMIT
+        self.batchsize = BATCH_SIZE
 
     def build_url(self, path):
         assert path == self.basepath or path.startswith(self.basepath)

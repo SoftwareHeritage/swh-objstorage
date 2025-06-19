@@ -5,7 +5,6 @@
 
 from datetime import timedelta
 import io
-from itertools import islice
 import logging
 from typing import Iterator, Optional
 from urllib.parse import urlparse
@@ -14,7 +13,6 @@ from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
-    DEFAULT_LIMIT,
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
@@ -71,9 +69,14 @@ class SeaweedFilerObjStorage(ObjStorage):
 
         You almost certainly don't want to use this method in production.
         """
-        for obj_id in self.list_content(limit=None):
-            assert obj_id
-            yield obj_id
+        for fname in self.wf.iterfiles(self.root_path):
+            bytehex = fname.rsplit("/", 1)[-1]
+            if self.PRIMARY_HASH == "sha1":
+                yield {"sha1": bytes.fromhex(bytehex)}
+            elif self.PRIMARY_HASH == "sha256":
+                yield {"sha256": bytes.fromhex(bytehex)}
+            else:
+                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -125,28 +128,6 @@ class SeaweedFilerObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
         self.wf.delete(self._path(obj_id))
         return True
-
-    def list_content(
-        self,
-        last_obj_id: Optional[ObjId] = None,
-        limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
-        if last_obj_id:
-            objpath = self._path(last_obj_id)
-            startdir, lastfilename = objpath.rsplit("/", 1)
-        else:
-            startdir = self.root_path
-            lastfilename = None
-        for fname in islice(
-            self.wf.iterfiles(startdir, last_file_name=lastfilename), limit
-        ):
-            bytehex = fname.rsplit("/", 1)[-1]
-            if self.PRIMARY_HASH == "sha1":
-                yield {"sha1": bytes.fromhex(bytehex)}
-            elif self.PRIMARY_HASH == "sha256":
-                yield {"sha256": bytes.fromhex(bytehex)}
-            else:
-                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
 
     # internal methods
     def _path(self, obj_id: ObjId):

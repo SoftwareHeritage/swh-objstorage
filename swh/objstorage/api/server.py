@@ -7,10 +7,6 @@ import contextlib
 import functools
 import logging
 import os
-from typing import Iterator, Optional
-
-from flask import request
-import msgpack
 
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
@@ -105,24 +101,6 @@ def my_error_handler(exception):
 @timed
 def index():
     return "SWH Objstorage API server"
-
-
-@app.route("/content")
-def list_content():
-    last_obj_id = request.args.get("last_obj_id")
-    if last_obj_id:
-        last_obj_id = {"sha1": bytes.fromhex(last_obj_id)}
-    limit: Optional[str] = request.args.get("limit")
-    if limit:
-        limit = int(limit)
-
-    def generate() -> Iterator[bytes]:
-        with timed_context("list_content"):
-            packer = msgpack.Packer(use_bin_type=True)
-            for obj in get_objstorage().list_content(last_obj_id, limit=limit):
-                yield packer.pack(obj)
-
-    return app.response_class(generate())
 
 
 api_cfg = None

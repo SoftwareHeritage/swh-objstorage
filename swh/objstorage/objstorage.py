@@ -7,7 +7,6 @@ import abc
 import bz2
 from datetime import timedelta
 import functools
-from itertools import dropwhile, islice
 import lzma
 from typing import (
     Callable,
@@ -23,7 +22,7 @@ import zlib
 
 from swh.core import statsd
 from swh.model import hashutil
-from swh.objstorage.constants import DEFAULT_LIMIT, ID_HASH_ALGO, LiteralPrimaryHash
+from swh.objstorage.constants import ID_HASH_ALGO, LiteralPrimaryHash
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import ObjId, ObjStorageInterface, objid_from_dict
 
@@ -173,20 +172,6 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
     def delete(self, obj_id: ObjId):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
-
-    def list_content(
-        self: ObjStorageInterface,
-        last_obj_id: Optional[ObjId] = None,
-        limit: Optional[int] = DEFAULT_LIMIT,
-    ) -> Iterator[ObjId]:
-        it = iter(self)
-        if last_obj_id:
-            last_obj_id_hex = objid_to_default_hex(last_obj_id, self.PRIMARY_HASH)
-            it = dropwhile(
-                lambda x: objid_to_default_hex(x, self.PRIMARY_HASH) <= last_obj_id_hex,
-                it,
-            )
-        return islice(it, limit)
 
     def download_url(
         self,
