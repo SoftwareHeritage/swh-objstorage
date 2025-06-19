@@ -242,7 +242,6 @@ class FileBackedPool(Pool):
         if os.path.exists(path):
             raise ValueError(f"Image {image} already exists")
         open(path, "w").close()
-        os.truncate(path, self.image_size * 1024 * 1024)
         self.image_map(image, "rw")
 
     def image_map(self, image: str, options: str) -> None:
@@ -569,7 +568,7 @@ class ROShardCreator:
         """
         with open(self.path, "rb") as f:
             start = f.read(1024)
-            if set(start) == {0}:
+            if not start or set(start) == {0}:
                 return
 
         logger.warning("RO Shard %s isn't empty, cleaning it up", self.path)
