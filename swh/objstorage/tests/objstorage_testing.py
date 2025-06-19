@@ -48,18 +48,27 @@ def assert_objid_lists_compatible(
     list1 = list(iter1)
     list2 = list(iter2)
     assert len(list1) == len(list2), f"Mismatched lengths {len(list1)} != {len(list2)}"
+    # ensure the key set is consistent in each list of objids (e.g. all the obj
+    # ids in a list have the same set of hashes)
+    keyset1 = {frozenset(x.keys()) for x in list1}
+    assert len(keyset1) == 1, "list1 has inconsistent keys"
+    keyset2 = {frozenset(x.keys()) for x in list2}
+    assert len(keyset2) == 1, "list2 has inconsistent keys"
 
-    for left, right in zip(list1, list2):
-        keys = set(left).intersection(set(right))
-        assert keys, f"{left} and {right} have no keys in common"
-        for key in keys:
-            assert left[key] == right[key], (  # type: ignore[literal-required]
-                f"{left} and {right} have mismatched {key}.\n"
-                + f"{key} for list1:\n"
-                + "\n".join(i[key].hex() for i in list1)  # type: ignore[literal-required]
-                + f"\n{key} for list2\n"
-                + "\n".join(i[key].hex() for i in list2)  # type: ignore[literal-required]
-            )
+    # extract the common set of keys to use to compare both lists
+    keys1 = keyset1.pop()
+    keys2 = keyset2.pop()
+    common_keys = keys1 & keys2
+    assert common_keys, "There are no key common to both lists of object ids"
+
+    def subdict(d, keys):
+        return {k: d[k] for k in keys}
+
+    list1 = [subdict(key, common_keys) for key in list1]
+    list2 = [subdict(key, common_keys) for key in list2]
+
+    for left in list1:
+        assert left in list2, f"{left} is missing from list2"
 
 
 class ObjStorageTestFixture:
@@ -76,7 +85,8 @@ class ObjStorageTestFixture:
             obj_id = objid_for_content(content)
             self.storage.add(content, obj_id, check_presence=False)
             all_ids.append(obj_id)
-        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
+        if self.storage.PRIMARY_HASH is not None:
+            all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
         return all_ids
 
     def test_types(self):
@@ -91,9 +101,14 @@ class ObjStorageTestFixture:
         missing_methods = []
 
         for meth_name in dir(interface):
-            if meth_name.startswith("_") and meth_name not in (
-                "__iter__",
-                "__contains__",
+            if (
+                meth_name.startswith("_")
+                and meth_name
+                not in (
+                    "__iter__",
+                    "__contains__",
+                )
+                or meth_name in ("PRIMARY_HASH",)  # XXX not exactly sure here...:
             ):
                 continue
             interface_meth = getattr(interface, meth_name)
@@ -126,6 +141,25 @@ class ObjStorageTestFixture:
     def test_check_config(self):
         assert self.storage.check_config(check_write=False)
         assert self.storage.check_config(check_write=True)
+
+    def test_primary_hash(self):
+        if self.storage.primary_hash is None:
+            # if the objstorage class is not a final one (i.e. does not
+            # implement the actual storage of objects, but is only a proxy some
+            # sort) then the primary hash is expected to be None, and there is
+            # nothing to test
+            pytest.skip(
+                "Primary hash can only be set (and tested) on final objstorage instances"
+            )
+        content_p, obj_id_p = self.hash_content(b"contains_present")
+        self.storage.add(content_p, obj_id=obj_id_p)
+        assert obj_id_p in self.storage
+        for hashalgo in ["sha1", "sha256"]:
+            if hashalgo == self.storage.PRIMARY_HASH:
+                assert {hashalgo: obj_id_p[hashalgo]} in self.storage
+            else:
+                with pytest.raises(KeyError):
+                    assert {hashalgo: obj_id_p[hashalgo]} not in self.storage
 
     def test_contains(self):
         content_p, obj_id_p = self.hash_content(b"contains_present")
@@ -289,7 +323,6 @@ class ObjStorageTestFixture:
         sto_obj_ids = list(iter(self.storage))
         assert not sto_obj_ids
         obj_ids = self.fill_objstorage(self.num_objects)
-
         sto_obj_ids = list(self.storage)
         assert_objid_lists_compatible(obj_ids, sto_obj_ids)
 

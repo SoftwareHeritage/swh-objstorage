@@ -13,7 +13,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from swh.model import hashutil
-from swh.objstorage.constants import ID_HASH_ALGO
 from swh.objstorage.exc import (
     NonIterableObjStorageError,
     ObjNotFoundError,
@@ -58,6 +57,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     """
 
+    PRIMARY_HASH = "sha1"
     name: str = "http"
 
     def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
@@ -73,6 +73,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             self.session.mount(
                 self.root_path, HTTPAdapter(max_retries=self.retries_cfg)
             )
+        assert self.primary_hash is not None
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -106,8 +107,10 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             resp.raise_for_status()
         except Exception:
             raise ObjNotFoundError(obj_id)
-
-        return self.decompress(resp.content, objid_to_default_hex(obj_id))
+        assert self.primary_hash is not None
+        return self.decompress(
+            resp.content, objid_to_default_hex(obj_id, self.PRIMARY_HASH)
+        )
 
     def download_url(
         self,
@@ -118,7 +121,8 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return self._path(obj_id)
 
     def _hash(self, obj_id: ObjId) -> bytes:
-        return obj_id[ID_HASH_ALGO]
+        assert self.primary_hash is not None
+        return obj_id[self.primary_hash]
 
     def _path(self, obj_id):
         return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))

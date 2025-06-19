@@ -76,13 +76,19 @@ class ObjStorageInterface(Protocol):
 
     - name            name given to the object storage; useful e.g. for logging in
                       composite object storagges (multiplexer)
+    - PRIMARY_HASH    the hash algorithm used by this backend as primary key for
+                      content objects. Can be None for object storages that to
+                      now implement object storage themselves (e.g. proxy
+                      objstorage)
 
     Each implementation of this interface can have a different behavior and
     its own way to store the contents.
+
     """
 
     name: str
-    PRIMARY_HASH: LiteralPrimaryHash
+    # defined only for actual backends, but not for proxies/rpc etc.
+    PRIMARY_HASH: Optional[LiteralPrimaryHash] = None
 
     def __init__(
         self,
@@ -127,9 +133,7 @@ class ObjStorageInterface(Protocol):
 
         Args:
             content: object's raw content to add in storage.
-            obj_id: either dict of checksums, or single checksum of
-                [bytes] using [ID_HASH_ALGO] algorithm.
-                It is trusted to match the bytes.
+            obj_id: dict of checksums.
             check_presence (bool): indicate if the presence of the
                 content should be verified before adding the file.
 

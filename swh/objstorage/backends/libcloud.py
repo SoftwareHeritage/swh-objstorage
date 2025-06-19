@@ -179,7 +179,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     @timed
     def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
-        return self.decompress(obj, objid_to_default_hex(obj_id))
+        return self.decompress(obj, objid_to_default_hex(obj_id, self.PRIMARY_HASH))
 
     def download_url(
         self,

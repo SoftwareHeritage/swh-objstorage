@@ -23,20 +23,24 @@ class InMemoryObjStorage(ObjStorage):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.state: Dict[bytes, bytes] = {}
+        assert self.primary_hash is not None
 
     def check_config(self, *, check_write):
         return True
 
     def _state_key(self, obj_id: ObjId) -> bytes:
-        return obj_id[self.PRIMARY_HASH]
+        assert self.primary_hash is not None
+        return obj_id[self.primary_hash]
 
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         return self._state_key(obj_id) in self.state
 
     def __iter__(self) -> Iterator[ObjId]:
+        assert self.primary_hash is not None
+        phash: LiteralPrimaryHash = self.primary_hash
         for id_ in sorted(self.state):
-            yield {self.PRIMARY_HASH: id_}
+            yield {phash: id_}  # type: ignore
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:

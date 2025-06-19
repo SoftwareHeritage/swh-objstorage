@@ -13,6 +13,7 @@ import requests_mock
 from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
+from swh.objstorage.constants import ID_HEXDIGEST_LENGTH_BY_ALGO
 from swh.objstorage.exc import ObjCorruptedError
 from swh.objstorage.objstorage import (
     decompressors,
@@ -255,7 +256,7 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
             obj_id = objid_for_content(content)
             self.mock.content[path(obj_id)] = self.storage.compress(content)
             all_ids.append(obj_id)
-        all_ids.sort(key=lambda d: d["sha1"])
+        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
         return all_ids
 
     def test_compression(self):
@@ -285,11 +286,13 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
             assert "trailing data found" in e.value.args[0]
 
     def test_slicing(self):
-        slicer = PathSlicer(urlparse(self.url).path, self.slicing)
-        for i in range(20):
+        slicer = PathSlicer(
+            urlparse(self.url).path, self.slicing, self.storage.PRIMARY_HASH
+        )
+        for i in range(ID_HEXDIGEST_LENGTH_BY_ALGO[self.storage.PRIMARY_HASH]):
             content, obj_id = self.hash_content(b"test slicing %i" % i)
             self.storage.add(content, obj_id=obj_id)
-            hex_obj_id = objid_to_default_hex(obj_id)
+            hex_obj_id = objid_to_default_hex(obj_id, self.storage.PRIMARY_HASH)
             assert slicer.get_path(hex_obj_id) in self.mock.content
 
 

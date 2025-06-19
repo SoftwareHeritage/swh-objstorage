@@ -48,7 +48,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         self.root_path = urlparse(url).path
         if not self.root_path.endswith("/"):
             self.root_path += "/"
-        self.slicer = PathSlicer(self.root_path, slicing)
+        self.slicer = PathSlicer(self.root_path, slicing, self.PRIMARY_HASH)
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -109,7 +109,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             LOGGER.info("Failed to get object %s: %r", self._path(obj_id), exc)
             raise ObjNotFoundError(obj_id)
 
-        return self.decompress(obj, objid_to_default_hex(obj_id))
+        return self.decompress(obj, objid_to_default_hex(obj_id, self.PRIMARY_HASH))
 
     def download_url(
         self,
@@ -138,4 +138,4 @@ class SeaweedFilerObjStorage(ObjStorage):
         slicing.
 
         """
-        return self.slicer.get_path(objid_to_default_hex(obj_id))
+        return self.slicer.get_path(objid_to_default_hex(obj_id, self.PRIMARY_HASH))

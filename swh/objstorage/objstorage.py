@@ -22,7 +22,7 @@ import zlib
 
 from swh.core import statsd
 from swh.model import hashutil
-from swh.objstorage.constants import ID_HASH_ALGO, LiteralPrimaryHash
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import ObjId, ObjStorageInterface, objid_from_dict
 
@@ -47,9 +47,9 @@ def timed(f):
     return w
 
 
-def objid_to_default_hex(obj_id: ObjId, algo: LiteralPrimaryHash = ID_HASH_ALGO) -> str:
-    """Converts SHA1 hashes and multi-hashes to the hexadecimal representation
-    of the SHA1."""
+def objid_to_default_hex(obj_id: ObjId, algo: LiteralPrimaryHash) -> str:
+    """Converts multi-hashes to the hexadecimal representation
+    of the given hash algo."""
     return hashutil.hash_to_hex(obj_id[algo])
 
 
@@ -122,7 +122,7 @@ CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
 
 
 class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    PRIMARY_HASH: Optional[LiteralPrimaryHash] = None
     compression: CompressionFormat = "none"
     name: str = "objstorage"
     """Default objstorage name; can be overloaded at instantiation time giving a
@@ -132,11 +132,14 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
         self: ObjStorageInterface,
         *,
         allow_delete: bool = False,
+        primary_hash: Optional[LiteralPrimaryHash] = None,
         **kwargs,
     ):
         # A more complete permission system could be used in place of that if
         # it becomes needed
         self.allow_delete = allow_delete
+        if primary_hash is not None:
+            self.PRIMARY_HASH = primary_hash
         # if no name is given in kwargs, default to name defined as class attribute
         if "name" in kwargs:
             self.name = kwargs["name"]

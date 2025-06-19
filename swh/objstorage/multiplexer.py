@@ -185,6 +185,8 @@ class MultiplexerObjStorage(ObjStorage):
         readonly: bool = False,
         **kwargs,
     ):
+        if "primary_hash" in kwargs:
+            raise TypeError("Multiplexer storage cannot specify a primary hash")
         super().__init__(**kwargs)
         self.readonly = readonly
         self.storages = [

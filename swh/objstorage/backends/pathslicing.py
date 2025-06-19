@@ -11,7 +11,7 @@ from typing import Iterator, List
 
 from swh.objstorage.constants import (
     ID_HASH_ALGO,
-    ID_HEXDIGEST_LENGTH,
+    ID_HEXDIGEST_LENGTH_BY_ALGO,
     LiteralPrimaryHash,
     is_valid_hexdigest,
 )
@@ -58,8 +58,9 @@ class PathSlicer:
          slicing (str): the slicing configuration.
     """
 
-    def __init__(self, root: str, slicing: str):
+    def __init__(self, root: str, slicing: str, primary_hash: LiteralPrimaryHash):
         self.root = root
+        self.PRIMARY_HASH = primary_hash
         # Make a list of tuples where each tuple contains the beginning
         # and the end of each slicing.
         try:
@@ -84,7 +85,7 @@ class PathSlicer:
             max_char = max(
                 max(bound.start or 0, bound.stop or 0) for bound in self.bounds
             )
-            if ID_HEXDIGEST_LENGTH < max_char:
+            if ID_HEXDIGEST_LENGTH_BY_ALGO[self.PRIMARY_HASH] < max_char:
                 raise ValueError(
                     "Algorithm %s has too short hash for slicing to char %d"
                     % (ID_HASH_ALGO, max_char)
@@ -129,7 +130,7 @@ class PathSlicer:
             a list.
         """
 
-        assert len(hex_obj_id) == ID_HEXDIGEST_LENGTH
+        assert len(hex_obj_id) == ID_HEXDIGEST_LENGTH_BY_ALGO[self.PRIMARY_HASH]
         return [hex_obj_id[bound] for bound in self.bounds]
 
     def __len__(self) -> int:
@@ -179,7 +180,7 @@ class PathSlicingObjStorage(ObjStorage):
     ):
         super().__init__(**kwargs)
         self.root = root
-        self.slicer = PathSlicer(root, slicing)
+        self.slicer = PathSlicer(root, slicing, self.PRIMARY_HASH)
 
         self.use_fdatasync = hasattr(os, "fdatasync")
         self.compression = compression
@@ -212,7 +213,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.PRIMARY_HASH)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
     def __iter__(self) -> Iterator[ObjId]:
@@ -267,7 +268,7 @@ class PathSlicingObjStorage(ObjStorage):
             # If the object is already present, return immediately.
             return
 
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.PRIMARY_HASH)
         with self._write_obj_file(hex_obj_id) as f:
             f.write(self.compress(content))
 
@@ -277,7 +278,7 @@ class PathSlicingObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
 
         # Open the file and return its content as bytes
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.PRIMARY_HASH)
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             return self.decompress(f.read(), hex_obj_id)
 
@@ -286,7 +287,7 @@ class PathSlicingObjStorage(ObjStorage):
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.PRIMARY_HASH)
         try:
             os.remove(self.slicer.get_path(hex_obj_id))
         except FileNotFoundError:
@@ -295,7 +296,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     # Streaming methods
     def iter_from(self, obj_id, n_leaf=False):
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.PRIMARY_HASH)
         slices = self.slicer.get_slices(hex_obj_id)
         rlen = len(self.root.split("/"))
 

@@ -22,12 +22,12 @@ def swh_objstorage_config():
     return {"cls": "memory"}
 
 
-@pytest.fixture
-def swh_objstorage(swh_objstorage_config):
+@pytest.fixture(params=["sha1", "sha256"])
+def swh_objstorage(request, swh_objstorage_config):
     """Fixture that instantiates an object storage based on the configuration
     returned by the ``swh_objstorage_config`` fixture.
     """
-    return get_objstorage(**swh_objstorage_config)
+    return get_objstorage(primary_hash=request.param, **swh_objstorage_config)
 
 
 @pytest.fixture

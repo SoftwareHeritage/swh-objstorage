@@ -37,6 +37,8 @@ class WineryObjStorage(ObjStorage):
         name: str = "winery",
     ) -> None:
         super().__init__(allow_delete=allow_delete, name=name)
+        if self.primary_hash != "sha256":
+            raise TypeError("Winery backend only support the sha256 primary hash")
 
         self.settings = settings.populate_default_settings(
             database=database,
@@ -51,13 +53,12 @@ class WineryObjStorage(ObjStorage):
             shards_settings=self.settings["shards"],
             shards_pool_settings=self.settings["shards_pool"],
         )
-        self.reader = WineryReader(
+        self.reader: WineryReader = WineryReader(
             throttler=self.throttler, pool=self.pool, database=self.settings["database"]
         )
 
-        if readonly:
-            self.writer = None
-        else:
+        self.writer: Optional[WineryWriter] = None
+        if not readonly:
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
                 throttler_settings=self.settings.get("throttler"),
@@ -105,8 +106,6 @@ class WineryObjStorage(ObjStorage):
         return obj_id[self.PRIMARY_HASH]
 
     def __iter__(self) -> Iterator[CompositeObjId]:
-        if self.PRIMARY_HASH != "sha256":
-            raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
         for signature in self.reader.list_signatures():
             yield {"sha256": signature}
 

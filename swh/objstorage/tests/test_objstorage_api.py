@@ -17,14 +17,24 @@ from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 class TestRemoteObjStorage(ServerTestFixture, ObjStorageTestFixture):
     """Test the remote archive API."""
 
-    @pytest.fixture(autouse=True)
-    def objstorage(self, tmpdir):
+    @pytest.fixture
+    def swh_objstorage(request, swh_objstorage_config):
+        """Fixture that instantiates an object storage based on the configuration
+        returned by the ``swh_objstorage_config`` fixture.
+
+        Overloaded here to get rid of the primary_hash parametrization
+        """
+        return get_objstorage(**swh_objstorage_config)
+
+    @pytest.fixture(autouse=True, params=["sha1", "sha256"])
+    def objstorage(self, request, tmpdir):
         self.config = {
             "objstorage": {
                 "cls": "pathslicing",
                 "root": str(tmpdir),
                 "slicing": "0:1/0:5",
                 "allow_delete": True,
+                "primary_hash": request.param,
             },
             "client_max_size": 8 * 1024 * 1024,
         }

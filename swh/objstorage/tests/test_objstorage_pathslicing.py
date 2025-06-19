@@ -31,7 +31,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
         }
 
     def content_path(self, obj_id):
-        hex_obj_id = objid_to_default_hex(obj_id)
+        hex_obj_id = objid_to_default_hex(obj_id, self.storage.PRIMARY_HASH)
         return self.storage.slicer.get_path(hex_obj_id)
 
     def test_iter(self):

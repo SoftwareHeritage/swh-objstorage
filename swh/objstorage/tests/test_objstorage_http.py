@@ -20,8 +20,8 @@ from swh.objstorage.objstorage import objid_for_content
 from .objstorage_testing import FIRST_OBJID
 
 
-@pytest.fixture
-def build_objstorage():
+@pytest.fixture(params=("sha1", "sha256"))
+def build_objstorage(request):
     """Build an HTTPReadOnlyObjStorage suitable for tests
 
     this instancaite 2 ObjStorage, one HTTPReadOnlyObjStorage (the "front" one
@@ -31,7 +31,7 @@ def build_objstorage():
 
     Also fills the backend storage with a 100 objects.
     """
-    sto_back = get_objstorage(cls="memory")
+    sto_back = get_objstorage(cls="memory", primary_hash=request.param)
     objids = []
     for i in range(100):
         content = f"some content {i}".encode()
@@ -40,7 +40,7 @@ def build_objstorage():
         sto_back.add(content, obj_id=obj_id)
 
     url = "http://127.0.0.1/content/"
-    sto_front = get_objstorage(cls="http", url=url)
+    sto_front = get_objstorage(cls="http", url=url, primary_hash=request.param)
     mock = fixture.Fixture()
     mock.setUp()
 

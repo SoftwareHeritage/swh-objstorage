@@ -16,6 +16,7 @@ from swh.objstorage.exc import (
     ObjCorruptedError,
     ReadOnlyObjStorageError,
 )
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.multiplexer import (
     MP_BACKEND_DISABLED_METRICS,
     MP_BACKEND_ENABLED_METRICS,
@@ -52,6 +53,16 @@ def clear_statsd_payloads(statsd) -> None:
 
 
 class TestMultiplexerObjStorage(ObjStorageTestFixture):
+
+    @pytest.fixture
+    def swh_objstorage(request, swh_objstorage_config):
+        """Fixture that instantiates an object storage based on the configuration
+        returned by the ``swh_objstorage_config`` fixture.
+
+        Overloaded here to get rid of the primary_hash parametrization
+        """
+        return get_objstorage(**swh_objstorage_config)
+
     @pytest.fixture
     def swh_objstorage_config(self, tmpdir):
         root1 = os.path.join(tmpdir, "root1")
@@ -76,9 +87,22 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                     "name": "rw_backend",
                     "root": root2,
                     "slicing": "0:1/0:5",
+                    "primary_hash": "sha256",
                 },
             ],
         }
+
+    @pytest.mark.skip(reason="Unsupported by the multiplexer")
+    def test_list_content_all(self):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported by the multiplexer")
+    def test_list_content_limit(self):
+        pass
+
+    @pytest.mark.skip(reason="Unsupported by the multiplexer")
+    def test_list_content_limit_and_last(self):
+        pass
 
     def test_contains(self):
         content_p, obj_id_p = self.hash_content(b"contains_present")

@@ -168,6 +168,7 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
             container_name=self._container_name,
             compression=self.compression,
             use_secondary_endpoint_for_downloads=True,
+            primary_hash=self.storage.PRIMARY_HASH,
         )
         assert storage2.download_url(obj_id_p).startswith("http://localhost:")
 
