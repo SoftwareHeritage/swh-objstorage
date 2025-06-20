@@ -14,6 +14,7 @@ from libcloud.storage import providers
 import libcloud.storage.drivers.s3
 from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
@@ -59,7 +60,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
       kwargs: extra arguments are passed through to the LibCloud driver
     """
 
-    PRIMARY_HASH = "sha1"
+    primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "cloud"
 
     def __init__(
@@ -147,12 +148,12 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             if self.path_prefix:
                 name = name[len(self.path_prefix) :]
 
-            if self.PRIMARY_HASH == "sha1":
+            if self.primary_hash == "sha1":
                 yield {"sha1": bytes.fromhex(name)}
-            elif self.PRIMARY_HASH == "sha256":
+            elif self.primary_hash == "sha256":
                 yield {"sha256": bytes.fromhex(name)}
             else:
-                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
+                raise ValueError(f"Unknown primary hash {self.primary_hash}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -179,7 +180,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     @timed
     def get(self, obj_id: ObjId) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
-        return self.decompress(obj, objid_to_default_hex(obj_id, self.PRIMARY_HASH))
+        return self.decompress(obj, objid_to_default_hex(obj_id, self.primary_hash))
 
     def download_url(
         self,
@@ -196,7 +197,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 
     def _object_path(self, obj_id: ObjId) -> str:
         """Get the full path to an object"""
-        primary_hash = obj_id[self.PRIMARY_HASH]
+        primary_hash = obj_id[self.primary_hash]
 
         hex_primary_hash = primary_hash.hex()
         if self.path_prefix:

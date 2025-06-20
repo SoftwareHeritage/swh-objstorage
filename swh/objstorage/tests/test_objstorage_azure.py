@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2024  The Software Heritage developers
+# Copyright (C) 2016-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -168,7 +168,7 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
             container_name=self._container_name,
             compression=self.compression,
             use_secondary_endpoint_for_downloads=True,
-            primary_hash=self.storage.PRIMARY_HASH,
+            primary_hash=self.storage.primary_hash,
         )
         assert storage2.download_url(obj_id_p).startswith("http://localhost:")
 

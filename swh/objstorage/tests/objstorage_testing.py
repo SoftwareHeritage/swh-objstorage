@@ -85,8 +85,8 @@ class ObjStorageTestFixture:
             obj_id = objid_for_content(content)
             self.storage.add(content, obj_id, check_presence=False)
             all_ids.append(obj_id)
-        if self.storage.PRIMARY_HASH is not None:
-            all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
+        if self.storage.primary_hash is not None:
+            all_ids.sort(key=lambda d: d[self.storage.primary_hash])
         return all_ids
 
     def test_types(self):
@@ -108,7 +108,7 @@ class ObjStorageTestFixture:
                     "__iter__",
                     "__contains__",
                 )
-                or meth_name in ("PRIMARY_HASH",)  # XXX not exactly sure here...:
+                or meth_name in ("primary_hash",)  # XXX not exactly sure here...:
             ):
                 continue
             interface_meth = getattr(interface, meth_name)
@@ -155,7 +155,7 @@ class ObjStorageTestFixture:
         self.storage.add(content_p, obj_id=obj_id_p)
         assert obj_id_p in self.storage
         for hashalgo in ["sha1", "sha256"]:
-            if hashalgo == self.storage.PRIMARY_HASH:
+            if hashalgo == self.storage.primary_hash:
                 assert {hashalgo: obj_id_p[hashalgo]} in self.storage
             else:
                 with pytest.raises(KeyError):

@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,6 +13,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from swh.model import hashutil
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import (
     NonIterableObjStorageError,
     ObjNotFoundError,
@@ -57,7 +58,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH = "sha1"
+    primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "http"
 
     def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
@@ -73,7 +74,6 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             self.session.mount(
                 self.root_path, HTTPAdapter(max_retries=self.retries_cfg)
             )
-        assert self.primary_hash is not None
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -107,9 +107,8 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             resp.raise_for_status()
         except Exception:
             raise ObjNotFoundError(obj_id)
-        assert self.primary_hash is not None
         return self.decompress(
-            resp.content, objid_to_default_hex(obj_id, self.PRIMARY_HASH)
+            resp.content, objid_to_default_hex(obj_id, self.primary_hash)
         )
 
     def download_url(
@@ -121,7 +120,6 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return self._path(obj_id)
 
     def _hash(self, obj_id: ObjId) -> bytes:
-        assert self.primary_hash is not None
         return obj_id[self.primary_hash]
 
     def _path(self, obj_id):

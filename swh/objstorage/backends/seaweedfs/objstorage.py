@@ -10,6 +10,7 @@ from typing import Iterator, Optional
 from urllib.parse import urlparse
 
 from swh.objstorage.backends.pathslicing import PathSlicer
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
@@ -30,7 +31,7 @@ class SeaweedFilerObjStorage(ObjStorage):
     https://github.com/chrislusf/seaweedfs/wiki/Filer-Server-API
     """
 
-    PRIMARY_HASH = "sha1"
+    primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "seaweedfs"
 
     def __init__(
@@ -48,7 +49,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         self.root_path = urlparse(url).path
         if not self.root_path.endswith("/"):
             self.root_path += "/"
-        self.slicer = PathSlicer(self.root_path, slicing, self.PRIMARY_HASH)
+        self.slicer = PathSlicer(self.root_path, slicing, self.primary_hash)
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
@@ -71,12 +72,12 @@ class SeaweedFilerObjStorage(ObjStorage):
         """
         for fname in self.wf.iterfiles(self.root_path):
             bytehex = fname.rsplit("/", 1)[-1]
-            if self.PRIMARY_HASH == "sha1":
+            if self.primary_hash == "sha1":
                 yield {"sha1": bytes.fromhex(bytehex)}
-            elif self.PRIMARY_HASH == "sha256":
+            elif self.primary_hash == "sha256":
                 yield {"sha256": bytes.fromhex(bytehex)}
             else:
-                raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
+                raise ValueError(f"Unknown primary hash {self.primary_hash}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.
@@ -109,7 +110,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             LOGGER.info("Failed to get object %s: %r", self._path(obj_id), exc)
             raise ObjNotFoundError(obj_id)
 
-        return self.decompress(obj, objid_to_default_hex(obj_id, self.PRIMARY_HASH))
+        return self.decompress(obj, objid_to_default_hex(obj_id, self.primary_hash))
 
     def download_url(
         self,
@@ -138,4 +139,4 @@ class SeaweedFilerObjStorage(ObjStorage):
         slicing.
 
         """
-        return self.slicer.get_path(objid_to_default_hex(obj_id, self.PRIMARY_HASH))
+        return self.slicer.get_path(objid_to_default_hex(obj_id, self.primary_hash))

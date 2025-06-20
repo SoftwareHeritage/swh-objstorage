@@ -76,7 +76,7 @@ class ObjStorageInterface(Protocol):
 
     - name            name given to the object storage; useful e.g. for logging in
                       composite object storagges (multiplexer)
-    - PRIMARY_HASH    the hash algorithm used by this backend as primary key for
+    - primary_hash    the hash algorithm used by this backend as primary key for
                       content objects. Can be None for object storages that to
                       now implement object storage themselves (e.g. proxy
                       objstorage)
@@ -88,7 +88,7 @@ class ObjStorageInterface(Protocol):
 
     name: str
     # defined only for actual backends, but not for proxies/rpc etc.
-    PRIMARY_HASH: Optional[LiteralPrimaryHash] = None
+    primary_hash: Optional[LiteralPrimaryHash] = None
 
     def __init__(
         self,

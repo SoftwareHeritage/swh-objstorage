@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024  The Software Heritage developers
+# Copyright (C) 2021-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -47,7 +47,7 @@ def build_objstorage(request):
     def get_cb(request, context):
         dirname, basename = request.path.rsplit("/", 1)
         primary_hash = bytes.fromhex(basename)
-        back_objid = {sto_back.PRIMARY_HASH: primary_hash}
+        back_objid = {sto_back.primary_hash: primary_hash}
         if dirname == "/content" and back_objid in sto_back:
             return sto_back.get(back_objid)
         context.status_code = 404
@@ -55,7 +55,7 @@ def build_objstorage(request):
     def head_cb(request, context):
         dirname, basename = request.path.rsplit("/", 1)
         primary_hash = bytes.fromhex(basename)
-        back_objid = {sto_back.PRIMARY_HASH: primary_hash}
+        back_objid = {sto_back.primary_hash: primary_hash}
         if dirname != "/content" or back_objid not in sto_back:
             context.status_code = 404
             return b"Not Found"

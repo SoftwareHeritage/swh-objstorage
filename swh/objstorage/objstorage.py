@@ -122,7 +122,7 @@ CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
 
 
 class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
-    PRIMARY_HASH: Optional[LiteralPrimaryHash] = None
+    primary_hash: Optional[LiteralPrimaryHash] = None
     compression: CompressionFormat = "none"
     name: str = "objstorage"
     """Default objstorage name; can be overloaded at instantiation time giving a
@@ -139,7 +139,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
         # it becomes needed
         self.allow_delete = allow_delete
         if primary_hash is not None:
-            self.PRIMARY_HASH = primary_hash
+            self.primary_hash = primary_hash
         # if no name is given in kwargs, default to name defined as class attribute
         if "name" in kwargs:
             self.name = kwargs["name"]
@@ -212,12 +212,12 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             ret = decompressor.decompress(data)
         except (zlib.error, lzma.LZMAError, OSError):
             raise ObjCorruptedError(
-                f"content with {self.PRIMARY_HASH} hash {hex_obj_id} is not a proper "
+                f"content with {self.primary_hash} hash {hex_obj_id} is not a proper "
                 "compressed file"
             )
         if decompressor.unused_data:
             raise ObjCorruptedError(
-                f"trailing data found when decompressing content with {self.PRIMARY_HASH} "
+                f"trailing data found when decompressing content with {self.primary_hash} "
                 f"{hex_obj_id}"
             )
         return ret

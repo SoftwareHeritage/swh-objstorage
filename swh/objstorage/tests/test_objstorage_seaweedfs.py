@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -256,7 +256,7 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
             obj_id = objid_for_content(content)
             self.mock.content[path(obj_id)] = self.storage.compress(content)
             all_ids.append(obj_id)
-        all_ids.sort(key=lambda d: d[self.storage.PRIMARY_HASH])
+        all_ids.sort(key=lambda d: d[self.storage.primary_hash])
         return all_ids
 
     def test_compression(self):
@@ -287,12 +287,12 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
 
     def test_slicing(self):
         slicer = PathSlicer(
-            urlparse(self.url).path, self.slicing, self.storage.PRIMARY_HASH
+            urlparse(self.url).path, self.slicing, self.storage.primary_hash
         )
-        for i in range(ID_HEXDIGEST_LENGTH_BY_ALGO[self.storage.PRIMARY_HASH]):
+        for i in range(ID_HEXDIGEST_LENGTH_BY_ALGO[self.storage.primary_hash]):
             content, obj_id = self.hash_content(b"test slicing %i" % i)
             self.storage.add(content, obj_id=obj_id)
-            hex_obj_id = objid_to_default_hex(obj_id, self.storage.PRIMARY_HASH)
+            hex_obj_id = objid_to_default_hex(obj_id, self.storage.primary_hash)
             assert slicer.get_path(hex_obj_id) in self.mock.content
 
 

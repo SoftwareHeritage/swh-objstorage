@@ -1,10 +1,11 @@
-# Copyright (C) 2017-2024  The Software Heritage developers
+# Copyright (C) 2017-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from typing import Dict, Iterator
 
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
@@ -17,19 +18,17 @@ class InMemoryObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH = "sha1"
+    primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "memory"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.state: Dict[bytes, bytes] = {}
-        assert self.primary_hash is not None
 
     def check_config(self, *, check_write):
         return True
 
     def _state_key(self, obj_id: ObjId) -> bytes:
-        assert self.primary_hash is not None
         return obj_id[self.primary_hash]
 
     @timed

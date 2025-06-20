@@ -106,7 +106,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     """
 
-    PRIMARY_HASH: LiteralPrimaryHash = "sha1"
+    primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "azure"
 
     def __init__(
@@ -200,7 +200,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     def _internal_id(self, obj_id: ObjId) -> str:
         """Internal id is the hex version in objstorage."""
-        primary_hash = obj_id[self.PRIMARY_HASH]
+        primary_hash = obj_id[self.primary_hash]
         return primary_hash.hex()
 
     def check_config(self, *, check_write):
@@ -266,12 +266,12 @@ class AzureCloudObjStorage(ObjStorage):
         """Iterate over the objects present in the storage."""
         for client in self.get_all_container_clients():
             for obj in client.list_blobs():
-                if self.PRIMARY_HASH == "sha1":
+                if self.primary_hash == "sha1":
                     yield {"sha1": bytes.fromhex(obj.name)}
-                elif self.PRIMARY_HASH == "sha256":
+                elif self.primary_hash == "sha256":
                     yield {"sha256": bytes.fromhex(obj.name)}
                 else:
-                    raise ValueError(f"Unknown primary hash {self.PRIMARY_HASH}")
+                    raise ValueError(f"Unknown primary hash {self.primary_hash}")
 
     def __len__(self):
         """Compute the number of objects in the current object storage.

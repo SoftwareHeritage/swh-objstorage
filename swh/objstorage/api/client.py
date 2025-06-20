@@ -31,7 +31,7 @@ class RemoteObjStorage(RPCClient):
 
     """
 
-    PRIMARY_HASH: Optional[LiteralPrimaryHash] = None
+    primary_hash: Optional[LiteralPrimaryHash] = None
 
     api_exception = ObjStorageAPIError
     reraise_exceptions = [

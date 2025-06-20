@@ -8,6 +8,7 @@ import logging
 from multiprocessing import Process
 from typing import Callable, Dict, Iterator, List, Optional
 
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import CompositeObjId, ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class WineryObjStorage(ObjStorage):
-    PRIMARY_HASH = "sha256"
+    primary_hash: LiteralPrimaryHash = "sha256"
     name: str = "winery"
 
     def __init__(
@@ -103,7 +104,7 @@ class WineryObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id) from exc
 
     def _hash(self, obj_id: ObjId) -> bytes:
-        return obj_id[self.PRIMARY_HASH]
+        return obj_id[self.primary_hash]
 
     def __iter__(self) -> Iterator[CompositeObjId]:
         for signature in self.reader.list_signatures():
