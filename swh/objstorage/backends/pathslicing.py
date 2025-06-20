@@ -10,7 +10,6 @@ import tempfile
 from typing import Iterator, List
 
 from swh.objstorage.constants import (
-    ID_HASH_ALGO,
     ID_HEXDIGEST_LENGTH_BY_ALGO,
     LiteralPrimaryHash,
     is_valid_hexdigest,
@@ -34,7 +33,7 @@ FILE_MODE = 0o644
 logger = logging.getLogger(__name__)
 
 
-def is_valid_filename(filename: str, algo: LiteralPrimaryHash = ID_HASH_ALGO):
+def is_valid_filename(filename: str, algo: LiteralPrimaryHash):
     """Checks that the file points to a valid hexdigest for the given algo."""
 
     return is_valid_hexdigest(os.path.basename(filename), algo)
@@ -88,7 +87,7 @@ class PathSlicer:
             if ID_HEXDIGEST_LENGTH_BY_ALGO[self.primary_hash] < max_char:
                 raise ValueError(
                     "Algorithm %s has too short hash for slicing to char %d"
-                    % (ID_HASH_ALGO, max_char)
+                    % (self.primary_hash, max_char)
                 )
 
     def get_directory(self, hex_obj_id: str) -> str:

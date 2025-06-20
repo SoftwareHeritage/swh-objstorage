@@ -8,14 +8,6 @@ from typing import Dict, Literal
 LiteralHash = Literal["sha1", "sha1_git", "sha256", "blake2s256"]
 LiteralPrimaryHash = Literal["sha1", "sha256"]
 
-ID_HASH_ALGO: Literal["sha1"] = "sha1"
-
-ID_HEXDIGEST_LENGTH = 40
-"""Size in bytes of the hash hexadecimal representation."""
-
-ID_DIGEST_LENGTH = 20
-"""Size in bytes of the hash"""
-
 VALID_HEXCHARS = frozenset("0123456789abcdef")
 """Valid characters for hexadecimal values"""
 
