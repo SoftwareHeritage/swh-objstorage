@@ -8,7 +8,7 @@ from swh.objstorage.backends.pathslicing import PathSlicer
 
 
 def test_pathslicer():
-    slicer = PathSlicer("/", "0:2/2:4/4:6", "sha1")
+    slicer = PathSlicer(root="/", slicing="0:2/2:4/4:6", primary_hash="sha1")
     assert len(slicer) == 3
     assert slicer.check_config() is None
     assert (
@@ -24,7 +24,9 @@ def test_pathslicer():
         "32",
     ]
 
-    slicer = PathSlicer("/", "/0:1/0:5/", "sha1")  # trailing '/' are ignored
+    slicer = PathSlicer(
+        root="/", slicing="/0:1/0:5/", primary_hash="sha1"
+    )  # trailing '/' are ignored
     assert slicer.check_config() is None
     assert len(slicer) == 2
     assert (
@@ -40,12 +42,12 @@ def test_pathslicer():
     ]
 
     # funny one, with steps
-    slicer = PathSlicer("/", "0:6:2/1:7:2", "sha1")
+    slicer = PathSlicer(root="/", slicing="0:6:2/1:7:2", primary_hash="sha1")
     assert slicer.check_config() is None
     assert slicer.get_slices("123456789".ljust(40, "0")) == ["135", "246"]
 
     # reverse works too!
-    slicer = PathSlicer("/", "-1::-1", "sha1")
+    slicer = PathSlicer(root="/", slicing="-1::-1", primary_hash="sha1")
     assert slicer.check_config() is None
     assert slicer.get_slices("34973274ccef6ab4dfaaf86599792fa9c3fe4689") == [
         "34973274ccef6ab4dfaaf86599792fa9c3fe4689"[::-1]
@@ -64,7 +66,7 @@ def test_pathslicer_noop():
 
 
 def test_pathslicer_bad_hash():
-    slicer = PathSlicer("/", "0:2/2:4/4:6", "sha1")
+    slicer = PathSlicer(root="/", slicing="0:2/2:4/4:6", primary_hash="sha1")
     for hexhash in ("0" * 39, "0" * 41, ""):
         with pytest.raises(AssertionError):
             slicer.get_path(hexhash)
@@ -72,14 +74,18 @@ def test_pathslicer_bad_hash():
 
 def test_pathslicer_check_config():
     with pytest.raises(ValueError):
-        PathSlicer("/", "toto", "sha1")
+        PathSlicer(root="/", slicing="toto", primary_hash="sha1")
 
     with pytest.raises(ValueError):
-        PathSlicer("/", "/1:2/a:b/", "sha1")
+        PathSlicer(root="/", slicing="/1:2/a:b/", primary_hash="sha1")
 
-    assert PathSlicer("/", "0:40", "sha1").check_config() is None
+    assert (
+        PathSlicer(root="/", slicing="0:40", primary_hash="sha1").check_config() is None
+    )
     with pytest.raises(ValueError):
-        PathSlicer("/", "0:41", "sha1").check_config()
-    assert PathSlicer("/", "40:", "sha1").check_config() is None
+        PathSlicer(root="/", slicing="0:41", primary_hash="sha1").check_config()
+    assert (
+        PathSlicer(root="/", slicing="40:", primary_hash="sha1").check_config() is None
+    )
     with pytest.raises(ValueError):
-        PathSlicer("/", "41:", "sha1").check_config()
+        PathSlicer(root="/", slicing="41:", primary_hash="sha1").check_config()
