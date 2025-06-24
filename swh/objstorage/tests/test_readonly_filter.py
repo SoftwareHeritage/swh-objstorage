@@ -56,28 +56,6 @@ def test_can_contains(objstorage, contentdata):
     assert contentdata["absent_id"] not in objstorage
 
 
-def test_can_iter(objstorage, contentdata):
-    valid_id_items = set(contentdata["valid_id"].items())
-    invalid_id_items = set(contentdata["invalid_id"].items())
-
-    has_valid_id = False
-    has_invalid_id = False
-    known = list(iter(objstorage))
-    for value in known:
-        value_items = set(value.items())
-        if value_items <= valid_id_items:
-            has_valid_id = True
-        if value_items <= invalid_id_items:
-            has_invalid_id = True
-
-    assert has_valid_id, f"{contentdata['valid_id']} not found in {known}"
-    assert has_invalid_id, f"{contentdata['invalid_id']} not found in {known}"
-
-
-def test_can_len(objstorage, contentdata):
-    assert len(objstorage) == 2
-
-
 def test_can_get(objstorage, contentdata):
     assert contentdata["valid_content"] == objstorage.get(contentdata["valid_id"])
     assert contentdata["invalid_content"] == objstorage.get(contentdata["invalid_id"])

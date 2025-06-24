@@ -262,26 +262,6 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             return True
 
-    def __iter__(self) -> Iterator[ObjId]:
-        """Iterate over the objects present in the storage."""
-        for client in self.get_all_container_clients():
-            for obj in client.list_blobs():
-                if self.primary_hash == "sha1":
-                    yield {"sha1": bytes.fromhex(obj.name)}
-                elif self.primary_hash == "sha256":
-                    yield {"sha256": bytes.fromhex(obj.name)}
-                else:
-                    raise ValueError(f"Unknown primary hash {self.primary_hash}")
-
-    def __len__(self):
-        """Compute the number of objects in the current object storage.
-
-        Returns:
-            number of objects contained in the storage.
-
-        """
-        return sum(1 for i in self)
-
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
         """Add an obj in storage if it's not there already."""

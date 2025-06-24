@@ -6,7 +6,7 @@
 import logging
 import queue
 import threading
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 # note: it's required to access the statsd object form the statsd module to
 # help mocking it in tests...
@@ -337,14 +337,6 @@ class MultiplexerObjStorage(ObjStorage):
             if obj_id in storage:
                 return True
         return False
-
-    def __iter__(self) -> Iterator[ObjId]:
-        def obj_iterator():
-            for i, storage in enumerate(self.storages):
-                if i in self.active_readers:
-                    yield from storage
-
-        return obj_iterator()
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:

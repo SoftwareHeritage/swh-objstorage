@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterator, Optional
+from typing import Optional
 
 from swh.core.api import RPCClient
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -46,9 +46,6 @@ class RemoteObjStorage(RPCClient):
 
     def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
         return self.add(content, obj_id, check_presence=False)
-
-    def __iter__(self) -> Iterator[ObjId]:
-        raise NotImplementedError()
 
 
 # XXX Maybe there is a better way of doing this, but according the automagic

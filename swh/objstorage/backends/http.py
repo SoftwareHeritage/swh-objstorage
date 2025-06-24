@@ -5,7 +5,7 @@
 
 from datetime import timedelta
 import logging
-from typing import Dict, Iterator, Optional
+from typing import Dict, Optional
 from urllib.parse import urljoin
 
 from requests import Session
@@ -14,11 +14,7 @@ from urllib3.util import Retry
 
 from swh.model import hashutil
 from swh.objstorage.constants import LiteralPrimaryHash
-from swh.objstorage.exc import (
-    NonIterableObjStorageError,
-    ObjNotFoundError,
-    ReadOnlyObjStorageError,
-)
+from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import (
     CompressionFormat,
@@ -83,12 +79,6 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def __contains__(self, obj_id: ObjId) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
-
-    def __iter__(self) -> Iterator[ObjId]:
-        raise NonIterableObjStorageError("__iter__")
-
-    def __len__(self):
-        raise NonIterableObjStorageError("__len__")
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:

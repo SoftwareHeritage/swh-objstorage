@@ -3,11 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterator, Union
+from typing import Dict, Union
 
 from swh.objstorage.exc import ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.interface import ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage
 
 
@@ -27,25 +27,6 @@ class ReadOnlyProxyObjStorage(ObjStorage):
 
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
-
-    def __iter__(self) -> Iterator[ObjId]:
-        """Iterates over the content of each storages
-
-        Warning: The `__iter__` methods frequently have bad performance. You
-        almost certainly don't want to use this method in production as the
-        wrapped storage may cause performance issues.
-        """
-        return self.storage.__iter__()
-
-    def __len__(self):
-        """Compute the number of objects in the current object storage.
-
-        Warning: performance issue in `__iter__` also applies here.
-
-        Returns:
-            number of objects contained in the storage.
-        """
-        return self.storage.__len__()
 
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import logging
 import os
 import tempfile
-from typing import Iterator, List
+from typing import List
 
 from swh.objstorage.constants import (
     ID_HEXDIGEST_LENGTH_BY_ALGO,
@@ -215,47 +215,6 @@ class PathSlicingObjStorage(ObjStorage):
         hex_obj_id = objid_to_default_hex(obj_id, self.primary_hash)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
-    def __iter__(self) -> Iterator[ObjId]:
-        """Iterate over the object identifiers currently available in the
-        storage.
-
-        Warning: with the current implementation of the object
-        storage, this method will walk the filesystem to list objects,
-        meaning that listing all objects will be very slow for large
-        storages. You almost certainly don't want to use this method
-        in production.
-
-        Return:
-            Iterator over object IDs
-
-        """
-
-        # XXX hackish: it does not verify that the depth of found files
-        # matches the slicing depth of the storage
-        for root, _dirs, files in os.walk(self.root):
-            _dirs.sort()
-            for f in sorted(files):
-                if not is_valid_filename(f, algo=self.primary_hash):
-                    logger.warning("__iter__ skipping over invalid file %s/%s", root, f)
-                    continue
-                if self.primary_hash == "sha1":
-                    yield {"sha1": bytes.fromhex(f)}
-                elif self.primary_hash == "sha256":
-                    yield {"sha256": bytes.fromhex(f)}
-                else:
-                    raise ValueError(f"Unknown primary hash {self.primary_hash}")
-
-    def __len__(self) -> int:
-        """Compute the number of objects available in the storage.
-
-        Warning: this currently uses `__iter__`, its warning about bad
-        performances applies
-
-        Return:
-            number of objects contained in the storage
-        """
-        return sum(1 for i in self)
-
     @timed
     def add(
         self,
@@ -292,34 +251,6 @@ class PathSlicingObjStorage(ObjStorage):
         except FileNotFoundError:
             raise ObjNotFoundError(obj_id)
         return True
-
-    # Streaming methods
-    def iter_from(self, obj_id, n_leaf=False):
-        hex_obj_id = objid_to_default_hex(obj_id, self.primary_hash)
-        slices = self.slicer.get_slices(hex_obj_id)
-        rlen = len(self.root.split("/"))
-
-        i = 0
-        for root, dirs, files in os.walk(self.root):
-            if not dirs:
-                i += 1
-            level = len(root.split("/")) - rlen
-            dirs.sort()
-            if dirs and root == os.path.join(self.root, *slices[:level]):
-                cslice = slices[level]
-                for d in dirs[:]:
-                    if d < cslice:
-                        dirs.remove(d)
-            for f in sorted(files):
-                if not is_valid_filename(f, algo=self.primary_hash):
-                    logger.warning(
-                        "iter_from skipping over invalid file %s/%s", root, f
-                    )
-                    continue
-                if f > hex_obj_id:
-                    yield {self.primary_hash: bytes.fromhex(f)}
-        if n_leaf:
-            yield i
 
     @contextmanager
     def _write_obj_file(self, hex_obj_id):

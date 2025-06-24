@@ -10,7 +10,7 @@ from typing import Callable, Dict, Iterator, List, Optional
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
 
 from . import roshard, settings
@@ -105,10 +105,6 @@ class WineryObjStorage(ObjStorage):
 
     def _hash(self, obj_id: ObjId) -> bytes:
         return obj_id[self.primary_hash]
-
-    def __iter__(self) -> Iterator[CompositeObjId]:
-        for signature in self.reader.list_signatures():
-            yield {"sha256": signature}
 
     def on_shutdown(self):
         self.reader.on_shutdown()

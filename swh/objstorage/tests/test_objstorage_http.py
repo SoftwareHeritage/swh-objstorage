@@ -9,7 +9,6 @@ import requests_mock
 from requests_mock.contrib import fixture
 
 from swh.objstorage.exc import (
-    NonIterableObjStorageError,
     ObjCorruptedError,
     ObjNotFoundError,
     ReadOnlyObjStorageError,
@@ -115,15 +114,6 @@ def test_http_objstorage_read_only(build_objstorage):
         sto_front.restore(b"", obj_id=objid_for_content(b""))
     with pytest.raises(ReadOnlyObjStorageError):
         sto_front.delete(b"\x00" * 20)
-
-
-def test_http_objstorage_not_iterable(build_objstorage):
-    sto_front, _, _ = build_objstorage
-
-    with pytest.raises(NonIterableObjStorageError):
-        len(sto_front)
-    with pytest.raises(NonIterableObjStorageError):
-        iter(sto_front)
 
 
 def test_http_cannonical_url():

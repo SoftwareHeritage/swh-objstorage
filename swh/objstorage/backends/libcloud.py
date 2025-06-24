@@ -7,7 +7,7 @@ import abc
 from collections import OrderedDict
 from datetime import timedelta
 from io import BytesIO
-from typing import Iterator, Optional
+from typing import Optional
 from urllib.parse import urlencode
 
 from libcloud.storage import providers
@@ -128,44 +128,6 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             return False
         else:
             return True
-
-    def __iter__(self) -> Iterator[ObjId]:
-        """Iterate over the objects present in the storage
-
-        Warning: Iteration over the contents of a cloud-based object storage
-        may have bad efficiency: due to the very high amount of objects in it
-        and the fact that it is remote, get all the contents of the current
-        object storage may result in a lot of network requests.
-
-        You almost certainly don't want to use this method in production.
-        """
-        for obj in self.driver.iterate_container_objects(self.container):
-            name = obj.name
-
-            if self.path_prefix and not name.startswith(self.path_prefix):
-                continue
-
-            if self.path_prefix:
-                name = name[len(self.path_prefix) :]
-
-            if self.primary_hash == "sha1":
-                yield {"sha1": bytes.fromhex(name)}
-            elif self.primary_hash == "sha256":
-                yield {"sha256": bytes.fromhex(name)}
-            else:
-                raise ValueError(f"Unknown primary hash {self.primary_hash}")
-
-    def __len__(self):
-        """Compute the number of objects in the current object storage.
-
-        Warning: this currently uses `__iter__`, its warning about bad
-        performance applies.
-
-        Returns:
-            number of objects contained in the storage.
-
-        """
-        return sum(1 for i in self)
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:

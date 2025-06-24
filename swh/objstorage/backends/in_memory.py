@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterator
+from typing import Dict
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
@@ -34,12 +34,6 @@ class InMemoryObjStorage(ObjStorage):
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
         return self._state_key(obj_id) in self.state
-
-    def __iter__(self) -> Iterator[ObjId]:
-        assert self.primary_hash is not None
-        phash: LiteralPrimaryHash = self.primary_hash
-        for id_ in sorted(self.state):
-            yield {phash: id_}  # type: ignore
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:

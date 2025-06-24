@@ -319,13 +319,6 @@ class ObjStorageTestFixture:
         for obj_id, content in contents:
             assert obj_id in self.storage
 
-    def test_content_iterator(self):
-        sto_obj_ids = list(iter(self.storage))
-        assert not sto_obj_ids
-        obj_ids = self.fill_objstorage(self.num_objects)
-        sto_obj_ids = list(self.storage)
-        assert_objid_lists_compatible(obj_ids, sto_obj_ids)
-
     def test_download_url(self):
         content = b"foo"
         obj_id = objid_for_content(content)
