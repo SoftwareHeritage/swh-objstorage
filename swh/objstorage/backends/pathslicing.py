@@ -163,6 +163,8 @@ class PathSlicingObjStorage(ObjStorage):
         slicing (str): string that indicates the slicing to perform
             on the hash of the content to know the path where it should
             be stored (see the documentation of the PathSlicer class).
+        compression (str): compression algorithm to apply per file. Defaults to gzip,
+            set to "none" to disable compression.
 
     """
 
