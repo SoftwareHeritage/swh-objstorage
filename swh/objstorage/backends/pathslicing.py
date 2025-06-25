@@ -173,7 +173,7 @@ class PathSlicingObjStorage(ObjStorage):
         self,
         *,
         root: str = "",
-        compression: CompressionFormat = "gzip",
+        compression: CompressionFormat | None = None,
         slicing: str = "",
         **kwargs,
     ):
@@ -182,6 +182,9 @@ class PathSlicingObjStorage(ObjStorage):
         self.slicer = PathSlicer(root, slicing, self.primary_hash)
 
         self.use_fdatasync = hasattr(os, "fdatasync")
+        if compression is None:
+            logger.warning("Compression is undefined: defaulting to gzip")
+            compression = "gzip"
         self.compression = compression
 
         self.check_config(check_write=False)
