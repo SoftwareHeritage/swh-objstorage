@@ -7,6 +7,7 @@ import asyncio
 import contextlib
 from datetime import datetime, timedelta, timezone
 from itertools import product
+import logging
 import string
 from typing import Iterable, Iterator, Mapping, Optional, Union
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +28,8 @@ from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
 from swh.objstorage.utils import call_async
+
+logger = logging.getLogger(__name__)
 
 
 def get_container_url(
@@ -117,7 +120,7 @@ class AzureCloudObjStorage(ObjStorage):
         api_secret_key: Optional[str] = None,
         container_name: Optional[str] = None,
         connection_string: Optional[str] = None,
-        compression: CompressionFormat = "gzip",
+        compression: CompressionFormat | None = None,
         use_secondary_endpoint_for_downloads=False,
         **kwargs,
     ):
@@ -149,8 +152,11 @@ class AzureCloudObjStorage(ObjStorage):
         super().__init__(**kwargs)
         self.container_url = container_url
         self.connection_string = connection_string
-        self.compression = compression
         self.use_secondary = use_secondary_endpoint_for_downloads
+        if compression is None:
+            logger.warning("Compression is undefined: defaulting to gzip")
+            compression = "gzip"
+        self.compression = compression
 
     def get_container_client(self, hex_obj_id):
         """Get the container client for the container that contains the object with
@@ -392,7 +398,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         self,
         accounts: Mapping[str, Union[str, Mapping[str, str]]],
         name: str = "azure-prefixed",
-        compression: CompressionFormat = "gzip",
+        compression: CompressionFormat | None = None,
         **kwargs,
     ):
         # shortcut AzureCloudObjStorage __init__
@@ -402,6 +408,9 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
             **kwargs,
         )
 
+        if compression is None:
+            logger.warning("Compression is undefined: defaulting to gzip")
+            compression = "gzip"
         self.compression = compression
 
         # Definition sanity check
