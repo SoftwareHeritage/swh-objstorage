@@ -7,6 +7,7 @@ import abc
 from collections import OrderedDict
 from datetime import timedelta
 from io import BytesIO
+import logging
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -23,6 +24,8 @@ from swh.objstorage.objstorage import (
     objid_to_default_hex,
     timed,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def patch_libcloud_s3_urlencode():
@@ -66,7 +69,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def __init__(
         self,
         container_name: str,
-        compression: CompressionFormat = "gzip",
+        compression: CompressionFormat | None = None,
         path_prefix: Optional[str] = None,
         **kwargs,
     ):
@@ -74,6 +77,9 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         self.driver = self._get_driver(**kwargs)
         self.container_name = container_name
         self.container = self.driver.get_container(container_name=container_name)
+        if compression is None:
+            logger.warning("Compression is undefined: defaulting to gzip")
+            compression = "gzip"
         self.compression = compression
         self.path_prefix = None
         if path_prefix:
