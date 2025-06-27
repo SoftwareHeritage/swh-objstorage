@@ -78,7 +78,10 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         self.container_name = container_name
         self.container = self.driver.get_container(container_name=container_name)
         if compression is None:
-            logger.warning("Compression is undefined: defaulting to gzip")
+            logger.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
             compression = "gzip"
         self.compression = compression
         self.path_prefix = None

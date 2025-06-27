@@ -38,12 +38,18 @@ class SeaweedFilerObjStorage(ObjStorage):
         self,
         *,
         url: str = "",
-        compression: CompressionFormat = "none",
+        compression: CompressionFormat | None = None,
         slicing: str = "",
         pool_maxsize: int = 100,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        if compression is None:
+            LOGGER.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
+            compression = "none"
         self.compression = compression
         self.wf = HttpFiler(url, pool_maxsize=pool_maxsize)
         self.root_path = urlparse(url).path
