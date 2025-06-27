@@ -185,7 +185,10 @@ class PathSlicingObjStorage(ObjStorage):
 
         self.use_fdatasync = hasattr(os, "fdatasync")
         if compression is None:
-            logger.warning("Compression is undefined: defaulting to gzip")
+            logger.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
             compression = "gzip"
         self.compression = compression
 

@@ -154,7 +154,10 @@ class AzureCloudObjStorage(ObjStorage):
         self.connection_string = connection_string
         self.use_secondary = use_secondary_endpoint_for_downloads
         if compression is None:
-            logger.warning("Compression is undefined: defaulting to gzip")
+            logger.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
             compression = "gzip"
         self.compression = compression
 
@@ -409,7 +412,10 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         )
 
         if compression is None:
-            logger.warning("Compression is undefined: defaulting to gzip")
+            logger.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
             compression = "gzip"
         self.compression = compression
 
