@@ -70,7 +70,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         if compression is None:
             LOGGER.warning(
                 "Deprecated: compression is undefined. "
-                "Defaulting to gzip, but please set it explicitly."
+                "Defaulting to none, but please set it explicitly."
             )
             compression = "none"
         self.compression = compression
