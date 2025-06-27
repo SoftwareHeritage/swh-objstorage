@@ -580,9 +580,15 @@ class SharedBase(Database):
           (which can differ from the currently locked shard, if the object was
           added in another concurrent transaction).
         """
+        # for a previously deleted content, we want to overwrite the row with
+        # re-added content; this may happen in the context of a swh-alter
+        # restore procedure
         db.execute(
             "INSERT INTO signature2shard (signature, shard, state) "
-            "VALUES (%s, %s, 'present') ON CONFLICT (signature) DO NOTHING",
+            "VALUES (%s, %s, 'present') "
+            "ON CONFLICT (signature) DO UPDATE "
+            "  SET shard=EXCLUDED.shard, state=EXCLUDED.state "
+            "  WHERE signature2shard.state='deleted'",
             (obj_id, self.locked_shard_id),
         )
         cur = db.execute(

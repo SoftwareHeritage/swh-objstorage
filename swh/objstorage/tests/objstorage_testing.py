@@ -285,18 +285,31 @@ class ObjStorageTestFixture:
         with pytest.raises(ObjNotFoundError):
             self.storage.get(obj_id)
 
+    def test_delete_readd(self):
+        self.storage.allow_delete = True
+        content, obj_id = self.hash_content(b"content_to_delete")
+        self.storage.add(content, obj_id=obj_id)
+        assert self.storage.delete(obj_id)
+        with pytest.raises(ObjNotFoundError):
+            self.storage.get(obj_id)
+        # reinsert the object
+        self.storage.add(content, obj_id=obj_id)
+        assert self.storage.get(obj_id)
+
     def test_delete_not_allowed(self):
         self.storage.allow_delete = False
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         with pytest.raises(PermissionError):
             self.storage.delete(obj_id)
+        assert self.storage.get(obj_id)
 
     def test_delete_not_allowed_by_default(self):
         content, obj_id = self.hash_content(b"content_to_delete")
         self.storage.add(content, obj_id=obj_id)
         with pytest.raises(PermissionError):
             self.storage.delete(obj_id)
+        assert self.storage.get(obj_id)
 
     def test_add_batch(self):
         contents = []

@@ -122,6 +122,9 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
     def test_delete_present(self, allow_delete):
         super().test_delete_present()
 
+    def test_delete_readd(self, allow_delete):
+        super().test_delete_readd()
+
     def test_access_readonly(self):
         # Add a content to the readonly storage
         content, obj_id = self.hash_content(b"content in read-only")
