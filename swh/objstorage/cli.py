@@ -116,7 +116,29 @@ def winery(ctx):
 @click.option("--stop-after-shards", type=click.INT, default=None)
 @click.pass_context
 def winery_packer(ctx, stop_after_shards: Optional[int] = None):
-    """Run a winery packer process"""
+    """Run the winery packer process
+
+    This process is in charge of creating (packing) shard files when a winery
+    writer has accumulated enough file objects to reach the shard's `max_size`
+    size.
+
+    When a shard becomes full, it gets locked by this packer service. The shard
+    creation can then occur either as part of the packing step (within this
+    process) when `create_images` configuration option is set, or waited for
+    (in this case, the shard creation processing is delegated to the shard
+    managenent tool, aka `swh objstorage winery rdb`).
+
+    When the shard file is ready, the shard gets packed.
+
+    If `clean_immediately` is set, the write shard is immediately removed and
+    the shard moved to the `readonly` state.
+
+    Note: when using a `cls: directory` type for `shards_pool` configuration,
+    it is advisable to set `create_images` to True; the `rdb` management
+    process is then unnecessary (when writing directly in shard files, there is
+    no need for provisionning the RDB volume etc.).
+
+    """
     import signal
 
     from swh.objstorage.backends.winery.objstorage import shard_packer
@@ -155,7 +177,23 @@ def winery_rbd(
     manage_rw_images: bool = True,
     only_prefix: Optional[str] = None,
 ):
-    """Run a winery RBD image manager process"""
+    """Run a winery RBD image manager process
+
+    This process is in charge of creating and mapping image files for shards.
+    This is required for `shards_pool` of type `cls: rbd`. It will:
+
+      - Map all `readonly` shards (if need be).
+
+      - If `manage_rw_images` is true, provision a new RBD image in the Ceph
+        cluster each time a shard appears in the `standby` or `writing` state.
+
+      - When a shard packing completes (shrd status becomes one of `packed`,
+        `cleaning`, `readonly`), the image is mapped read-only.
+
+      - Record mapping event in the database.
+
+
+    """
     import signal
 
     from swh.objstorage.backends.winery.roshard import manage_images, pool_from_settings
@@ -223,7 +261,20 @@ def winery_rw_shard_cleaner(
     stop_instead_of_waiting: bool = False,
     min_mapped_hosts: int = 1,
 ):
-    """Run a winery RBD image manager process"""
+    """Run the winery database image manager process
+
+    This process is responsible for cleaning winery DB tables for shards that
+    have been packed.
+
+    It performs clean up of the `packed` read-write shards, as soon as they are
+    recorded as mapped on enough (`--min-mapped-hosts`) hosts. They get locked
+    in the `cleaning` state, the database cleanup is performed, then the shard
+    gets moved in the final `readonly` state.
+
+    This process should run continuously as a background process if the winery
+    setup is configured with `clean_immediately=false`.
+
+    """
     import signal
 
     from swh.objstorage.backends.winery.objstorage import rw_shard_cleaner
