@@ -107,6 +107,23 @@ will only use the Read Shard to find the objects it contains. If
 destroyed because it is no longer useful and the process terminates on success.
 
 
+Shards pool backends
+--------------------
+
+Winery support 2 types of pool to store shard files in which all the objects
+accumulated in a read-write shard are packed:
+
+- Ceph RBD (`rbd`): this is the original design; it uses directly Ceph RBD
+  volumes to pack all content objects in, using the `swh-shard` file format.
+  When a RBD volume has been created, or at starting time of a winery frontend
+  node, RDB volumes are mounted on the winery frontend node to be usable as
+  source to read objects from.
+
+- Regular files (`directory`): in this backend, regular files are created in a
+  directory (the `base_directory` configuration entry under the `shards_pool`
+  section). In a production-like deployment, this directory will typically be
+  made available on all winery front-end nodes via a shared storage solution
+  like NFS or CephFS.
 
 
 Distributed mode
