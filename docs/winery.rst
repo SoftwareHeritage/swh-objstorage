@@ -129,8 +129,8 @@ accumulated in a read-write shard are packed:
 Distributed mode
 ----------------
 
-In distributed mode, `Winery` is deployed as a few separate components that
-synchronize each other using the shared database:
+`Winery` is usually deployed as a few separate components that synchronize each
+other using the shared database (aka in a distributed mode):
 
 * read-only instances provide access, in read-only mode, to both read-only
   shards, and shards that are currently being written to
@@ -178,7 +178,9 @@ synchronize each other using the shared database:
 Configuration
 -------------
 
-`Winery` uses a structured configuration schema::
+`Winery` uses a structured configuration schema.
+
+Here is a typical configuration for a RBD shards pool backend::
 
   objstorage:
     cls: winery
@@ -230,11 +232,21 @@ Configuration
       # exclusive-lock, object-map and fast-diff, for Linux kernels older than 5.3
       image_features_unsupported: []
 
-      ## Settings for the directory shards pool
-      # Shards are stored in `{base_directory}/{pool_name}`
-      type: directory
-      base_directory: /srv/winery/pool
-      pool_name: shards
+    # Packer-related settings
+    packer:
+      # Whether the winery writer should start packing shards immediately, or
+      # defer to the standalone packer (default: true, the writer launches a
+      # background packer process)
+      pack_immediately: false
+
+      # Whether the packer should create shards in the shard pool, or defer to
+      # the pool manager (default: true, the packer creates images)
+      create_images: false
+
+      # Whether the packer should clean read-write shards from the database
+      # immediately, or defer to the rw shard cleaner (default: true, the packer
+      # cleans read-write shards immediately)
+      clean_immediately: false
 
     # Optional throttler configuration, leave unset to disable throttling
     throttler:
@@ -248,6 +260,42 @@ Configuration
 
       # integer: max write bytes per second
       max_write_bps: 100_000_000
+
+
+Here is typical configuration for a directory shards pool backend::
+
+  objstorage:
+    cls: winery
+
+    # boolean (false (default): allow writes, true: only allow reads)
+    readonly: false
+
+    # Shards-related settings
+    shards:
+      # integer: threshold in bytes above which shards get packed. Can be
+      # overflowed by the max allowed object size.
+      max_size: 100_000_000_000
+
+      # float: timeout in seconds after which idle read-write shards get
+      # released by the winery writer process
+      rw_idle_timeout: 300
+
+    # Shared database settings
+    database:
+      # string: PostgreSQL connection string for the object index and read-write
+      # shards
+      db: winery
+
+      # string: PostgreSQL application name for connections (unset by default)
+      application_name: null
+
+    # Shards pool settings
+    shards_pool:
+      ## Settings for the directory shards pool
+      # Shards are stored in `{base_directory}/{pool_name}`
+      type: directory
+      base_directory: /srv/winery/pool
+      pool_name: shards
 
     # Packer-related settings
     packer:
@@ -264,3 +312,16 @@ Configuration
       # immediately, or defer to the rw shard cleaner (default: true, the packer
       # cleans read-write shards immediately)
       clean_immediately: true
+
+    # Optional throttler configuration, leave unset to disable throttling
+    throttler:
+      # string: PostgreSQL connection string for the throttler database. Can be
+      # shared with (and defaults to) the main database set in the `database`
+      # section. Must be read-write even for readonly instances.
+      db: winery
+
+      # integer: max read bytes per second
+      max_read_bps: 100_000_000
+
+      # integer: max write bytes per second
+      max_write_bps: 100_000_000
