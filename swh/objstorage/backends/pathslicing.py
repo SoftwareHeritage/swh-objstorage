@@ -163,6 +163,8 @@ class PathSlicingObjStorage(ObjStorage):
         slicing (str): string that indicates the slicing to perform
             on the hash of the content to know the path where it should
             be stored (see the documentation of the PathSlicer class).
+        compression (str): compression algorithm to apply per file. Defaults to gzip,
+            set to "none" to disable compression.
 
     """
 
@@ -173,7 +175,7 @@ class PathSlicingObjStorage(ObjStorage):
         self,
         *,
         root: str = "",
-        compression: CompressionFormat = "gzip",
+        compression: CompressionFormat | None = None,
         slicing: str = "",
         **kwargs,
     ):
@@ -182,6 +184,12 @@ class PathSlicingObjStorage(ObjStorage):
         self.slicer = PathSlicer(root, slicing, self.primary_hash)
 
         self.use_fdatasync = hasattr(os, "fdatasync")
+        if compression is None:
+            logger.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to gzip, but please set it explicitly."
+            )
+            compression = "gzip"
         self.compression = compression
 
         self.check_config(check_write=False)

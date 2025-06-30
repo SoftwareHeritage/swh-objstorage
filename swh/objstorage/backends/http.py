@@ -35,12 +35,14 @@ class HTTPReadOnlyObjStorage(ObjStorage):
       objstorage:
         cls: http
         url: https://softwareheritage.s3.amazonaws.com/content/
+        compression: gzip
 
     Retry strategy can be defined via the 'retry' configuration, e.g.::
 
       objstorage:
         cls: http
         url: https://softwareheritage.s3.amazonaws.com/content/
+        compression: gzip
         retry:
           total: 5
           backoff_factor: 0.2
@@ -57,12 +59,20 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "http"
 
-    def __init__(self, url=None, compression: CompressionFormat = "none", **kwargs):
+    def __init__(
+        self, url=None, compression: CompressionFormat | None = None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.session = Session()
         self.root_path = url
         if not self.root_path.endswith("/"):
             self.root_path += "/"
+        if compression is None:
+            LOGGER.warning(
+                "Deprecated: compression is undefined. "
+                "Defaulting to none, but please set it explicitly."
+            )
+            compression = "none"
         self.compression = compression
         retry: Optional[Dict] = kwargs.get("retry")
         if retry is not None:
