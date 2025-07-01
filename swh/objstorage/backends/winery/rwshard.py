@@ -7,7 +7,6 @@
 from contextlib import contextmanager, nullcontext
 from functools import partial
 import logging
-import platform
 from threading import Event, Thread
 import time
 from typing import Callable, ContextManager, Iterator, Optional, Protocol, Tuple
@@ -19,7 +18,7 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
-IS_PYPY = platform.python_implementation() == "PyPy"
+PG_IS_PYTHON = psycopg.pq.__impl__ == "python"
 
 
 class IdleHandler(Thread):
@@ -212,11 +211,11 @@ class RWShard(Database):
                 f"COPY {self.table_name} (key, content) TO STDOUT (FORMAT BINARY)"
             ) as copy:
                 copy.set_types(["bytea", "bytea"])
-                if not IS_PYPY:
-                    yield from copy.rows()
-                else:
+                if PG_IS_PYTHON:
                     for x, y in copy.rows():
                         yield (x.tobytes(), y.tobytes())
+                else:
+                    yield from copy.rows()
 
     def count(self) -> int:
         with self.pool.connection() as db, db.cursor() as c:
