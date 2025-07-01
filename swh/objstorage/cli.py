@@ -322,8 +322,12 @@ def import_directories(ctx, directory):
         for root, _dirs, files in os.walk(dirname):
             for name in files:
                 path = os.path.join(root, name)
-                with open(path, "rb") as f:
-                    content = f.read()
+                try:
+                    with open(path, "rb") as f:
+                        content = f.read()
+                except IOError as exc:
+                    click.echo(f"Failed to import {path} ({exc}), skipping")
+                    continue
                 objstorage.add(content, obj_id=objid_for_content(content))
                 volume += os.stat(path).st_size
                 nobj += 1
