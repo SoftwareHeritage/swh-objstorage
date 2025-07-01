@@ -18,7 +18,7 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
-PG_IS_PYTHON = psycopg.pq.__impl__ == "python"
+PQ_IS_PYTHON = psycopg.pq.__impl__ == "python"
 
 
 class IdleHandler(Thread):
@@ -211,10 +211,14 @@ class RWShard(Database):
                 f"COPY {self.table_name} (key, content) TO STDOUT (FORMAT BINARY)"
             ) as copy:
                 copy.set_types(["bytea", "bytea"])
-                if PG_IS_PYTHON:
+                if PQ_IS_PYTHON:
+                    # pure python implem of psycopg.pq does return memoryview
+                    # objects, not bytes
                     for x, y in copy.rows():
                         yield (x.tobytes(), y.tobytes())
                 else:
+                    # C/Binary versions of psycopg.pq (aka psycopg[c|binary]) do
+                    # return bytes objects directly
                     yield from copy.rows()
 
     def count(self) -> int:
