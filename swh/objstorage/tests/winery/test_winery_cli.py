@@ -6,6 +6,7 @@
 import copy
 import datetime
 import logging
+import os
 import re
 import tempfile
 
@@ -180,3 +181,21 @@ def test_winery_release_stale_shards(
     expected = r"^\s*No identified stale shard\s+"
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE), result.output
+
+
+def test_winery_import_shards_nothing(winery_settings):
+    result = invoke("winery", "import-shards", config=winery_settings)
+    assert result.exit_code == 0
+    assert "Pool winery-test-shards: nothing to do" in result.stdout
+
+
+def test_winery_import_shards_do_import(storage, winery_settings, shards):
+    pool = storage.pool
+    pooldir = pool.base_directory / pool.pool_name
+    for shard in shards:
+        name = os.path.basename(shard)
+        os.link(shard, pooldir / name)
+
+    result = invoke("winery", "import-shards", config=winery_settings)
+    assert result.exit_code == 0
+    assert "Pool winery-test-shards: imported 72 objects from 6 shards" in result.stdout

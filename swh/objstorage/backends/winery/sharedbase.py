@@ -355,7 +355,9 @@ class SharedBase(Database):
         if reset_locked_shard and not new_state.locked:
             self._locked_shard = None
 
-    def create_shard(self, new_state: ShardState) -> Tuple[str, int]:
+    def create_shard(
+        self, new_state: ShardState, name: str | None = None
+    ) -> Tuple[str, int]:
         """Create a new write shard (locked by the current `SharedBase`), with a
         generated name.
 
@@ -369,12 +371,15 @@ class SharedBase(Database):
           RuntimeError: if the shard creation failed (for instance if a shard
             with an identical name was created concurrently).
         """
-        name = uuid.uuid4().hex
-        #
-        # ensure the first character is not a number so it can be used as a
-        # database name.
-        #
-        name = "i" + name[1:]
+        if name is None:
+            name = uuid.uuid4().hex
+            #
+            # ensure the first character is not a number so it can be used as a
+            # database name.
+            #
+            name = "i" + name[1:]
+        assert not name[0].isnumeric()
+
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(
                 """\

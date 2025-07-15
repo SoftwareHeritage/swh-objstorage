@@ -583,3 +583,32 @@ def winery_release_stale_shards(ctx, shard_ids, lockers, duration, dry_run):
 
     else:
         click.echo("No identified stale shards to release")
+
+
+@winery.command("import-shards")
+@click.pass_context
+def winery_import_shards(ctx):
+    """Populate the winery database from existing shard files"""
+    from swh.objstorage.backends.winery.housekeeping import import_ro_shards
+    from swh.objstorage.backends.winery.pools import pool_from_settings
+    from swh.objstorage.backends.winery.sharedbase import SharedBase
+
+    settings = ctx.obj["winery_settings"]
+
+    if settings["shards_pool"]["type"] != "directory":
+        raise click.ClickException("winery import only works on a directory shard_pool")
+
+    pool = pool_from_settings(
+        shards_settings=settings["shards"],
+        shards_pool_settings=settings["shards_pool"],
+    )
+    base = SharedBase(base_dsn=settings["database"]["db"])
+
+    n_obj, n_shard = import_ro_shards(base, pool)
+    if n_obj:
+        click.echo(
+            "Pool %s: imported %s objects from %s shards"
+            % (pool.pool_name, n_obj, n_shard)
+        )
+    else:
+        click.echo("Pool %s: nothing to do" % (pool.pool_name,))

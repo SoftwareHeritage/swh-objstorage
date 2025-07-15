@@ -4,10 +4,16 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional, Tuple
+
+from psycopg.errors import UniqueViolation
+
+from swh.core.utils import grouper
+from swh.shard import Shard
+from swh.shard.cli import NULLKEY
 
 from . import roshard, settings
-from .pools import pool_from_settings
+from .pools import Pool, pool_from_settings
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -233,7 +239,7 @@ def cleanup_rw_shard(shard, base_dsn) -> bool:
 
 def deleted_objects_cleaner(
     base: SharedBase,
-    pool: roshard.Pool,
+    pool: Pool,
     stop_running: Callable[[], bool],
 ):
     """Clean up deleted objects from RO shards and the shared database.
@@ -257,3 +263,46 @@ def deleted_objects_cleaner(
         count += 1
 
     logger.info("Cleaned %d deleted objects", count)
+
+
+def import_ro_shards(
+    base: SharedBase, pool: Pool, shards: Iterable[str] | None = None
+) -> Tuple[int, int]:
+    """Import existing shard files in the winery database."""
+    n_obj = 0
+    n_shard = 0
+    if not shards:
+        shards = pool.image_list()
+    for imgname in shards:
+        with Shard(pool.image_path(imgname)) as s:
+            if base.get_shard_state(name=imgname) is not None:
+                logger.info(f"Shard {imgname} already exists, skipping")
+                continue
+            try:
+                base._locked_shard = base.create_shard(ShardState.PACKING, name=imgname)
+            except UniqueViolation:
+                # Should not happen, but sh*t happen, so better safe than sorry
+                # The shard already exists in the winery DB, skip it
+                logger.info(f"Shard {imgname} already exists, skipping")
+                # TODO: check stored entries match?
+                continue
+            with base.pool.connection() as db, db.transaction():
+                for keys in grouper(s, 10000):
+                    keys = [key for key in keys if key != NULLKEY]
+                    known = [key for key in keys if base.contains(key)]
+                    if known:
+                        logger.info(
+                            "Keys %s are already known, skipping",
+                            [key.hex() for key in known],
+                        )
+                    base.record_new_obj_ids(
+                        db, [key for key in keys if key not in known]
+                    )
+                    n_obj += len(keys) - len(known)
+
+            base.shard_packing_ends(imgname)
+            n_shard += 1
+            base.set_shard_state(name=imgname, new_state=ShardState.READONLY)
+            pool.image_map(imgname, options="ro")
+
+    return n_obj, n_shard

@@ -5,7 +5,10 @@
 
 from functools import partial
 import logging
+import os
+import tempfile
 import threading
+import uuid
 
 from click.testing import CliRunner
 import psycopg
@@ -18,6 +21,8 @@ from swh.objstorage.backends.winery.pools import FileBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import objid_for_content
+from swh.shard import Shard, ShardCreator
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,28 @@ def cli_runner(capsys):
                 return super().invoke(*args, **kwargs)
 
     return CapsysDisabledCliRunner()
+
+
+@pytest.fixture(scope="session")
+def shards():
+    count = 12
+    nshards = 6
+    shards = {}
+    with tempfile.TemporaryDirectory() as shards_dir:
+        for nshard in range(nshards):
+            name = "i" + uuid.uuid4().hex[1:]
+            path = os.path.join(shards_dir, name)
+            shards[path] = []
+            with ShardCreator(path, count) as shard:
+                for i in range(count):
+                    content = b"Housekeeping shard:%d content:%d" % (nshard, i)
+                    objid = objid_for_content(content)
+                    shard.write(objid["sha256"], content)
+                    shards[path].append(objid)
+        for path in shards:
+            shard = Shard(path)
+            assert shard.header.objects_count == count
+        yield shards
 
 
 @pytest.fixture
