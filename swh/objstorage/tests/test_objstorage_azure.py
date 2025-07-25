@@ -98,6 +98,7 @@ def azurite_connection_string(tmpdir_factory):
     azurite_proc = subprocess.Popen(
         [
             AZURITE_EXE,
+            "--skipApiVersionCheck",
             "--blobHost",
             host,
             "--blobPort",
