@@ -3,8 +3,120 @@
 Winery backend
 ==============
 
-The Winery backend implements the `Ceph based object storage architecture
+The Winery backend is an swh-objstorage backend that implements the `Ceph based
+object storage architecture
 <https://wiki.softwareheritage.org/wiki/A_practical_approach_to_efficiently_store_100_billions_small_objects_in_Ceph>`__.
+
+Design specifications
+---------------------
+
+The idea of the Winery backend is to provide an object storage capable of
+storing with decent performances the workload of the |swh| objstorage, that is
+(at time of writing, aka 08/2025):
+
+- about 2PB of total storage capacity
+- 25B unique objects, for witch:
+  - 75% are smaller than 16KB
+  - 50% are smaller than 4KB
+- capable of accepting many concurrent write operations
+
+The desired design specs for winery are:
+
+- Capable of handling 10PB storage capacity with commodity hardware
+- Capable of storgin 100 billion (mostly small) objects
+- At least 3,000 object/s and 100MB/s of write capacity
+- At least 3,000 object/s and 100MB/s of read capacity
+- Immune to space amplification
+- Getting the first byte of any object never takes longer than 100ms.
+- Objects can be enumerated in bulk, at least one million at a time.
+- Mirroring the content of the Software Heritage archive can be done in bulk,
+  at least one million objects at a time.
+
+Architecture
+------------
+
+In a nutshell, objects are written to a number of dedicated tables in a
+database used by a fixed number of services/machines (the Write Storage) that
+can vary to control the write throughput. When a threshold is reached (e.g.
+100GB) on a table, all objects in this table are put together in container (a
+Shard), and moved to a readonly storage that keeps expanding over time.
+
+After a successful write, a unique identifier (the Object ID) is returned to
+the client. It can be used to read the object back from the readonly storage.
+Reads scale out because the unique identifiers of the objects embed the name of
+the container (the Shard UUID). Writes also scales out because the database
+table in which the object is written is chosen randomly. This is the Layer 0.
+
+Since clients of the swh-objstorage API cannot keep track of the name of the
+container, it rely on an index mapping API that maps all known objects
+signatures (the Object HASH below) to the name of the container where they can
+be found. Although this index prevents scaling out writes, the readonly storage
+can still scale out by multiplying copies of the index as needed. This is the
+Layer 1.
+
+
+.. thumbnail:: ./_images/winery-architecture.svg
+
+   General view of a Winery based swh-objstorage.
+
+
+Writer storage
+~~~~~~~~~~~~~~
+
+This is the part of the winery objstorage backend responsible for writing new
+objects. Each new objstorage writer process will have create a new rw-shard by
+the mean of a new table in the database. As such, if a gunicorn server handling
+this writer storage is started with N workers, there will be N shard tables
+created in the database, thus allowing to handle N concurrent write requests.
+
+When a write request is received, it is routed to one of the writer worker by
+gunicorn, thus toward one of the open rw shards. It's identifier is added in
+the main shards index table and its content is added in the dedicated shard
+table.
+
+When a rw-shard is considered as full (when the total volume of objects stored
+in this rw-shard reached the ``max_shard_size`` limit -- typically 100BG), the
+shard is closed and does not access new objects.
+
+Then a packing process will come and dump all the objects from the database
+table into a shard file stored on the shard backend storage -- typically a Ceph
+cluster, either using RBD volumes directly, of saving shard files on a ceph-fs
+mounted shared filesystem. The shard entry in the shards table is marked as
+``readonly`` and the dedicated table can then be destroyed.
+
+Reader storage
+~~~~~~~~~~~~~~
+
+This is the part of the winery objstorage backend responsible for reading
+objects.
+
+There are 2 possible cases: the required object can be stored in a ro-shard (so
+in a shard-file stored in the shard file storage), or in a rw-shard (thus in
+one of the open shard tables in the database) when the object has not yet made
+its way all the way to a ro-shard file.
+
+When a object is requested, the shards index is queried to retrieve the
+identifier of the shard in which this object is. This id is used to retrieve
+the name and state of this shard. Depending on the state of the shard, the
+object content will then be retrieved either from the shard table (if the shard
+is not yet marked as ``readonly``), or retrieved from the shard file otherwise.
+
+
+Shard file backend storage
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Shard files are using a custom but simple binary file format to pack together a
+number of objects. It uses a cpmh based index system to make very fast to query
+for a particular object (from the object's hash -- sha256). It is using the
+:ref:`swh-shard` library to create, read and manipulate these files.
+
+In order to support the creation, storage and replication of 10k+ shard files,
+a clustered and safe storage solution must be used as backend.
+
+Initially, Winery only supported Ceph RBD volumesas backend, but it now
+supports writing these shard files in any shared storage space (CephFS, NFS
+etc).
+
 
 IO Throttling
 --------------
