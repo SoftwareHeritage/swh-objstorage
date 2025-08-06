@@ -41,19 +41,14 @@ can vary to control the write throughput. When a threshold is reached (e.g.
 100GB) on a table, all objects in this table are put together in container (a
 Shard), and moved to a readonly storage that keeps expanding over time.
 
-After a successful write, a unique identifier (the Object ID) is returned to
-the client. It can be used to read the object back from the readonly storage.
-Reads scale out because the unique identifiers of the objects embed the name of
-the container (the Shard UUID). Writes also scales out because the database
-table in which the object is written is chosen randomly. This is the Layer 0.
-
-Since clients of the swh-objstorage API cannot keep track of the name of the
-container, it rely on an index mapping API that maps all known objects
-signatures (the Object HASH below) to the name of the container where they can
-be found. Although this index prevents scaling out writes, the readonly storage
-can still scale out by multiplying copies of the index as needed. This is the
-Layer 1.
-
+After a successful write, a unique identifier (the Object ID, the sha256 sum of
+the content of the object by default) is stored in a global index table
+(``signature2shard``) with the unique identifier of the shard it has been added
+to. Reads can scale out because this table is write-only and can easily be
+scaled out if necessary. Writes also scales out because the database table in
+which the object is written is chosen randomly, and the number of such tables
+can be adapted to the desired write throughput -- as long as the
+``signature2shard`` table handles the write workload.
 
 .. thumbnail:: ./_images/winery-architecture.svg
 
