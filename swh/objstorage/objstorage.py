@@ -21,10 +21,10 @@ from typing import (
 import zlib
 
 from swh.core import statsd
-from swh.model import hashutil
+from swh.model.hashutil import HashDict, MultiHash, hash_to_hex
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.interface import ObjId, ObjStorageInterface, objid_from_dict
+from swh.objstorage.interface import ObjStorageInterface, objid_from_dict
 
 DURATION_METRICS = "swh_objstorage_request_duration_seconds"
 
@@ -47,13 +47,13 @@ def timed(f):
     return w
 
 
-def objid_to_default_hex(obj_id: ObjId, algo: LiteralPrimaryHash) -> str:
+def objid_to_default_hex(obj_id: HashDict, algo: LiteralPrimaryHash) -> str:
     """Converts multi-hashes to the hexadecimal representation
     of the given hash algo."""
-    return hashutil.hash_to_hex(obj_id[algo])
+    return hash_to_hex(obj_id[algo])
 
 
-def objid_for_content(content: bytes) -> ObjId:
+def objid_for_content(content: bytes) -> HashDict:
     """Compute the content's hashes.
 
     Args:
@@ -66,7 +66,7 @@ def objid_for_content(content: bytes) -> ObjId:
 
     """
     return objid_from_dict(
-        hashutil.MultiHash.from_data(
+        MultiHash.from_data(
             content,
         ).digest()
     )
@@ -146,7 +146,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
 
     def add_batch(
         self: ObjStorageInterface,
-        contents: Iterable[Tuple[ObjId, bytes]],
+        contents: Iterable[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         summary = {"object:add": 0, "object:add:bytes": 0}
@@ -158,12 +158,12 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             summary["object:add:bytes"] += len(content)
         return summary
 
-    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: HashDict) -> None:
         # check_presence to false will erase the potential previous content.
         self.add(content, obj_id, check_presence=False)
 
     def get_batch(
-        self: ObjStorageInterface, obj_ids: Iterable[ObjId]
+        self: ObjStorageInterface, obj_ids: Iterable[HashDict]
     ) -> Iterator[Optional[bytes]]:
         for obj_id in obj_ids:
             try:
@@ -172,23 +172,23 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
                 yield None
 
     @abc.abstractmethod
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         if not self.allow_delete:
             raise PermissionError("Delete is not allowed.")
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
         return None
 
     @abc.abstractmethod
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         raise NotImplementedError()
 
-    def check(self, obj_id: ObjId) -> None:
+    def check(self, obj_id: HashDict) -> None:
         """Check if a content is found and recompute its hash to check integrity."""
         obj_data = self.get(obj_id)
         data_hashes = objid_for_content(obj_data)
@@ -196,8 +196,8 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             data_hash = data_hashes[algo]  # type: ignore[literal-required]
             if data_hash != expected_hash:
                 raise ObjCorruptedError(
-                    f"expected {algo} hash is {hashutil.hash_to_hex(expected_hash)}, "
-                    f"data {algo} hash is {hashutil.hash_to_hex(data_hash)}"
+                    f"expected {algo} hash is {hash_to_hex(expected_hash)}, "
+                    f"data {algo} hash is {hash_to_hex(data_hash)}"
                 )
 
     def compress(self, data: bytes) -> bytes:

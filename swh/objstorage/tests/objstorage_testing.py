@@ -11,7 +11,7 @@ import requests
 
 from swh.core.config import get_swh_backend_module, list_swh_backends
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
-from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.interface import HashDict, ObjStorageInterface
 from swh.objstorage.objstorage import decompressors, objid_for_content
 
 FIRST_OBJID = {
@@ -41,7 +41,7 @@ def get_cls(sto: ObjStorageInterface) -> Optional[str]:
 
 
 def assert_objid_lists_compatible(
-    iter1: Iterable[ObjId], iter2: Iterable[ObjId]
+    iter1: Iterable[HashDict], iter2: Iterable[HashDict]
 ) -> None:
     """Check that two object id lists are compatible: same length,
     and hashes are subsets of one another"""

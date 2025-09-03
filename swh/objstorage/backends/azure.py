@@ -25,7 +25,7 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
 from swh.objstorage.utils import call_async
 
@@ -207,7 +207,7 @@ class AzureCloudObjStorage(ObjStorage):
         """Get all active block_blob_services"""
         yield self.get_container_client("")
 
-    def _internal_id(self, obj_id: ObjId) -> str:
+    def _internal_id(self, obj_id: HashDict) -> str:
         """Internal id is the hex version in objstorage."""
         primary_hash = obj_id[self.primary_hash]
         return primary_hash.hex()
@@ -260,7 +260,7 @@ class AzureCloudObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
         client = self.get_blob_client(hex_obj_id)
@@ -272,7 +272,9 @@ class AzureCloudObjStorage(ObjStorage):
             return True
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         """Add an obj in storage if it's not there already."""
         if check_presence and obj_id in self:
             return
@@ -292,7 +294,7 @@ class AzureCloudObjStorage(ObjStorage):
             # removes the blob, it should be safe to just ignore the error.
             pass
 
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content."""
         if obj_id in self:
             self.delete(obj_id)
@@ -300,7 +302,7 @@ class AzureCloudObjStorage(ObjStorage):
         return self.add(content, obj_id, check_presence=False)
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         """retrieve blob's content if found."""
         return call_async(self._get_async, obj_id)
 
@@ -346,11 +348,11 @@ class AzureCloudObjStorage(ObjStorage):
                 ]
             )
 
-    def get_batch(self, obj_ids: Iterable[ObjId]) -> Iterator[Optional[bytes]]:
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return call_async(self._get_batch_async, obj_ids)
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         """Delete an object."""
         super().delete(obj_id)  # Check delete permission
         hex_obj_id = self._internal_id(obj_id)
@@ -364,7 +366,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:

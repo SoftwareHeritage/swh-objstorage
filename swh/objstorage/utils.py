@@ -5,7 +5,7 @@
 
 import asyncio
 
-from swh.objstorage.interface import COMPOSITE_OBJID_KEYS, ObjId
+from swh.objstorage.interface import COMPOSITE_OBJID_KEYS, HashDict
 
 
 def call_async(f, *args):
@@ -18,7 +18,7 @@ def call_async(f, *args):
         loop.close()
 
 
-def format_obj_id(obj_id: ObjId) -> str:
+def format_obj_id(obj_id: HashDict) -> str:
     return ";".join(
         (
             "%s:%s" % (algo, obj_id[algo].hex())

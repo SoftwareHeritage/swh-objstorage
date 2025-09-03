@@ -20,7 +20,7 @@ from swh.objstorage.exc import (
     ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.interface import HashDict, ObjStorageInterface
 from swh.objstorage.objstorage import ObjStorage, timed
 from swh.objstorage.utils import format_obj_id
 
@@ -322,7 +322,7 @@ class MultiplexerObjStorage(ObjStorage):
             )
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:
@@ -339,7 +339,9 @@ class MultiplexerObjStorage(ObjStorage):
         return False
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         """Add a new object to the object storage.
 
         If the adding step works in all the storages that accept this content,
@@ -376,7 +378,7 @@ class MultiplexerObjStorage(ObjStorage):
 
     def add_batch(
         self,
-        contents: Iterable[Tuple[ObjId, bytes]],
+        contents: Iterable[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage."""
@@ -401,7 +403,7 @@ class MultiplexerObjStorage(ObjStorage):
             "object:add:bytes": summed["object:add:bytes"] // len(results),
         }
 
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         if self.readonly:
             raise ReadOnlyObjStorageError("restore")
 
@@ -413,7 +415,7 @@ class MultiplexerObjStorage(ObjStorage):
         ).pop()
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         corrupted_exc: Optional[ObjCorruptedError] = None
         for i, storage in enumerate(self.get_read_threads(obj_id)):
             if i not in self.active_readers:
@@ -471,7 +473,7 @@ class MultiplexerObjStorage(ObjStorage):
             # No storage contains this content, raise the error
             raise ObjNotFoundError(obj_id)
 
-    def check(self, obj_id: ObjId) -> None:
+    def check(self, obj_id: HashDict) -> None:
         nb_present = 0
         nb_corrupted = 0
         exception: Optional[Exception] = None
@@ -492,7 +494,7 @@ class MultiplexerObjStorage(ObjStorage):
         if exception and (nb_present == 0 or nb_corrupted == len(self.storages)):
             raise exception
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         if self.readonly:
             raise ReadOnlyObjStorageError("delete")
 

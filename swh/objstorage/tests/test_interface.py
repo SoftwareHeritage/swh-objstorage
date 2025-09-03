@@ -7,11 +7,13 @@ from itertools import permutations
 
 import pytest
 
-from swh.objstorage.interface import COMPOSITE_OBJID_KEYS, ObjId, objid_from_dict
+from swh.objstorage.interface import COMPOSITE_OBJID_KEYS, HashDict, objid_from_dict
 
 
 def test_composite_objid_keys():
-    assert ObjId.__required_keys__ | ObjId.__optional_keys__ == COMPOSITE_OBJID_KEYS
+    assert (
+        HashDict.__required_keys__ | HashDict.__optional_keys__ == COMPOSITE_OBJID_KEYS
+    )
 
 
 def test_objid_from_dict_missing_key():

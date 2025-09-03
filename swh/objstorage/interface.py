@@ -101,7 +101,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/contains")
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:
@@ -115,7 +115,9 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         """Add a new object to the object storage.
 
         Args:
@@ -133,7 +135,7 @@ class ObjStorageInterface(Protocol):
     @remote_api_endpoint("content/add/batch")
     def add_batch(
         self,
-        contents: Iterable[Tuple[ObjId, bytes]],
+        contents: Iterable[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage.
@@ -148,7 +150,7 @@ class ObjStorageInterface(Protocol):
         """
         ...
 
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content that have been corrupted.
 
         This function is identical to add but does not check if
@@ -163,7 +165,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get")
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         """Retrieve the content of a given object.
 
         Args:
@@ -179,7 +181,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get/batch")
-    def get_batch(self, obj_ids: Iterable[ObjId]) -> Iterator[Optional[bytes]]:
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
         """Retrieve objects' raw content in bulk from storage.
 
         Note: This function does have a default implementation in
@@ -203,7 +205,7 @@ class ObjStorageInterface(Protocol):
     @remote_api_endpoint("content/download_url")
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
@@ -228,7 +230,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/check")
-    def check(self, obj_id: ObjId) -> None:
+    def check(self, obj_id: HashDict) -> None:
         """Perform an integrity check for a given object.
 
         Verify that the file object is in place and that the content matches
@@ -245,7 +247,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/delete")
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         """Delete an object.
 
         Args:

@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -63,22 +63,24 @@ class SeaweedFilerObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         return self.wf.exists(self._path(obj_id))
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         if check_presence and obj_id in self:
             return
 
         self.wf.put(io.BytesIO(self.compress(content)), self._path(obj_id))
 
     @timed
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         return self.add(content, obj_id, check_presence=False)
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         try:
             obj = self.wf.get(self._path(obj_id))
         except Exception as exc:
@@ -89,7 +91,7 @@ class SeaweedFilerObjStorage(ObjStorage):
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
@@ -98,7 +100,7 @@ class SeaweedFilerObjStorage(ObjStorage):
             raise ObjNotFoundError(obj_id)
         return self.wf.build_url(path)
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
@@ -106,7 +108,7 @@ class SeaweedFilerObjStorage(ObjStorage):
         return True
 
     # internal methods
-    def _path(self, obj_id: ObjId):
+    def _path(self, obj_id: HashDict):
         """Compute the backend path for the given obj id
 
         Given an object is, return the path part of the url to query the

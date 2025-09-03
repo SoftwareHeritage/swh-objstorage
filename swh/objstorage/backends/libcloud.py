@@ -17,7 +17,7 @@ from libcloud.storage.types import ObjectDoesNotExistError, Provider
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -130,7 +130,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         return True
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         try:
             self._get_object(obj_id)
         except ObjNotFoundError:
@@ -139,34 +139,36 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
             return True
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         if check_presence and obj_id in self:
             return
 
         self._put_object(content, obj_id)
 
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         return self.add(content, obj_id, check_presence=False)
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         obj = b"".join(self._get_object(obj_id).as_stream())
         return self.decompress(obj, objid_to_default_hex(obj_id, self.primary_hash))
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
         return self._get_object(obj_id).get_cdn_url()
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
         obj = self._get_object(obj_id)
         return self.driver.delete_object(obj)
 
-    def _object_path(self, obj_id: ObjId) -> str:
+    def _object_path(self, obj_id: HashDict) -> str:
         """Get the full path to an object"""
         primary_hash = obj_id[self.primary_hash]
 
@@ -176,7 +178,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         else:
             return hex_primary_hash
 
-    def _get_object(self, obj_id: ObjId):
+    def _get_object(self, obj_id: HashDict):
         """Get a Libcloud wrapper for an object pointer.
 
         This wrapper does not retrieve the content of the object
@@ -215,7 +217,7 @@ class AwsCloudObjStorage(CloudObjStorage):
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:

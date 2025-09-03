@@ -14,7 +14,7 @@ from swh.objstorage.exc import (
     ObjNotFoundError,
     ObjStorageAPIError,
 )
-from swh.objstorage.interface import ObjId, ObjStorageInterface
+from swh.objstorage.interface import HashDict, ObjStorageInterface
 from swh.objstorage.objstorage import timed
 
 
@@ -44,7 +44,7 @@ class RemoteObjStorage(RPCClient):
     backend_class = ObjStorageInterface
     name: str = "remote"
 
-    def restore(self: ObjStorageInterface, content: bytes, obj_id: ObjId) -> None:
+    def restore(self: ObjStorageInterface, content: bytes, obj_id: HashDict) -> None:
         return self.add(content, obj_id, check_presence=False)
 
 

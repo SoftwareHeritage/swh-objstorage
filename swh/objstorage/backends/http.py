@@ -15,7 +15,7 @@ from urllib3.util import Retry
 from swh.model import hashutil
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -86,22 +86,24 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return check_write is False
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         raise ReadOnlyObjStorageError("add")
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         raise ReadOnlyObjStorageError("delete")
 
-    def restore(self, content: bytes, obj_id: ObjId) -> None:
+    def restore(self, content: bytes, obj_id: HashDict) -> None:
         raise ReadOnlyObjStorageError("restore")
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         try:
             resp = self.session.get(self._path(obj_id))
             resp.raise_for_status()
@@ -113,13 +115,13 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     def download_url(
         self,
-        obj_id: ObjId,
+        obj_id: HashDict,
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
         return self._path(obj_id)
 
-    def _hash(self, obj_id: ObjId) -> bytes:
+    def _hash(self, obj_id: HashDict) -> bytes:
         return obj_id[self.primary_hash]
 
     def _path(self, obj_id):

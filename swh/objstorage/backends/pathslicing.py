@@ -15,7 +15,7 @@ from swh.objstorage.constants import (
     is_valid_hexdigest,
 )
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
@@ -219,7 +219,7 @@ class PathSlicingObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         hex_obj_id = objid_to_default_hex(obj_id, self.primary_hash)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
@@ -227,7 +227,7 @@ class PathSlicingObjStorage(ObjStorage):
     def add(
         self,
         content: bytes,
-        obj_id: ObjId,
+        obj_id: HashDict,
         check_presence: bool = True,
     ) -> None:
         if check_presence and obj_id in self:
@@ -239,7 +239,7 @@ class PathSlicingObjStorage(ObjStorage):
             f.write(self.compress(content))
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
@@ -248,7 +248,7 @@ class PathSlicingObjStorage(ObjStorage):
         with open(self.slicer.get_path(hex_obj_id), "rb") as f:
             return self.decompress(f.read(), hex_obj_id)
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)

@@ -10,7 +10,7 @@ from typing import Callable, Dict, Iterator, List, Optional
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
-from swh.objstorage.interface import ObjId
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import ObjStorage, timed
 
 from . import roshard, settings
@@ -69,7 +69,7 @@ class WineryObjStorage(ObjStorage):
             )
 
     @timed
-    def get(self, obj_id: ObjId) -> bytes:
+    def get(self, obj_id: HashDict) -> bytes:
         try:
             return self.reader.get(self._hash(obj_id))
         except ObjNotFoundError as exc:
@@ -80,11 +80,13 @@ class WineryObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: ObjId) -> bool:
+    def __contains__(self, obj_id: HashDict) -> bool:
         return self._hash(obj_id) in self.reader
 
     @timed
-    def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
+    def add(
+        self, content: bytes, obj_id: HashDict, check_presence: bool = True
+    ) -> None:
         if not self.writer:
             raise ReadOnlyObjStorageError("add")
         internal_obj_id = self._hash(obj_id)
@@ -92,7 +94,7 @@ class WineryObjStorage(ObjStorage):
             return
         self.writer.add(content, internal_obj_id)
 
-    def delete(self, obj_id: ObjId):
+    def delete(self, obj_id: HashDict):
         if not self.writer:
             raise ReadOnlyObjStorageError("delete")
         if not self.allow_delete:
@@ -103,7 +105,7 @@ class WineryObjStorage(ObjStorage):
         except ObjNotFoundError as exc:
             raise ObjNotFoundError(obj_id) from exc
 
-    def _hash(self, obj_id: ObjId) -> bytes:
+    def _hash(self, obj_id: HashDict) -> bytes:
         return obj_id[self.primary_hash]
 
     def on_shutdown(self):
@@ -334,7 +336,7 @@ class WineryWriter:
         self.base.delete(obj_id)
         return True
 
-    def check(self, obj_id: ObjId) -> None:
+    def check(self, obj_id: HashDict) -> None:
         # load all shards packing == True and not locked (i.e. packer
         # was interrupted for whatever reason) run pack for each of them
         pass
