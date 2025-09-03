@@ -8,39 +8,26 @@ from datetime import timedelta
 from typing import (
     Any,
     Dict,
-    FrozenSet,
     Iterable,
     Iterator,
     Optional,
     Protocol,
     Tuple,
-    TypedDict,
     runtime_checkable,
 )
 
 from swh.core.api import remote_api_endpoint
-from swh.objstorage.constants import LiteralHash, LiteralPrimaryHash
+from swh.model.hashutil import DEFAULT_ALGORITHMS as COMPOSITE_OBJID_KEYS
+from swh.model.hashutil import HashDict
+from swh.objstorage.constants import LiteralPrimaryHash
 
-COMPOSITE_OBJID_KEYS: FrozenSet[LiteralHash] = frozenset(
-    ("sha1", "sha1_git", "sha256", "blake2s256")
-)
-
-
-class ObjId(TypedDict, total=False):
-    """Type of object ids, corresponding to ``{hash: value for hash in SUPPORTED_HASHES}``"""
-
-    sha1: bytes
-    sha1_git: bytes
-    sha256: bytes
-    blake2s256: bytes
+CompositeObjId = HashDict
+ObjId = HashDict
 
 
-CompositeObjId = ObjId
-
-
-def objid_from_dict(d: Dict[str, Any]) -> ObjId:
+def objid_from_dict(d: Dict[str, Any] | HashDict) -> HashDict:
     """Generate an object id from a dict of optional hashes"""
-    filtered: ObjId = {}
+    filtered: HashDict = {}
 
     for key in COMPOSITE_OBJID_KEYS:
         value = d.get(key)

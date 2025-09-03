@@ -5,7 +5,9 @@
 
 from typing import Dict, Literal
 
-LiteralHash = Literal["sha1", "sha1_git", "sha256", "blake2s256"]
+from swh.model.hashutil import LiteralHashAlgo
+
+LiteralHash = LiteralHashAlgo
 LiteralPrimaryHash = Literal["sha1", "sha256"]
 
 VALID_HEXCHARS = frozenset("0123456789abcdef")
