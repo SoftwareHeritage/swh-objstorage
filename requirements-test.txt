@@ -1,5 +1,6 @@
 moto[server, s3]
 pytest >= 8.1
+pytest-aioresponses
 pytest-mock
 requests_mock[fixture] >= 1.9
 requests_toolbelt

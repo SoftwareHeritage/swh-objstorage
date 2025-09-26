@@ -3,11 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
 from datetime import timedelta
 import logging
-from typing import Dict, Optional
+from typing import Dict, Iterable, Iterator, List, Optional
 from urllib.parse import urljoin
 
+import aiohttp
 from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -24,7 +26,6 @@ from swh.objstorage.objstorage import (
 )
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.ERROR)
 
 
 class HTTPReadOnlyObjStorage(ObjStorage):
@@ -54,13 +55,23 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     https://urllib3.readthedocs.io/en/stable/reference/urllib3.util.html#urllib3.util.Retry
     for more details on the possible configuration entries.
 
+    The :meth:`get_batch` method is implemented with ``aiohttp`` to improve the performance
+    of object downloads. The maximum number of simultaneous connections can be set using
+    the ``batch_max_connections`` parameter of that class (default to 100). The maximum
+    number of simultaneous connections to the same host can be set using the
+    ``batch_max_connections_per_host`` parameter of that class (default to 0 for no limit).
     """
 
     primary_hash: LiteralPrimaryHash = "sha1"
     name: str = "http"
 
     def __init__(
-        self, url=None, compression: CompressionFormat | None = None, **kwargs
+        self,
+        url=None,
+        compression: CompressionFormat | None = None,
+        batch_max_connections: int = 100,
+        batch_max_connections_per_host: int = 0,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.session = Session()
@@ -74,6 +85,8 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             )
             compression = "none"
         self.compression = compression
+        self.batch_max_connections = batch_max_connections
+        self.batch_max_connections_per_host = batch_max_connections_per_host
         retry: Optional[Dict] = kwargs.get("retry")
         if retry is not None:
             self.retries_cfg = Retry(**retry)
@@ -113,6 +126,10 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             resp.content, objid_to_default_hex(obj_id, self.primary_hash)
         )
 
+    @timed
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+        return iter(asyncio.run(self._contents_get(list(obj_ids))))
+
     def download_url(
         self,
         obj_id: HashDict,
@@ -126,3 +143,33 @@ class HTTPReadOnlyObjStorage(ObjStorage):
 
     def _path(self, obj_id):
         return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))
+
+    async def _content_get(
+        self,
+        obj_id: HashDict,
+        session: aiohttp.ClientSession,
+    ) -> Optional[bytes]:
+        try:
+            url = self._path(obj_id)
+            async with session.get(url) as response:
+                response.raise_for_status()
+                content = await response.read()
+                return self.decompress(
+                    content, objid_to_default_hex(obj_id, self.primary_hash)
+                )
+        except Exception as e:
+            LOGGER.debug(
+                "Unable to fetch or process content from URL %s due to %s.", url, str(e)
+            )
+        return None
+
+    async def _contents_get(self, obj_ids: List[HashDict]) -> List[Optional[bytes]]:
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=self.batch_max_connections,
+                limit_per_host=self.batch_max_connections_per_host,
+            )
+        ) as session:
+            return await asyncio.gather(
+                *(self._content_get(obj_id, session) for obj_id in obj_ids)
+            )
