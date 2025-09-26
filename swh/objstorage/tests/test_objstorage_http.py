@@ -3,10 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import re
+
 import pytest
 import requests
-import requests_mock
-from requests_mock.contrib import fixture
 
 from swh.objstorage.exc import (
     ObjCorruptedError,
@@ -19,8 +19,18 @@ from swh.objstorage.objstorage import objid_for_content
 from .objstorage_testing import FIRST_OBJID
 
 
+@pytest.fixture
+def contents():
+    return [f"some content {i}".encode() for i in range(100)]
+
+
+@pytest.fixture
+def obj_ids(contents):
+    return [objid_for_content(content) for content in contents]
+
+
 @pytest.fixture(params=("sha1", "sha256"))
-def build_objstorage(request):
+def objstorages(request, requests_mock, contents, obj_ids):
     """Build an HTTPReadOnlyObjStorage suitable for tests
 
     this instancaite 2 ObjStorage, one HTTPReadOnlyObjStorage (the "front" one
@@ -31,17 +41,11 @@ def build_objstorage(request):
     Also fills the backend storage with a 100 objects.
     """
     sto_back = get_objstorage(cls="memory", primary_hash=request.param)
-    objids = []
-    for i in range(100):
-        content = f"some content {i}".encode()
-        obj_id = objid_for_content(content)
-        objids.append(obj_id)
+    for content, obj_id in zip(contents, obj_ids):
         sto_back.add(content, obj_id=obj_id)
 
     url = "http://127.0.0.1/content/"
     sto_front = get_objstorage(cls="http", url=url, primary_hash=request.param)
-    mock = fixture.Fixture()
-    mock.setUp()
 
     def get_cb(request, context):
         dirname, basename = request.path.rsplit("/", 1)
@@ -60,38 +64,38 @@ def build_objstorage(request):
             return b"Not Found"
         return b"Found"
 
-    mock.register_uri(requests_mock.GET, requests_mock.ANY, content=get_cb)
-    mock.register_uri(requests_mock.HEAD, requests_mock.ANY, content=head_cb)
+    matcher = re.compile(f"{url}*")
+    requests_mock.get(matcher, content=get_cb)
+    requests_mock.head(matcher, content=head_cb)
 
-    yield sto_front, sto_back, objids
-    mock.cleanUp()
-
-
-def test_http_objstorage(build_objstorage):
-    sto_front, sto_back, objids = build_objstorage
-
-    for objid in objids:
-        assert objid in sto_front
-        assert sto_front.get(objid) == sto_back.get(objid)
-        assert sto_front.get(objid).decode().startswith("some content ")
+    yield sto_front, sto_back
 
 
-def test_http_objstorage_missing(build_objstorage):
-    sto_front, _, _ = build_objstorage
+def test_http_objstorage(objstorages, obj_ids):
+    sto_front, sto_back = objstorages
+
+    for obj_id in obj_ids:
+        assert obj_id in sto_front
+        assert sto_front.get(obj_id) == sto_back.get(obj_id)
+        assert sto_front.get(obj_id).decode().startswith("some content ")
+
+
+def test_http_objstorage_missing(objstorages):
+    sto_front, _ = objstorages
 
     assert FIRST_OBJID not in sto_front
 
 
-def test_http_objstorage_get_missing(build_objstorage):
-    sto_front, _, _ = build_objstorage
+def test_http_objstorage_get_missing(objstorages):
+    sto_front, _ = objstorages
 
     with pytest.raises(ObjNotFoundError):
         sto_front.get(FIRST_OBJID)
 
 
-def test_http_objstorage_check(build_objstorage):
-    sto_front, sto_back, objids = build_objstorage
-    for objid in objids:
+def test_http_objstorage_check(objstorages, obj_ids):
+    sto_front, sto_back = objstorages
+    for objid in obj_ids:
         assert sto_front.check(objid) is None  # no Exception means OK
 
     # create an invalid object in the in-memory objstorage
@@ -103,8 +107,8 @@ def test_http_objstorage_check(build_objstorage):
         sto_front.check(FIRST_OBJID)
 
 
-def test_http_objstorage_read_only(build_objstorage):
-    sto_front, sto_back, objids = build_objstorage
+def test_http_objstorage_read_only(objstorages):
+    sto_front, _ = objstorages
 
     content = b""
     obj_id = objid_for_content(content)
@@ -122,10 +126,10 @@ def test_http_cannonical_url():
     assert sto.root_path == url + "/"
 
 
-def test_http_objstorage_download_url(build_objstorage):
-    sto_front, _, objids = build_objstorage
+def test_http_objstorage_download_url(objstorages, obj_ids):
+    sto_front, _ = objstorages
 
-    for objid in objids:
-        assert objid in sto_front
-        response = requests.get(sto_front.download_url(objid))
+    for obj_id in obj_ids:
+        assert obj_id in sto_front
+        response = requests.get(sto_front.download_url(obj_id))
         assert response.text.startswith("some content ")
