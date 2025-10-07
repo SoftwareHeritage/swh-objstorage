@@ -454,7 +454,8 @@ class ROShard:
 
         if image_status != "ro":
             raise ShardNotMapped(
-                f"RBD image for {name} isn't mapped{' read-only' if image_status=='rw' else ''}"
+                f"RBD image for {name} isn't mapped"
+                f"{' read-only' if image_status == 'rw' else ''}"
             )
 
         self.throttler = throttler
