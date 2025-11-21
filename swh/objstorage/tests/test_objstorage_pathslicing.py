@@ -21,6 +21,7 @@ class TestPathSlicingObjStorage(ObjStorageTestFixture):
             "root": str(tmpdir),
             "slicing": "0:2/2:4/4:6",
             "compression": self.compression,
+            "batch_with_threads": True,
         }
 
     def content_path(self, obj_id):

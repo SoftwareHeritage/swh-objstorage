@@ -5,6 +5,7 @@
 
 import abc
 import bz2
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import functools
 import lzma
@@ -122,6 +123,20 @@ CompressionFormat = Literal["bz2", "lzma", "gzip", "zlib", "none"]
 
 
 class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
+    """Abstract base class for an object storage backend.
+
+    It notably adds default implementation for the :meth:`add_batch` and
+    :meth:`get_batch` methods, by calling :meth:`add` or :meth:`get` method
+    in a loop. By setting the ``batch_with_threads`` constructor parameter to
+    :const:`True` (default is :const:`False`), those calls are made concurrently
+    using a pool of threads as it can improve performance depending on the final
+    object storage backend implementation (the
+    :class:`swh.objstorage.backends.pathslicing.PathSlicingObjStorage` backend performs
+    faster with threaded batch operations for instance). The maximum number of
+    threads in the pool can be adjusted with the ``max_batch_workers`` constructor
+    parameter, default is 10.
+    """
+
     primary_hash: Optional[LiteralPrimaryHash] = None
     compression: CompressionFormat = "none"
     name: str = "objstorage"
@@ -129,10 +144,12 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
     'name' argument to the constructor"""
 
     def __init__(
-        self: ObjStorageInterface,
+        self,
         *,
         allow_delete: bool = False,
         primary_hash: Optional[LiteralPrimaryHash] = None,
+        batch_with_threads: bool = False,
+        max_batch_workers: int = 10,
         **kwargs,
     ):
         # A more complete permission system could be used in place of that if
@@ -143,33 +160,46 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
         # if no name is given in kwargs, default to name defined as class attribute
         if "name" in kwargs:
             self.name = kwargs["name"]
+        self.map_contents: Callable = map
+        if batch_with_threads:
+            self.executor = ThreadPoolExecutor(max_workers=max_batch_workers)
+            self.map_contents = self.executor.map
+
+    def _add(
+        self, content: Tuple[HashDict, bytes], check_presence: bool
+    ) -> Tuple[int, int]:
+        obj_id, content_data = content
+        if check_presence and obj_id in self:
+            return (0, 0)
+        else:
+            self.add(content_data, obj_id, check_presence=False)
+            return (1, len(content_data))
 
     def add_batch(
-        self: ObjStorageInterface,
+        self,
         contents: Iterable[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
+
         summary = {"object:add": 0, "object:add:bytes": 0}
-        for obj_id, content in contents:
-            if check_presence and obj_id in self:
-                continue
-            self.add(content, obj_id, check_presence=False)
-            summary["object:add"] += 1
-            summary["object:add:bytes"] += len(content)
+        add = functools.partial(self._add, check_presence=check_presence)
+        for added, length in self.map_contents(add, contents):
+            summary["object:add"] += added
+            summary["object:add:bytes"] += length
         return summary
 
     def restore(self: ObjStorageInterface, content: bytes, obj_id: HashDict) -> None:
         # check_presence to false will erase the potential previous content.
         self.add(content, obj_id, check_presence=False)
 
-    def get_batch(
-        self: ObjStorageInterface, obj_ids: Iterable[HashDict]
-    ) -> Iterator[Optional[bytes]]:
-        for obj_id in obj_ids:
-            try:
-                yield self.get(obj_id)
-            except ObjNotFoundError:
-                yield None
+    def _get(self, obj_id: HashDict) -> Optional[bytes]:
+        try:
+            return self.get(obj_id)
+        except ObjNotFoundError:
+            return None
+
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+        yield from self.map_contents(self._get, obj_ids)
 
     @abc.abstractmethod
     def delete(self, obj_id: HashDict):
