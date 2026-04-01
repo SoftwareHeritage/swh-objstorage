@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -18,9 +18,8 @@ from pytest_postgresql import factories
 import yaml
 
 from swh.core.db.db_utils import initialize_database_for_module
-import swh.objstorage.backends.winery.objstorage
-from swh.objstorage.backends.winery.objstorage import (
-    WineryObjStorage,
+import swh.objstorage.backends.winery.cli
+from swh.objstorage.backends.winery.housekeeping import (
     cleanup_rw_shard,
     deleted_objects_cleaner,
     pack,
@@ -28,6 +27,8 @@ from swh.objstorage.backends.winery.objstorage import (
     shard_packer,
     stop_after_shards,
 )
+import swh.objstorage.backends.winery.objstorage
+from swh.objstorage.backends.winery.objstorage import WineryObjStorage
 from swh.objstorage.backends.winery.roshard import FileBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
@@ -489,6 +490,7 @@ def test_winery_delete_on_roshard(winery_writer, winery_reader, image_pool):
 def test_winery_deleted_objects_cleaner_handles_exception(
     winery_writer, image_pool, mocker
 ):
+    from swh.objstorage.backends.winery import housekeeping
     from swh.objstorage.backends.winery import objstorage as winery_objstorage
     from swh.objstorage.backends.winery.roshard import ROShard
 
@@ -540,7 +542,7 @@ def test_winery_deleted_objects_cleaner_handles_exception(
     image_pool.image_map(shard, "rw")
 
     with pytest.raises(OSError):
-        winery_objstorage.deleted_objects_cleaner(
+        housekeeping.deleted_objects_cleaner(
             winery_writer.base, image_pool, stop_running=lambda: False
         )
 
@@ -885,14 +887,14 @@ def test_winery_cli_packer_rollback_on_error(
 
     orig_pack = swh.objstorage.backends.winery.objstorage.pack
     try:
-        swh.objstorage.backends.winery.objstorage.pack = failing_pack
+        swh.objstorage.backends.winery.housekeeping.pack = failing_pack
         result = cli_runner.invoke(
             swh_cli_group,
             ("objstorage", "winery", "packer", "--stop-after-shards=4"),
             env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
         )
     finally:
-        swh.objstorage.backends.winery.objstorage.pack = orig_pack
+        swh.objstorage.backends.winery.housekeeping.pack = orig_pack
 
     assert result.exit_code == 1
 
@@ -1030,7 +1032,6 @@ def test_winery_cli_rw_shard_cleaner(
         ("objstorage", "winery", "rw-shard-cleaner", "--stop-instead-of-waiting"),
         env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
     )
-
     assert result.exit_code == 0
 
     # No hosts have mapped the shard as remapped, so the cleaner has done nothing
@@ -1092,9 +1093,9 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
     def failing_cleanup(*args, **kwargs):
         raise ValueError("Cleanup failed")
 
-    orig_cleanup = swh.objstorage.backends.winery.objstorage.cleanup_rw_shard
+    orig_cleanup = swh.objstorage.backends.winery.housekeeping.cleanup_rw_shard
     try:
-        swh.objstorage.backends.winery.objstorage.cleanup_rw_shard = failing_cleanup
+        swh.objstorage.backends.winery.housekeeping.cleanup_rw_shard = failing_cleanup
 
         result = cli_runner.invoke(
             swh_cli_group,
@@ -1108,7 +1109,7 @@ def test_winery_cli_rw_shard_cleaner_rollback_on_error(
             env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
         )
     finally:
-        swh.objstorage.backends.winery.objstorage.cleanup_rw_shard = orig_cleanup
+        swh.objstorage.backends.winery.housekeeping.cleanup_rw_shard = orig_cleanup
 
     assert result.exit_code == 1
 
