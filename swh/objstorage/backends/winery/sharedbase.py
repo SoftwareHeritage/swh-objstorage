@@ -1,13 +1,14 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import ExitStack
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 import logging
 from types import TracebackType
-from typing import Iterator, Optional, Set, Tuple, Type
+from typing import Iterator, List, Optional, Set, Tuple, Type
 import uuid
 
 import psycopg
@@ -16,7 +17,7 @@ import psycopg.errors
 from .database import Database
 
 WRITER_UUID = uuid.uuid4()
-
+ONEDAY = timedelta(days=1)
 logger = logging.getLogger(__name__)
 
 
@@ -483,6 +484,42 @@ class SharedBase(Database):
             c.execute("SELECT name, state FROM shards")
             for row in c:
                 yield row[0], ShardState(row[1])
+
+    def list_open_shards(
+        self, state: ShardState | None = None
+    ) -> Iterator[Tuple[str, ShardState, datetime, str]]:
+        """List open shards and their current :py:class:`ShardState`."""
+        args: List[str] = []
+        req = (
+            "SELECT name, state, locker_ts, locker FROM shards "
+            "WHERE state != 'readonly' "
+        )
+        if state:
+            req += " AND state=%s"
+            args.append(state.value)
+        with self.pool.connection() as db, db.cursor() as c:
+            c.execute(req, args)
+            for row in c:
+                yield row[0], ShardState(row[1]), row[2], row[3]
+
+    def list_stale_shards(
+        self, delay: timedelta = ONEDAY, state: ShardState | None = None
+    ) -> Iterator[Tuple[str, ShardState, datetime, str]]:
+        """List all known shards and their current :py:class:`ShardState`."""
+        extra = ""
+        args: List[str | datetime] = [datetime.now(UTC) - delay]
+        if state:
+            extra = " AND state=%s"
+            args.append(state.value)
+        with self.pool.connection() as db, db.cursor() as c:
+            c.execute(
+                "SELECT name, state, locker_ts, locker FROM shards "
+                "WHERE locker is not NULL "
+                "  AND locker_ts < %s " + extra,
+                args,
+            )
+            for row in c:
+                yield row[0], ShardState(row[1]), row[2], row[3]
 
     def count_objects(self, name: Optional[str] = None) -> Optional[int]:
         """Count the known objects in a shard.

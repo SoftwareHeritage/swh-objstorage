@@ -3,7 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import timedelta
 import logging
+import re
 from types import FrameType
 from typing import Optional
 
@@ -279,3 +281,175 @@ def winery_clean_deleted_objects(ctx):
     )
 
     deleted_objects_cleaner(base, pool, stop_running)
+
+
+# Stolen from pypi's click_pendulum 0.2.1 package:
+# swh:1:rel:51dbe55356f79c1d87662fe77a40ee5c28074e67;
+#     origin=https://pypi.org/project/click-pendulum/;
+#     visit=swh:1:snp:9ff3b835b09011a44c27baec70e3e3f8cb9e114a
+# author: Dawson Reid (@ddaws), MIT License.
+# Adapted to straight datetime.
+# Note: Could probably migrate to swh-core at some point.
+class Duration(click.ParamType):
+    """A Duration object.
+
+    The pattern used for matching must include the following named groups:
+    - years: Matches the number of years.
+    - weeks: Matches the number of weeks.
+    - days: Matches the number of days.
+    - hours: Matches the number of hours.
+    - minutes: Matches the number of minutes.
+    - seconds: Matches the number of seconds.
+
+    Each group is optional, but the pattern must be structured to capture these
+    groups if present.
+
+    """
+
+    name = "duration"
+
+    DEFAULT_PATTERN = (
+        r"(?:(?P<years>\d+)\s*y(?:ears?)?)?\s*"
+        r"(?:(?P<weeks>\d+)\s*w(?:eeks?)?)?\s*"
+        r"(?:(?P<days>\d+)\s*d(?:ays?)?)?\s*"
+        r"(?:(?P<hours>\d+)\s*h(?:ours?)?)?\s*"
+        r"(?:(?P<minutes>\d+)\s*m(?:inutes?)?)?\s*"
+        r"(?:(?P<seconds>\d+)\s*s(?:econds?)?)?"
+    )
+
+    _pattern: re.Pattern
+
+    def __init__(self, pattern: str = DEFAULT_PATTERN):
+        self._pattern = re.compile(pattern)
+
+    def convert(self, value: str | None, param, ctx) -> timedelta | None:
+        if value is None:
+            return value
+
+        try:
+            match = self._pattern.match(value)
+            if not match or not match.group(0).strip():
+                raise ValueError("Invalid duration format: no matches found")
+
+            duration_kwargs = {
+                "weeks": int(match.group("weeks") or 0),
+                "days": int(match.group("days") or 0),
+                "hours": int(match.group("hours") or 0),
+                "minutes": int(match.group("minutes") or 0),
+                "seconds": int(match.group("seconds") or 0),
+            }
+            return timedelta(**duration_kwargs)
+        except ValueError as ex:
+            self.fail(
+                f'Could not parse duration string "{value}" ({ex})',
+                param,
+                ctx,
+            )
+
+
+@winery.command("list-open-shards")
+@click.option(
+    "--state",
+    "-s",
+    type=click.Choice(["standby", "writing", "full", "packing", "packed", "cleaning"]),
+    help="Only list shards in the given state (rather than all non-readonly shards)",
+    default=None,
+)
+@click.pass_context
+def winery_list_open_shards(ctx, state):
+    """List open shards"""
+    from datetime import UTC, datetime
+
+    from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
+
+    settings = ctx.obj["winery_settings"]
+    base = SharedBase(base_dsn=settings["database"]["db"])
+
+    shardstate = ShardState(state) if state is not None else None
+
+    shards = list(base.list_open_shards(state=shardstate))
+    if shards:
+        by_locker = {}
+        for name, state, locker_ts, locker in shards:
+            by_locker.setdefault(locker, []).append((name, state, locker_ts))
+
+        click.echo("Open shards:")
+        for locker in sorted(by_locker):
+            click.echo(f"{locker}:")
+            for name, state, locker_ts in by_locker[locker]:
+                if locker_ts is not None:
+                    since = f"since {datetime.now(UTC) - locker_ts}"
+                else:
+                    since = ""
+                click.echo(f"  {name}: {state.name} {since}")
+    else:
+        if state is not None:
+            click.echo(f"No shard in the state '{state}'")
+        else:
+            click.echo("No open shard")
+
+
+@winery.command("list-stale-shards")
+@click.option(
+    "--duration",
+    "-d",
+    type=Duration(),
+    help="How long the shard must have been stuck in its state to be considered as stale",
+    default="48h",
+)
+@click.pass_context
+def winery_list_stale_shards(ctx, duration):
+    """List open shards that look stale for some reason"""
+    from datetime import UTC, datetime
+
+    from swh.objstorage.backends.winery.sharedbase import SharedBase
+
+    settings = ctx.obj["winery_settings"]
+    base = SharedBase(base_dsn=settings["database"]["db"])
+
+    stale = list(base.list_stale_shards(delay=duration))
+    if stale:
+        by_locker = {}
+        for name, state, locker_ts, locker in stale:
+            by_locker.setdefault(locker, []).append((name, state, locker_ts))
+
+        click.echo("Potentially stale shards:")
+        for locker in by_locker:
+            click.echo(f"{locker}:")
+            for name, state, locker_ts in by_locker[locker]:
+                click.echo(
+                    f"  {name}: {state.name} since {datetime.now(UTC) - locker_ts}"
+                )
+    else:
+        click.echo("No identified stale shards")
+
+
+@winery.command("release-stale-shards")
+@click.option("--shard", "shards", help="shard name to release", multiple=True)
+@click.option(
+    "--duration",
+    "-d",
+    help="How long the shard must have been stuck in its state to be considered as stale",
+    type=Duration(),
+    default="48h",
+)
+@click.pass_context
+def winery_release_stale_shards(ctx, shards, duration):
+    """Release WRITING shards that look stale"""
+    from datetime import UTC, datetime
+
+    from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
+
+    settings = ctx.obj["winery_settings"]
+    base = SharedBase(base_dsn=settings["database"]["db"])
+
+    stale = list(base.list_stale_shards(state=ShardState.WRITING, delay=duration))
+    if shards:
+        stale = [shard for shard in stale if shard[0] in shards]
+    if stale:
+        click.echo("Releasing:")
+        for name, state, locker_ts, locker in stale:
+            click.echo(f"  {name} stuck since {datetime.now(UTC) - locker_ts}")
+            base.set_shard_state(new_state=ShardState.STANDBY, name=name)
+    else:
+        click.echo("No identified stale shards to release")

@@ -1,0 +1,122 @@
+# Copyright (C) 2026  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import copy
+import datetime
+import logging
+import re
+import tempfile
+
+from click.testing import CliRunner
+import yaml
+
+from swh.objstorage.backends.winery.cli import objstorage_cli_group
+from swh.objstorage.objstorage import objid_for_content
+
+logger = logging.getLogger(__name__)
+
+
+def now():
+    return datetime.datetime.now(tz=datetime.UTC)
+
+
+def invoke(*args, env=None, config={}, **kwargs):
+    config = copy.deepcopy(config)
+    config["cls"] = "winery"
+    config.update(**kwargs)
+
+    runner = CliRunner()
+    with tempfile.NamedTemporaryFile("a", suffix=".yml") as config_fd:
+        yaml.dump({"objstorage": config}, config_fd)
+        config_fd.seek(0)
+        args = ["-C" + config_fd.name] + list(args)
+        return runner.invoke(
+            objstorage_cli_group,
+            args,
+            obj={"log_level": logging.DEBUG},
+            env=env,
+        )
+
+
+def test_winery_help(winery_settings):
+    result = invoke("winery", "--help", config=winery_settings)
+    expected = (
+        r"^\s*Usage: objstorage winery \[OPTIONS\] COMMAND \[ARGS\]...\s+"
+        r"Winery related commands.*"
+    )
+    assert result.exit_code == 0, result.output
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+
+def test_winery_list_open_shards(winery_settings, storage):
+    result = invoke("winery", "list-open-shards", config=winery_settings)
+    expected = r"^\s*No open shard\s+"
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+    storage.add(b"toto", objid_for_content(b"toto"))
+    storage.add(b"toto2", objid_for_content(b"toto2"))
+    result = invoke("winery", "list-open-shards", config=winery_settings)
+    expected = (
+        r"^\s*Open shards:\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31}: +WRITING since 0:00:00\.[0-9]{6}\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE)
+
+    result = invoke(
+        "winery", "list-open-shards", "--state", "writing", config=winery_settings
+    )
+    expected = (
+        r"^\s*Open shards:\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31}: +WRITING since 0:00:00\.[0-9]{6}\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE)
+
+    result = invoke(
+        "winery", "list-open-shards", "--state", "full", config=winery_settings
+    )
+    expected = r"^\s*No shard in the state 'full'\s+"
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE)
+
+
+def test_winery_list_stale_shards_none(winery_settings, storage):
+    storage.add(b"toto", objid_for_content(b"toto"))
+    storage.add(b"toto2", objid_for_content(b"toto2"))
+    result = invoke("winery", "list-stale-shards", config=winery_settings)
+    expected = r"^\s*No identified stale shards\s+"
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+
+def test_winery_list_stale_shards_some(winery_settings, storage, winery_postgresql):
+    storage.add(b"toto", objid_for_content(b"toto"))
+    storage.add(b"toto2", objid_for_content(b"toto2"))
+
+    locker_ts = now() - datetime.timedelta(days=7)
+    with winery_postgresql.cursor() as cur:
+        cur.execute("UPDATE shards SET locker_ts=%s", (locker_ts,))
+    winery_postgresql.commit()
+
+    result = invoke(
+        "winery", "list-stale-shards", "--duration", "10d", config=winery_settings
+    )
+    expected = r"^\s*No identified stale shards\s+"
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+    # shards = storage.
+    result = invoke("winery", "list-stale-shards", config=winery_settings)
+    expected = (
+        r"^\s*Potentially stale shards:\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31}: +WRITING since 7 days, 0:00:00\.[0-9]{6}\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
