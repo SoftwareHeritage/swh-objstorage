@@ -52,6 +52,108 @@ a local directory in this objstorage:
    Imported 1369 files for a volume of 722837 bytes in 2 seconds
 
 
+Winery developer's check-list
+-----------------------------
+
+Working on Winery, the production backend, requires a slightly longer set-up.
+
+First ensure your virtualenv contains the correct dependencies:
+
+.. code-block:: console
+
+    pip install -r requirements-winery.txt
+    pip install -e .[winery]
+
+Then create a postgres DB and user (with a dummy password ⚠️):
+
+.. code-block:: console
+
+    sudo -u postgres psql -c "CREATE DATABASE winery;"
+    sudo -u postgres psql -c "CREATE USER winery WITH PASSWORD 'winery';"
+    sudo -u postgres psql -d winery -f swh/objstorage/backends/winery/sql/30-schema.sql
+    sudo -u postgres psql -d winery -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO winery;"
+    sudo -u postgres psql -d winery -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO winery;"
+
+Prepare a container folder:
+
+.. code-block:: console
+
+    mkdir /home/martin/objstores/winery
+
+And set it in a configuration file we'll call `localwinery.yml`:
+
+.. code-block:: yml
+
+  objstorage:
+    cls: winery
+
+    # boolean (false (default): allow writes, true: only allow reads)
+    readonly: false
+
+    shards:
+      # integer: threshold in bytes above which shards get packed. Can be
+      # overflowed by the max allowed object size.
+      max_size: 1000000000  # 1GB
+
+      # float: timeout in seconds after which idle read-write shards get
+      # released by the winery writer process
+      rw_idle_timeout: 300
+
+    database:
+
+      # string: PostgreSQL connection string for the object index and read-write shards
+      db: "dbname=winery user=winery password=winery host=localhost"
+
+      # string: PostgreSQL application name for connections (unset by default)
+      application_name: localwinery
+
+    shards_pool:
+      ## Settings for the directory shards pool
+      # Shards are stored in `{base_directory}/{pool_name}`
+      type: directory
+      base_directory: /home/martin/objstores/winery
+      pool_name: shards
+
+    packer:
+
+      # Whether the winery writer should start packing shards immediately, or
+      # defer to the standalone packer (default: true, the writer launches a
+      # background packer process)
+      pack_immediately: true
+
+      # Whether the packer should create shards in the shard pool, or defer to
+      # the pool manager (default: true, the packer creates images)
+      create_images: true
+
+      # Whether the packer should clean read-write shards from the database
+      # immediately, or defer to the rw shard cleaner (default: true, the packer
+      # cleans read-write shards immediately)
+      clean_immediately: true
+
+
+Now you'll need a few terminal splits/tabs because we'll start 3 relevant services
+
+
+.. code-block:: console
+
+    # Main service (winery writer)  listens on 0.0.0.0:5003
+    swh objstorage -C localwinery.yml rpc-serve
+    # Winery Packer Service
+    swh objstorage -C localwinery.yml winery packer
+    # optional, relevant later: RW Shard Cleaner
+    swh objstorage -C localwinery.yml winery rw-shard-cleaner
+
+Finally, import more than 1GB
+
+TODO: create a second config `localwinery_api.yml` that setups a remote obstorage to localhost:5003
+
+.. code-block:: console
+
+    swh objstorage -C localwinery_api.yml import ~/swh-environment/swh-provenance/
+
+
+
+
 Test dependencies
 -----------------
 
