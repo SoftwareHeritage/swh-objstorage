@@ -1059,6 +1059,7 @@ class TestWineryObjStorage(ObjStorageTestFixture):
     @pytest.fixture(autouse=True)
     def objstorage(self, storage):
         self.storage = storage
+        assert isinstance(storage, WineryObjStorage)
 
     @pytest.mark.skip("This interface is not supported as such by winery")
     def test_restore_content(self):
