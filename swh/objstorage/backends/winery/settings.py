@@ -174,6 +174,8 @@ def populate_default_settings(
             settings["throttler"] = {"db": settings["database"]["db"], **throttler}
         else:
             settings["throttler"] = throttler
+    else:
+        settings["throttler"] = throttler
 
     if packer is not None:
         packer = packer_settings_with_defaults(packer)
