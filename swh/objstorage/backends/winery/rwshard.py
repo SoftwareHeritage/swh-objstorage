@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -114,7 +114,7 @@ class RWShard(Database):
         if not self.readonly:
             self.create()
 
-        self.size = self.total_size()
+        self.entries, self.size = self.total_size()
         self.limit = shard_max_size
 
         self.idle_handler: Optional[IdleHandler] = None
@@ -158,14 +158,15 @@ class RWShard(Database):
         with self.pool.connection() as db:
             db.execute(f"DROP TABLE {self.table_name}")
 
-    def total_size(self) -> int:
+    def total_size(self) -> Tuple[int, int]:
+        "Return the number of entries and their total volume size"
         with self.pool.connection() as db, db.cursor() as c:
-            c.execute(f"SELECT SUM(LENGTH(content)) FROM {self.table_name}")
-            size = c.fetchone()[0]
-            if size is None:
-                return 0
+            c.execute(f"SELECT COUNT(*), SUM(LENGTH(content)) FROM {self.table_name}")
+            result = c.fetchone()
+            if result is None:
+                return 0, 0
             else:
-                return size
+                return (result[0], result[1] or 0)
 
     def add(self, db: psycopg.Connection, obj_id: bytes, content: bytes) -> None:
         if self.readonly:
@@ -182,6 +183,7 @@ class RWShard(Database):
             )
             if cur.rowcount:
                 self.size += len(content)
+                self.entries += 1
 
     def get(self, obj_id: bytes) -> Optional[bytes]:
         with self.pool.connection() as db, db.cursor() as c:

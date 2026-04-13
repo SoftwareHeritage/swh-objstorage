@@ -373,15 +373,33 @@ class Duration(click.ParamType):
     help="Only list shards in the given state (rather than all non-readonly shards)",
     default=None,
 )
+@click.option(
+    "--long",
+    "-l",
+    is_flag=True,
+    help="Long output (can be slow)",
+    default=False,
+)
+@click.option(
+    "--humanize/--no-humanize",
+    "humanize_results",
+    is_flag=True,
+    help="Do / do not humalize results",
+    default=True,
+)
 @click.pass_context
-def winery_list_open_shards(ctx, state):
+def winery_list_open_shards(ctx, state, long, humanize_results):
     """List open shards"""
     from datetime import UTC, datetime
 
+    from humanize import intcomma, naturalsize
+
+    from swh.objstorage.backends.winery.rwshard import RWShard
     from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 
     settings = ctx.obj["winery_settings"]
     base = SharedBase(base_dsn=settings["database"]["db"])
+    max_size = settings["shards"]["max_size"]
 
     shardstate = ShardState(state) if state is not None else None
 
@@ -395,11 +413,35 @@ def winery_list_open_shards(ctx, state):
         for locker in sorted(by_locker):
             click.echo(f"{locker}:")
             for name, state, locker_ts in by_locker[locker]:
+                since = ""
                 if locker_ts is not None:
-                    since = f"since {datetime.now(UTC) - locker_ts}"
-                else:
-                    since = ""
-                click.echo(f"  {name}: {state.name} {since}")
+                    since = f" since {datetime.now(UTC) - locker_ts}"
+                extra = ""
+                if long:
+                    try:
+                        rwshard = RWShard(
+                            name=name,
+                            base_dsn=base.dsn,
+                            readonly=True,
+                            shard_max_size=0,
+                        )
+                        n = rwshard.entries
+                        size = rwshard.size
+                        if size >= max_size:
+                            full = "full"
+                        else:
+                            full = f"{size / max_size * 100.0:.2f}%"
+                        if humanize_results:
+                            extra = (
+                                f", N={intcomma(n)}, size={naturalsize(size)} ({full})"
+                            )
+                        else:
+                            extra = f", N={n}, size={size} ({full})"
+                    except Exception:
+                        logger.warning(
+                            f"Failed to retrieve detailed information on {name}"
+                        )
+                click.echo(f"  {name}: {state.name}{extra}{since}")
     else:
         if state is not None:
             click.echo(f"No shard in the state '{state}'")
