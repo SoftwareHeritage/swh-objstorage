@@ -15,6 +15,10 @@ from .throttler import Throttler
 logger = logging.getLogger(__name__)
 
 
+class AbortOperation(Exception):
+    pass
+
+
 def never_stop(_: int) -> bool:
     return False
 
@@ -33,6 +37,7 @@ def shard_packer(
     throttler: settings.Throttler,
     packer: Optional[settings.Packer] = None,
     stop_packing: Callable[[int], bool] = never_stop,
+    abort_packing: Callable[[int], bool] = never_stop,
     wait_for_shard: Callable[[int], None] = sleep_exponential(
         min_duration=5,
         factor=2,
@@ -51,6 +56,7 @@ def shard_packer(
       throttler: throttler settings
       packer: packer settings
       stop_packing: callback to determine whether the packer should exit
+      abort_packing: callback to determine whether the packer should abort
       wait_for_shard: sleep function called when no shards are available to be packed
     """
 
@@ -97,6 +103,7 @@ def shard_packer(
                 shards_settings=all_settings["shards"],
                 shards_pool_settings=all_settings["shards_pool"],
                 shared_base=base,
+                abort_packing=abort_packing,
             )
             if not ret:
                 raise ValueError("Packing shard %s failed" % locked.name)
@@ -113,8 +120,11 @@ def pack(
     shards_settings: settings.Shards,
     shards_pool_settings: settings.ShardsPool,
     shared_base: Optional[SharedBase] = None,
+    abort_packing: Callable[[int], bool] = never_stop,
 ) -> bool:
     rw = RWShard(shard, shard_max_size=shards_settings["max_size"], base_dsn=base_dsn)
+    if not shared_base:
+        shared_base = SharedBase(base_dsn=base_dsn)
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
@@ -132,6 +142,10 @@ def pack(
         logger.info("Created RO shard %s", shard)
         for i, (obj_id, content) in enumerate(rw.all()):
             ro.add(content, obj_id)
+            if abort_packing(i):
+                logger.info("Aborting packing of %s", shard)
+                raise AbortOperation("Packing shard %s aborted" % shard)
+
             if i % 100 == 99:
                 logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
 
@@ -139,8 +153,6 @@ def pack(
 
     logger.info("RO shard %s: saved", shard)
 
-    if not shared_base:
-        shared_base = SharedBase(base_dsn=base_dsn)
     shared_base.shard_packing_ends(shard)
     if packer_settings["clean_immediately"]:
         cleanup_rw_shard(shard, base_dsn=shared_base.dsn)

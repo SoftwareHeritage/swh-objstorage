@@ -13,6 +13,7 @@ import yaml
 
 import swh.objstorage.backends.winery.cli
 from swh.objstorage.backends.winery.housekeeping import (
+    AbortOperation,
     cleanup_rw_shard,
     deleted_objects_cleaner,
     pack,
@@ -542,6 +543,43 @@ class TestWinery:
             assert found_cleanup_message and not found_subprocess_error, [
                 r.getMessage() for r in caplog.records
             ]
+
+    @pytest.mark.shard_max_size(1024)
+    @pytest.mark.pack_immediately(False)
+    @pytest.mark.clean_immediately(False)
+    def test_winery_packer_clean_up_aborted_shard(
+        self, image_pool, winery_settings, storage, caplog
+    ):
+        caplog.set_level(logging.CRITICAL)
+
+        # create 1 full shard
+        for i in range(4):
+            content = i.to_bytes(256, "little")
+            obj_id = objid_for_content(content)
+            storage.add(content=content, obj_id=obj_id)
+
+        filled = storage.writer.shards_filled
+        assert len(filled) == 1
+
+        with pytest.raises(AbortOperation):
+            # Pack a single shard
+            shard_packer(
+                database=winery_settings["database"],
+                shards=winery_settings["shards"],
+                shards_pool=winery_settings["shards_pool"],
+                throttler=winery_settings["throttler"],
+                packer={**winery_settings.get("packer"), "create_images": True},
+                stop_packing=stop_after_shards(1),
+                abort_packing=stop_after_shards(2),
+            )
+
+        # the shard state in the DB should be back to FULL
+        base = SharedBase(
+            base_dsn=winery_settings["database"]["db"],
+            application_name="Test",
+        )
+        shards = list(base.list_shards())
+        assert shards[0][1] == ShardState.FULL
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(False)

@@ -91,28 +91,47 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
     """
     import signal
 
-    from swh.objstorage.backends.winery.housekeeping import shard_packer
+    from swh.objstorage.backends.winery.housekeeping import AbortOperation, shard_packer
 
     settings = ctx.obj["winery_settings"]
 
-    signal_received = False
+    signal_stop = False
+    signal_abort = False
 
     def stop_packing(num_shards: int) -> bool:
         """Stop packing when a signal is received or when stop_after_shards is reached"""
-        return signal_received or (
+        return signal_stop or (
             stop_after_shards is not None and num_shards >= stop_after_shards
         )
 
+    def abort_packing(num_shards: int) -> bool:
+        """Abort packing when a signal is received."""
+        return signal_abort
+
     def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
-        nonlocal signal_received
-        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
-        signal_received = True
+        nonlocal signal_abort
+        nonlocal signal_stop
+        if signum == signal.SIGTERM:
+            signal_abort = True
+        else:
+            signal_stop = True
+        logger.warning(
+            "Received signal %s, %s",
+            signal.strsignal(signum),
+            signal_stop and "exiting" or "aborting",
+        )
 
     install_signal_handlers(set_signal_received)
 
-    ret = shard_packer(**settings, stop_packing=stop_packing)
+    logger.info("Image packer starting")
+    try:
+        ret = shard_packer(
+            **settings, stop_packing=stop_packing, abort_packing=abort_packing
+        )
 
-    logger.info("Packed %s shards", ret)
+        logger.info("Packed %s shards", ret)
+    except AbortOperation:
+        logger.warning("Packing aborted, exiting")
 
 
 @winery.command("rbd")
