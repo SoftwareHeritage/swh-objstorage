@@ -143,7 +143,7 @@ def pack(
         shared_base = SharedBase(base_dsn=base_dsn)
     shared_base.shard_packing_ends(shard)
     if packer_settings["clean_immediately"]:
-        cleanup_rw_shard(shard, shared_base=shared_base)
+        cleanup_rw_shard(shard, base_dsn=shared_base.dsn)
     return True
 
 
@@ -194,8 +194,7 @@ def rw_shard_cleaner(
 
             ret = cleanup_rw_shard(
                 locked.name,
-                base_dsn=database["db"],
-                shared_base=base,
+                base_dsn=base.dsn,
             )
             if not ret:
                 raise ValueError("Cleaning shard %s failed" % locked.name)
@@ -205,15 +204,11 @@ def rw_shard_cleaner(
     return shards_cleaned
 
 
-def cleanup_rw_shard(shard, base_dsn=None, shared_base=None) -> bool:
-    if shared_base is not None and not base_dsn:
-        base_dsn = shared_base.dsn
+def cleanup_rw_shard(shard, base_dsn) -> bool:
     rw = RWShard(name=shard, shard_max_size=0, base_dsn=base_dsn)
-
     rw.drop()
 
-    if not shared_base:
-        shared_base = SharedBase(base_dsn=base_dsn)
+    shared_base = SharedBase(base_dsn=base_dsn)
     shared_base.set_shard_state(name=shard, new_state=ShardState.READONLY)
 
     return True
