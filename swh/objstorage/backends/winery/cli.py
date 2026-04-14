@@ -7,7 +7,6 @@ from datetime import timedelta
 import logging
 import re
 from types import FrameType
-from typing import Optional
 
 import click
 
@@ -41,7 +40,7 @@ def winery(ctx):
 @winery.command("packer")
 @click.option("--stop-after-shards", type=click.INT, default=None)
 @click.pass_context
-def winery_packer(ctx, stop_after_shards: Optional[int] = None):
+def winery_packer(ctx, stop_after_shards: int | None = None):
     """Run the winery packer process
 
     This process is in charge of creating (packing) shard files when a winery
@@ -80,7 +79,7 @@ def winery_packer(ctx, stop_after_shards: Optional[int] = None):
             stop_after_shards is not None and num_shards >= stop_after_shards
         )
 
-    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
         nonlocal signal_received
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         signal_received = True
@@ -104,7 +103,7 @@ def winery_rbd(
     ctx,
     stop_instead_of_waiting: bool = False,
     manage_rw_images: bool = True,
-    only_prefix: Optional[str] = None,
+    only_prefix: str | None = None,
 ):
     """Run a winery RBD image manager process
 
@@ -150,7 +149,7 @@ def winery_rbd(
             message="No new RBD images",
         )(attempt)
 
-    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
         nonlocal stop_on_next_iteration
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
@@ -189,7 +188,7 @@ def winery_rbd(
 @click.pass_context
 def winery_rw_shard_cleaner(
     ctx,
-    stop_after_shards: Optional[int] = None,
+    stop_after_shards: int | None = None,
     stop_instead_of_waiting: bool = False,
     min_mapped_hosts: int = 1,
 ):
@@ -236,7 +235,7 @@ def winery_rw_shard_cleaner(
             message="No shards to clean up",
         )(attempt)
 
-    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
         nonlocal stop_on_next_iteration
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
@@ -281,7 +280,7 @@ def winery_clean_deleted_objects(ctx):
         """Stop running when a signal is received, or when there's nothing to do."""
         return stop_on_next_iteration
 
-    def set_signal_received(signum: int, _stack_frame: Optional[FrameType]) -> None:
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
         nonlocal stop_on_next_iteration
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
