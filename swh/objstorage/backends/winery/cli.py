@@ -492,11 +492,17 @@ def winery_list_stale_shards(ctx, duration, humanize_results):
                 else:
                     click.echo(f"  {name}: {state.name} since {since}")
     else:
-        click.echo("No identified stale shards")
+        click.echo("No identified stale shard")
 
 
 @winery.command("release-stale-shards")
 @click.option("--shard", "shards", help="shard name to release", multiple=True)
+@click.option(
+    "--locker",
+    "lockers",
+    help="limit shards to release to this locker ID",
+    multiple=True,
+)
 @click.option(
     "--duration",
     "-d",
@@ -504,23 +510,59 @@ def winery_list_stale_shards(ctx, duration, humanize_results):
     type=Duration(),
     default="48h",
 )
+@click.option(
+    "--dry-run", help="Do not perform the state change", is_flag=True, default=False
+)
 @click.pass_context
-def winery_release_stale_shards(ctx, shards, duration):
+def winery_release_stale_shards(ctx, shards, lockers, duration, dry_run):
     """Release WRITING shards that look stale"""
     from datetime import UTC, datetime
+
+    from humanize import naturaldelta
 
     from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 
     settings = ctx.obj["winery_settings"]
     base = SharedBase(base_dsn=settings["database"]["db"])
+    dst_state = {
+        ShardState.WRITING: ShardState.STANDBY,
+        ShardState.PACKING: ShardState.FULL,
+        ShardState.CLEANING: ShardState.PACKED,
+    }
 
-    stale = list(base.list_stale_shards(state=ShardState.WRITING, delay=duration))
+    stale = list(base.list_stale_shards(delay=duration))
+    if lockers:
+        stale = [shard for shard in stale if str(shard[3]) in lockers]
     if shards:
         stale = [shard for shard in stale if shard[0] in shards]
+
     if stale:
-        click.echo("Releasing:")
+        if dry_run:
+            click.echo("Would release (dry run):")
+        else:
+            click.echo("Releasing:")
+
+        by_locker = {}
         for name, state, locker_ts, locker in stale:
-            click.echo(f"  {name} stuck since {datetime.now(UTC) - locker_ts}")
-            base.set_shard_state(new_state=ShardState.STANDBY, name=name)
+            by_locker.setdefault(locker, []).append((name, state, locker_ts))
+
+        for locker in sorted(by_locker):
+            click.echo(f"{locker}:")
+            for name, state, locker_ts in by_locker[locker]:
+                since = naturaldelta(datetime.now(UTC) - locker_ts)
+                if state not in dst_state:
+                    click.echo(f"  {name} is in unexpected state {state}, ignoring")
+                    continue
+                dst = dst_state[state]
+                if not dry_run:
+                    click.echo(
+                        f"  {name} stuck in {state.name} for {since} --> {dst.name}"
+                    )
+                    base.set_shard_state(new_state=dst, name=name)
+                else:
+                    click.echo(
+                        f"  {name} stuck in {state.name} for {since} --> {dst.name}"
+                    )
+
     else:
         click.echo("No identified stale shards to release")

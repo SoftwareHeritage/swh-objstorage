@@ -10,6 +10,7 @@ import re
 import tempfile
 
 from click.testing import CliRunner
+import pytest
 import yaml
 
 from swh.objstorage.backends.winery.cli import objstorage_cli_group
@@ -90,7 +91,7 @@ def test_winery_list_stale_shards_none(winery_settings, storage):
     storage.add(b"toto", objid_for_content(b"toto"))
     storage.add(b"toto2", objid_for_content(b"toto2"))
     result = invoke("winery", "list-stale-shards", config=winery_settings)
-    expected = r"^\s*No identified stale shards\s+"
+    expected = r"^\s*No identified stale shard\s+"
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE), result.output
 
@@ -107,7 +108,7 @@ def test_winery_list_stale_shards_some(winery_settings, storage, winery_postgres
     result = invoke(
         "winery", "list-stale-shards", "--duration", "10d", config=winery_settings
     )
-    expected = r"^\s*No identified stale shards\s+"
+    expected = r"^\s*No identified stale shard\s+"
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE), result.output
 
@@ -118,5 +119,64 @@ def test_winery_list_stale_shards_some(winery_settings, storage, winery_postgres
         r"[0-9a-f-]{36}:\s+"
         r"i[0-9a-f]{31}: +WRITING since 7 days\s+"
     )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+
+@pytest.mark.parametrize(
+    "from_state, to_state",
+    (("writing", "standby"), ("packing", "full"), ("cleaning", "packed")),
+)
+def test_winery_release_stale_shards(
+    winery_settings, storage, winery_postgresql, from_state, to_state
+):
+    storage.add(b"toto", objid_for_content(b"toto"))
+    storage.add(b"toto2", objid_for_content(b"toto2"))
+
+    locker_ts = now() - datetime.timedelta(days=7)
+    with winery_postgresql.cursor() as cur:
+        cur.execute(
+            "UPDATE shards SET state=%s, locker_ts=%s",
+            (
+                from_state,
+                locker_ts,
+            ),
+        )
+    winery_postgresql.commit()
+
+    result = invoke(
+        "winery", "release-stale-shards", "--dry-run", config=winery_settings
+    )
+    expected = (
+        r"^\s*Would release \(dry run\):\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31} stuck in "
+        rf"{from_state.upper()} for 7 days --> {to_state.upper()}\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+    result = invoke("winery", "list-stale-shards", config=winery_settings)
+    expected = (
+        r"^\s*Potentially stale shards:\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31}: +"
+        rf"{from_state.upper()} since 7 days\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+    result = invoke("winery", "release-stale-shards", config=winery_settings)
+    expected = (
+        r"^\s*Releasing:\s+"
+        r"[0-9a-f-]{36}:\s+"
+        r"i[0-9a-f]{31} stuck in "
+        rf"{from_state.upper()} for 7 days --> {to_state.upper()}\s+"
+    )
+    assert result.exit_code == 0, (result.output, result.stderr, result.exception)
+    assert re.match(expected, result.output, re.MULTILINE), result.output
+
+    result = invoke("winery", "list-stale-shards", config=winery_settings)
+    expected = r"^\s*No identified stale shard\s+"
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE), result.output
