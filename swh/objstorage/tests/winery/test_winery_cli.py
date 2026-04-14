@@ -62,7 +62,7 @@ def test_winery_list_open_shards(winery_settings, storage):
     expected = (
         r"^\s*Open shards:\s+"
         r"[0-9a-f-]{36}:\s+"
-        r"i[0-9a-f]{31}: +WRITING since 0:00:00\.[0-9]{6}\s+"
+        r"i[0-9a-f]{31}: +WRITING since a moment\s+"
     )
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE)
@@ -73,7 +73,7 @@ def test_winery_list_open_shards(winery_settings, storage):
     expected = (
         r"^\s*Open shards:\s+"
         r"[0-9a-f-]{36}:\s+"
-        r"i[0-9a-f]{31}: +WRITING since 0:00:00\.[0-9]{6}\s+"
+        r"i[0-9a-f]{31}: +WRITING since a moment\s+"
     )
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE)
@@ -116,7 +116,7 @@ def test_winery_list_stale_shards_some(winery_settings, storage, winery_postgres
     expected = (
         r"^\s*Potentially stale shards:\s+"
         r"[0-9a-f-]{36}:\s+"
-        r"i[0-9a-f]{31}: +WRITING since 7 days, 0:00:00\.[0-9]{6}\s+"
+        r"i[0-9a-f]{31}: +WRITING since 7 days\s+"
     )
     assert result.exit_code == 0, (result.output, result.stderr, result.exception)
     assert re.match(expected, result.output, re.MULTILINE), result.output

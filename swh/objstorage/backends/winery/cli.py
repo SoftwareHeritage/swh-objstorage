@@ -392,7 +392,7 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
     """List open shards"""
     from datetime import UTC, datetime
 
-    from humanize import intcomma, naturalsize
+    from humanize import intcomma, naturaldelta, naturalsize
 
     from swh.objstorage.backends.winery.rwshard import RWShard
     from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
@@ -415,7 +415,7 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
             for name, state, locker_ts in by_locker[locker]:
                 since = ""
                 if locker_ts is not None:
-                    since = f" since {datetime.now(UTC) - locker_ts}"
+                    since = f" since {naturaldelta(datetime.now(UTC) - locker_ts)}"
                 extra = ""
                 if long:
                     try:
@@ -457,10 +457,19 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
     help="How long the shard must have been stuck in its state to be considered as stale",
     default="48h",
 )
+@click.option(
+    "--humanize/--no-humanize",
+    "humanize_results",
+    is_flag=True,
+    help="Do / do not humalize results",
+    default=True,
+)
 @click.pass_context
-def winery_list_stale_shards(ctx, duration):
+def winery_list_stale_shards(ctx, duration, humanize_results):
     """List open shards that look stale for some reason"""
     from datetime import UTC, datetime
+
+    from humanize import naturaldelta
 
     from swh.objstorage.backends.winery.sharedbase import SharedBase
 
@@ -477,9 +486,11 @@ def winery_list_stale_shards(ctx, duration):
         for locker in by_locker:
             click.echo(f"{locker}:")
             for name, state, locker_ts in by_locker[locker]:
-                click.echo(
-                    f"  {name}: {state.name} since {datetime.now(UTC) - locker_ts}"
-                )
+                since = datetime.now(UTC) - locker_ts
+                if humanize_results:
+                    click.echo(f"  {name}: {state.name} since {naturaldelta(since)}")
+                else:
+                    click.echo(f"  {name}: {state.name} since {since}")
     else:
         click.echo("No identified stale shards")
 
