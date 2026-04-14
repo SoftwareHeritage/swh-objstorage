@@ -7,10 +7,16 @@ from datetime import timedelta
 import logging
 import re
 from types import FrameType
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 import click
 
 from swh.objstorage.cli import objstorage_cli_group
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from .sharedbase import ShardState
 
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
@@ -364,6 +370,17 @@ class Duration(click.ParamType):
             )
 
 
+def shards_by_locker(
+    shards: List[Tuple[str, "ShardState", "datetime", str | None]],
+) -> List[Tuple[str, List[Tuple[str, "ShardState", "datetime"]]]]:
+    by_locker: Dict[str, List[Tuple[str, "ShardState", "datetime"]]] = {}
+    for name, state, locker_ts, locker in shards:
+        if locker is None:
+            locker = "N/A"
+        by_locker.setdefault(locker, []).append((name, state, locker_ts))
+    return sorted(by_locker.items())
+
+
 @winery.command("list-open-shards")
 @click.option(
     "--state",
@@ -404,14 +421,10 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
 
     shards = list(base.list_open_shards(state=shardstate))
     if shards:
-        by_locker = {}
-        for name, state, locker_ts, locker in shards:
-            by_locker.setdefault(locker, []).append((name, state, locker_ts))
-
         click.echo("Open shards:")
-        for locker in sorted(by_locker):
+        for locker, entries in shards_by_locker(shards):
             click.echo(f"{locker}:")
-            for name, state, locker_ts in by_locker[locker]:
+            for name, state, locker_ts in entries:
                 since = ""
                 if locker_ts is not None:
                     since = f" since {naturaldelta(datetime.now(UTC) - locker_ts)}"
@@ -475,16 +488,13 @@ def winery_list_stale_shards(ctx, duration, humanize_results):
     settings = ctx.obj["winery_settings"]
     base = SharedBase(base_dsn=settings["database"]["db"])
 
-    stale = list(base.list_stale_shards(delay=duration))
-    if stale:
-        by_locker = {}
-        for name, state, locker_ts, locker in stale:
-            by_locker.setdefault(locker, []).append((name, state, locker_ts))
-
+    shards = list(base.list_stale_shards(delay=duration))
+    if shards:
         click.echo("Potentially stale shards:")
-        for locker in by_locker:
+        for locker, entries in shards_by_locker(shards):
             click.echo(f"{locker}:")
-            for name, state, locker_ts in by_locker[locker]:
+
+            for name, state, locker_ts in entries:
                 since = datetime.now(UTC) - locker_ts
                 if humanize_results:
                     click.echo(f"  {name}: {state.name} since {naturaldelta(since)}")
@@ -495,7 +505,7 @@ def winery_list_stale_shards(ctx, duration, humanize_results):
 
 
 @winery.command("release-stale-shards")
-@click.option("--shard", "shards", help="shard name to release", multiple=True)
+@click.option("--shard", "shard_ids", help="shard name to release", multiple=True)
 @click.option(
     "--locker",
     "lockers",
@@ -513,7 +523,7 @@ def winery_list_stale_shards(ctx, duration, humanize_results):
     "--dry-run", help="Do not perform the state change", is_flag=True, default=False
 )
 @click.pass_context
-def winery_release_stale_shards(ctx, shards, lockers, duration, dry_run):
+def winery_release_stale_shards(ctx, shard_ids, lockers, duration, dry_run):
     """Release WRITING shards that look stale"""
     from datetime import UTC, datetime
 
@@ -529,25 +539,20 @@ def winery_release_stale_shards(ctx, shards, lockers, duration, dry_run):
         ShardState.CLEANING: ShardState.PACKED,
     }
 
-    stale = list(base.list_stale_shards(delay=duration))
+    shards = list(base.list_stale_shards(delay=duration))
     if lockers:
-        stale = [shard for shard in stale if str(shard[3]) in lockers]
-    if shards:
-        stale = [shard for shard in stale if shard[0] in shards]
+        shards = [shard for shard in shards if str(shard[3]) in lockers]
+    if shard_ids:
+        shards = [shard for shard in shards if shard[0] in shard_ids]
 
-    if stale:
+    if shards:
         if dry_run:
             click.echo("Would release (dry run):")
         else:
             click.echo("Releasing:")
-
-        by_locker = {}
-        for name, state, locker_ts, locker in stale:
-            by_locker.setdefault(locker, []).append((name, state, locker_ts))
-
-        for locker in sorted(by_locker):
+        for locker, entries in shards_by_locker(shards):
             click.echo(f"{locker}:")
-            for name, state, locker_ts in by_locker[locker]:
+            for name, state, locker_ts in entries:
                 since = naturaldelta(datetime.now(UTC) - locker_ts)
                 if state not in dst_state:
                     click.echo(f"  {name} is in unexpected state {state}, ignoring")

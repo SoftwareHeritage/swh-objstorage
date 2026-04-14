@@ -487,7 +487,7 @@ class SharedBase(Database):
 
     def list_open_shards(
         self, state: ShardState | None = None
-    ) -> Iterator[Tuple[str, ShardState, datetime, str]]:
+    ) -> Iterator[Tuple[str, ShardState, datetime, str | None]]:
         """List open shards and their current :py:class:`ShardState`."""
         args: List[str] = []
         req = (
@@ -499,12 +499,17 @@ class SharedBase(Database):
             args.append(state.value)
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(req, args)
-            for row in c:
-                yield row[0], ShardState(row[1]), row[2], row[3]
+            for name, state, locker_ts, locker in c:
+                yield (
+                    name,
+                    ShardState(state),
+                    locker_ts,
+                    str(locker) if locker is not None else None,
+                )
 
     def list_stale_shards(
         self, delay: timedelta = ONEDAY, state: ShardState | None = None
-    ) -> Iterator[Tuple[str, ShardState, datetime, str]]:
+    ) -> Iterator[Tuple[str, ShardState, datetime, str | None]]:
         """List all known shards and their current :py:class:`ShardState`."""
         extra = ""
         args: List[str | datetime] = [datetime.now(UTC) - delay]
@@ -518,8 +523,13 @@ class SharedBase(Database):
                 "  AND locker_ts < %s " + extra,
                 args,
             )
-            for row in c:
-                yield row[0], ShardState(row[1]), row[2], row[3]
+            for name, state, locker_ts, locker in c:
+                yield (
+                    name,
+                    ShardState(state),
+                    locker_ts,
+                    str(locker) if locker is not None else None,
+                )
 
     def count_objects(self, name: Optional[str] = None) -> Optional[int]:
         """Count the known objects in a shard.
