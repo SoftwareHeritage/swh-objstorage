@@ -91,7 +91,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
     shards:
       # integer: threshold in bytes above which shards get packed. Can be
       # overflowed by the max allowed object size.
-      max_size: 1000000000  # 1GB
+      max_size: 100000000  # 100MB
 
       # float: timeout in seconds after which idle read-write shards get
       # released by the winery writer process
@@ -116,18 +116,21 @@ And set it in a configuration file we'll call `localwinery.yml`:
 
       # Whether the winery writer should start packing shards immediately, or
       # defer to the standalone packer (default: true, the writer launches a
-      # background packer process)
-      pack_immediately: true
+      # background packer process - in our case we prefer to launch a separate packer,
+      # whose logs are easier to read when developing)
+      pack_immediately: false
 
       # Whether the packer should create shards in the shard pool, or defer to
       # the pool manager (default: true, the packer creates images)
-      create_images: true
+      create_images: false
 
       # Whether the packer should clean read-write shards from the database
       # immediately, or defer to the rw shard cleaner (default: true, the packer
       # cleans read-write shards immediately)
-      clean_immediately: true
+      clean_immediately: false
 
+
+Note that this configuration will force all packing operations to happen manually.
 
 Now you'll need a few terminal splits/tabs because we'll start 3 relevant services
 
