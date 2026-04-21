@@ -122,7 +122,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
 
       # Whether the packer should create shards in the shard pool, or defer to
       # the pool manager (default: true, the packer creates images)
-      create_images: false
+      create_images: true
 
       # Whether the packer should clean read-write shards from the database
       # immediately, or defer to the rw shard cleaner (default: true, the packer
