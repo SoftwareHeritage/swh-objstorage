@@ -31,7 +31,7 @@ class WineryObjStorage(ObjStorage):
         database: settings.Database,
         shards: settings.Shards,
         shards_pool: settings.ShardsPool,
-        throttler: settings.Throttler,
+        throttler: Optional[settings.Throttler] = None,
         packer: Optional[settings.Packer] = None,
         readonly: bool = False,
         allow_delete: bool = False,
