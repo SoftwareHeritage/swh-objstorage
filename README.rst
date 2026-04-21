@@ -80,7 +80,7 @@ Prepare a container folder:
 
 And set it in a configuration file we'll call `localwinery.yml`:
 
-.. code-block:: yml
+.. code-block:: yaml
 
   objstorage:
     cls: winery
