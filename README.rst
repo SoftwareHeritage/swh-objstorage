@@ -68,11 +68,9 @@ Then create a postgres DB and user (with a dummy password ⚠️):
 
 .. code-block:: console
 
-    sudo -u postgres psql -c "CREATE DATABASE winery;"
     sudo -u postgres psql -c "CREATE USER winery WITH PASSWORD 'winery';"
-    sudo -u postgres psql -d winery -f swh/objstorage/backends/winery/sql/30-schema.sql
-    sudo -u postgres psql -d winery -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO winery;"
-    sudo -u postgres psql -d winery -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO winery;"
+    sudo -u postgres psql -c "CREATE DATABASE winery OWNER winery;"
+    sudo -u postgres psql -h localhost -U winery -W -d winery -f swh/objstorage/backends/winery/sql/30-schema.sql
 
 Prepare a container folder:
 
@@ -133,25 +131,22 @@ And set it in a configuration file we'll call `localwinery.yml`:
 
 Now you'll need a few terminal splits/tabs because we'll start 3 relevant services
 
-
 .. code-block:: console
 
-    # Main service (winery writer)  listens on 0.0.0.0:5003
-    swh objstorage -C localwinery.yml rpc-serve
+    # Main service (winery writer)  listens on 0.0.0.0:15003
+    swh objstorage -C localwinery.yml rpc-serve -p  15003
     # Winery Packer Service
     swh objstorage -C localwinery.yml winery packer
     # optional, relevant later: RW Shard Cleaner
     swh objstorage -C localwinery.yml winery rw-shard-cleaner
 
-Finally, import more than 1GB
-
-TODO: create a second config `localwinery_api.yml` that setups a remote obstorage to localhost:5003
+To import contents we'll use the `swh objstorage import`, with the `remote.yml`
+configuration created in the Quick Start section in order to use the RPC server we've
+just started:
 
 .. code-block:: console
 
-    swh objstorage -C localwinery_api.yml import ~/swh-environment/swh-provenance/
-
-
+    swh objstorage -C remote.yml import ~/swh-environment/
 
 
 Test dependencies
