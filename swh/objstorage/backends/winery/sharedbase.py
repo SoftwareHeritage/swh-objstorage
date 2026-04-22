@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from enum import Enum
 import logging
 from types import TracebackType
-from typing import Iterator, Optional, Set, Tuple, Type
+from typing import Dict, Iterator, List, Optional, Set, Tuple, Type
 import uuid
 
 import psycopg
@@ -568,36 +568,49 @@ class SharedBase(Database):
             return None
         return self.get_shard_info(id)
 
-    def record_new_obj_id(self, db: psycopg.Connection, obj_id: bytes) -> Optional[int]:
+    def record_new_obj_ids(
+        self, db: psycopg.Connection, obj_ids: List[bytes]
+    ) -> List[Optional[int]]:
         """Try to record ``obj_id`` as present in the currently locked shard.
 
         Arguments:
           db: a psycopg database with an open transaction
-          obj_id: the id of the object being added
+          obj_ids: the ids of the object being added
 
         Returns:
-          The numeric id of the shard in which the object is recorded as present
+          The numeric id of the shard in which each object is recorded as present
           (which can differ from the currently locked shard, if the object was
-          added in another concurrent transaction).
+          added in another concurrent transaction), in the same order.
         """
+        if not obj_ids:
+            return []
+
         # for a previously deleted content, we want to overwrite the row with
         # re-added content; this may happen in the context of a swh-alter
         # restore procedure
-        db.execute(
-            "INSERT INTO signature2shard (signature, shard, state) "
-            "VALUES (%s, %s, 'present') "
-            "ON CONFLICT (signature) DO UPDATE "
-            "  SET shard=EXCLUDED.shard, state=EXCLUDED.state "
-            "  WHERE signature2shard.state='deleted'",
-            (obj_id, self.locked_shard_id),
-        )
-        cur = db.execute(
-            "SELECT shard FROM signature2shard WHERE signature = %s", (obj_id,)
-        )
-        res = cur.fetchone()
-        if not res:
-            raise RuntimeError("Could not record the object in any shard?")
-        return res[0]
+        with db.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO signature2shard (signature, shard, state)
+                VALUES (%s, %s, 'present')
+                ON CONFLICT (signature) DO UPDATE
+                  SET shard=EXCLUDED.shard, state=EXCLUDED.state
+                  WHERE signature2shard.state='deleted'
+                """,
+                [(obj_id, self.locked_shard_id) for obj_id in obj_ids],
+            )
+            cur.execute(
+                """
+                SELECT signature, shard
+                FROM signature2shard
+                WHERE SIGNATURE = ANY(%s)
+                """,
+                (obj_ids,),
+            )
+            signature_to_shard: Dict[bytes, int] = dict(cur)
+        if len(signature_to_shard) != len(set(obj_ids)):
+            raise RuntimeError("Could not record all objects in any shard?")
+        return [signature_to_shard[obj_id] for obj_id in obj_ids]
 
     def list_signatures(
         self, after_id: Optional[bytes] = None, limit: Optional[int] = None

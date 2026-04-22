@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,17 @@ from functools import partial
 import logging
 from threading import Event, Thread
 import time
-from typing import Callable, ContextManager, Iterator, Optional, Protocol, Tuple
+from typing import (
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    Tuple,
+)
 
 import psycopg
 
@@ -168,20 +178,54 @@ class RWShard(Database):
                 return size
 
     def add(self, db: psycopg.Connection, obj_id: bytes, content: bytes) -> None:
+        self.add_batch(db, [(obj_id, content)])
+
+    def add_batch(
+        self, db: psycopg.Connection, contents: List[Tuple[bytes, bytes]]
+    ) -> Dict:
+        """``contents`` should be pairs of ``(obj_id, content)``"""
         if self.readonly:
             raise ReadOnlyObjStorageError(
                 f"Cannot write to shard {self._name}, objstorage is readonly"
             )
+
+        num_added = 0
+        num_bytes_added = 0
+
         with self.quiesce_then_reset_idle():
-            cur = db.execute(
-                f"INSERT INTO {self.table_name} (key, content) "
-                "VALUES (%s, %s) "
-                "ON CONFLICT (key) DO NOTHING",
-                (obj_id, content),
-                binary=True,
-            )
-            if cur.rowcount:
-                self.size += len(content)
+            with db.cursor() as cur:
+                cur.executemany(
+                    f"""
+                    INSERT INTO {self.table_name} (key, content)
+                    VALUES (%s, %s)
+                    ON CONFLICT (key) DO NOTHING
+                    RETURNING key
+                    """,
+                    contents,
+                    returning=True,
+                )
+                inserted: Set[bytes] = set()
+                while True:
+                    inserted.update(obj_id for (obj_id,) in cur)
+                    if not cur.nextset():
+                        break
+                for obj_id, content in contents:
+                    try:
+                        inserted.remove(obj_id)
+                    except KeyError:
+                        # already in the table
+                        pass
+                    else:
+                        # new content
+                        num_added += 1
+                        num_bytes_added += len(content)
+
+        self.size += num_bytes_added
+
+        return {
+            "object:add": num_added,
+            "object:add:bytes": num_bytes_added,
+        }
 
     def get(self, obj_id: bytes) -> Optional[bytes]:
         with self.pool.connection() as db, db.cursor() as c:

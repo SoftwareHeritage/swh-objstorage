@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -371,8 +371,8 @@ def test_winery_add_concurrent(winery_settings, mocker):
             super().__init__(*args, **kwargs)
             self.release_obj_id = threading.Event()
 
-        def record_new_obj_id(self, *args, **kwargs):
-            ret = super().record_new_obj_id(*args, **kwargs)
+        def record_new_obj_ids(self, *args, **kwargs):
+            ret = super().record_new_obj_ids(*args, **kwargs)
             self.release_obj_id.wait()
             return ret
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025  The Software Heritage developers
+# Copyright (C) 2022-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,7 +6,7 @@
 from functools import partial
 import logging
 from multiprocessing import Process
-from typing import Callable, Dict, Iterator, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
@@ -87,12 +87,36 @@ class WineryObjStorage(ObjStorage):
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
+        self._add_batch([(obj_id, content)])
+
+    @timed
+    def add_batch(
+        self, contents: list[tuple[HashDict, bytes]], check_presence: bool = True
+    ) -> Dict:
+        """``contents`` should be pairs of ``(obj_id, content)``"""
+        return self._add_batch(contents, check_presence)
+
+    def _add_batch(
+        self, contents: list[tuple[HashDict, bytes]], check_presence: bool = True
+    ) -> Dict:
+        """Same as ``add_batch``, but not wrapped by ``@timed``, so ``add()`` is not
+        double-counted"""
         if not self.writer:
             raise ReadOnlyObjStorageError("add")
-        internal_obj_id = self._hash(obj_id)
-        if check_presence and internal_obj_id in self.reader:
-            return
-        self.writer.add(content, internal_obj_id)
+        hashed_contents = (
+            (self._hash(obj_id), content) for (obj_id, content) in contents
+        )
+        if check_presence:
+            # filter out contents that already exist
+            hashed_contents = (
+                (internal_obj_id, content)
+                for (internal_obj_id, content) in hashed_contents
+                if internal_obj_id not in self.reader
+            )
+        hashed_contents_list = list(hashed_contents)
+        if hashed_contents_list:
+            return self.writer.add_batch(hashed_contents_list)
+        return {}
 
     def delete(self, obj_id: HashDict):
         if not self.writer:
@@ -299,13 +323,22 @@ class WineryWriter:
         return self._shard
 
     def add(self, content: bytes, obj_id: bytes) -> None:
-        with self.base.pool.connection() as db, db.transaction():
-            shard = self.base.record_new_obj_id(db, obj_id)
-            if shard != self.base.locked_shard_id:
-                #  this object is the responsibility of another shard
-                return
+        self.add_batch([(obj_id, content)])
 
-            self.shard.add(db, obj_id, content)
+    def add_batch(self, contents: List[Tuple[bytes, bytes]]) -> Dict:
+        """``contents`` should be pairs of ``(obj_id, content)``"""
+        with self.base.pool.connection() as db, db.transaction():
+            shards = self.base.record_new_obj_ids(
+                db, [obj_id for (obj_id, _content) in contents]
+            )
+            contents = [
+                (obj_id, content)
+                for (shard, (obj_id, content)) in zip(shards, contents)
+                # if not equal, this object is the responsibility of another shard:
+                if shard == self.base.locked_shard_id
+            ]
+
+            stats = self.shard.add_batch(db, contents)
 
         if self.shard.is_full():
             filled_name = self.shard.name
@@ -313,6 +346,8 @@ class WineryWriter:
             self.shards_filled.append(filled_name)
             if self.packer_settings["pack_immediately"]:
                 self.pack(filled_name)
+
+        return stats
 
     def delete(self, obj_id: bytes):
         shard_info = self.base.get(obj_id)
