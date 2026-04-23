@@ -210,10 +210,9 @@ class RWShard(Database):
                     returning=True,
                 )
                 inserted: Set[bytes] = set()
-                while True:
-                    inserted.update(obj_id for (obj_id,) in cur)
-                    if not cur.nextset():
-                        break
+                for _ in cur.results():
+                    for (obj_id,) in cur:
+                        inserted.add(obj_id)
                 for obj_id, content in contents:
                     try:
                         inserted.remove(obj_id)

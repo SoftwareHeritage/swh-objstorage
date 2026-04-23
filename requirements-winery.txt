@@ -1,2 +1,2 @@
-psycopg[c,pool]
+psycopg[c,pool] >= 3.3
 systemd-python
