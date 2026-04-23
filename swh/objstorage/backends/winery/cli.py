@@ -434,8 +434,8 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
                             readonly=True,
                             shard_max_size=0,
                         )
-                        n = rwshard.entries
-                        size = rwshard.size
+                        n = rwshard.obj_count.count
+                        size = rwshard.obj_count.volume
                         if size >= max_size:
                             full = "full"
                         else:
