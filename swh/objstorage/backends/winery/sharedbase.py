@@ -570,7 +570,7 @@ class SharedBase(Database):
 
     def record_new_obj_ids(
         self, db: psycopg.Connection, obj_ids: List[bytes]
-    ) -> List[Optional[int]]:
+    ) -> Dict[bytes, Optional[int]]:
         """Try to record ``obj_id`` as present in the currently locked shard.
 
         Arguments:
@@ -583,7 +583,10 @@ class SharedBase(Database):
           added in another concurrent transaction), in the same order.
         """
         if not obj_ids:
-            return []
+            return {}
+
+        # insert in consistent order to avoid deadlocks
+        obj_ids = sorted(set(obj_ids))
 
         # for a previously deleted content, we want to overwrite the row with
         # re-added content; this may happen in the context of a swh-alter
@@ -610,7 +613,7 @@ class SharedBase(Database):
             signature_to_shard: Dict[bytes, int] = dict(cur)
         if len(signature_to_shard) != len(set(obj_ids)):
             raise RuntimeError("Could not record all objects in any shard?")
-        return [signature_to_shard[obj_id] for obj_id in obj_ids]
+        return {obj_id: signature_to_shard[obj_id] for obj_id in obj_ids}
 
     def list_signatures(
         self, after_id: Optional[bytes] = None, limit: Optional[int] = None

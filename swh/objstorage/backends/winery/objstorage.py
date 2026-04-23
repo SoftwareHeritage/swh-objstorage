@@ -333,9 +333,9 @@ class WineryWriter:
             )
             contents = [
                 (obj_id, content)
-                for (shard, (obj_id, content)) in zip(shards, contents)
+                for (obj_id, content) in contents
                 # if not equal, this object is the responsibility of another shard:
-                if shard == self.base.locked_shard_id
+                if shards[obj_id] == self.base.locked_shard_id
             ]
 
             stats = self.shard.add_batch(db, contents)

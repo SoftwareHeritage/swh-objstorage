@@ -192,6 +192,11 @@ class RWShard(Database):
         num_added = 0
         num_bytes_added = 0
 
+        # insert in consistent order to avoid deadlocks
+        contents = list(
+            sorted(contents, key=lambda obj_id_and_content: obj_id_and_content[0])
+        )
+
         with self.quiesce_then_reset_idle():
             with db.cursor() as cur:
                 cur.executemany(
