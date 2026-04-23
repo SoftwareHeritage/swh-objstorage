@@ -7,7 +7,7 @@ from datetime import timedelta
 import logging
 import re
 from types import FrameType
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Tuple
 
 import click
 
@@ -23,6 +23,25 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def install_signal_handlers(signal_handler: Callable[[int, FrameType | None], None]):
+    """Install the signal handler for SIGINT and SIGTERM"""
+    import os
+
+    # This is critical for tests not to hang... See, the way ServerTestFixture
+    # -- used in rpc/api tests -- is shutting down the flask server on teardown
+    # is by calling process.terminate()... So if some other test (e.g. in
+    # test_objstorage_winery) call this command BEFORE executing rpc/api tests,
+    # then the SIGTERM aiming at the Flask server will be caught by this very
+    # 'set_signal_received' hook if we install it here...
+    if os.environ.get("PYTEST_VERSION") is not None:
+        return
+
+    import signal
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, signal_handler)
 
 
 @objstorage_cli_group.group("winery")
@@ -70,7 +89,6 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
     no need for provisionning the RDB volume).
 
     """
-    import os
     import signal
 
     from swh.objstorage.backends.winery.housekeeping import shard_packer
@@ -80,7 +98,7 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
     signal_received = False
 
     def stop_packing(num_shards: int) -> bool:
-        """Stop packing when a signal is received, or when stop_after_shards is reached."""
+        """Stop packing when a signal is received or when stop_after_shards is reached"""
         return signal_received or (
             stop_after_shards is not None and num_shards >= stop_after_shards
         )
@@ -90,10 +108,7 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         signal_received = True
 
-    # see below
-    if os.environ.get("PYTEST_VERSION") is None:
-        signal.signal(signal.SIGINT, set_signal_received)
-        signal.signal(signal.SIGTERM, set_signal_received)
+    install_signal_handlers(set_signal_received)
 
     ret = shard_packer(**settings, stop_packing=stop_packing)
 
@@ -128,7 +143,6 @@ def winery_rbd(
 
 
     """
-    import os
     import signal
 
     from swh.objstorage.backends.winery.roshard import manage_images, pool_from_settings
@@ -160,10 +174,7 @@ def winery_rbd(
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
 
-    # see below
-    if os.environ.get("PYTEST_VERSION") is None:
-        signal.signal(signal.SIGINT, set_signal_received)
-        signal.signal(signal.SIGTERM, set_signal_received)
+    install_signal_handlers(set_signal_received)
 
     pool = pool_from_settings(
         shards_settings=settings["shards"],
@@ -212,7 +223,6 @@ def winery_rw_shard_cleaner(
     setup is configured with `clean_immediately=false`.
 
     """
-    import os
     import signal
 
     from swh.objstorage.backends.winery.housekeeping import rw_shard_cleaner
@@ -246,16 +256,7 @@ def winery_rw_shard_cleaner(
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
 
-    # This is critical for tests not to hang... See, the way ServerTestFixture
-    # -- used in rpc/api tests -- is shutting down the flask server on teardown
-    # is by calling process.terminate()... So if some other test (e.g. in
-    # test_objstorage_winery) call this command BEFORE executing rpc/api tests,
-    # then the SIGTERM aiming at the Flask server will be caugth by this very
-    # 'set_signal_received' hook if we install it here... Don't ask me how long
-    # I spent on this...
-    if os.environ.get("PYTEST_VERSION") is None:
-        signal.signal(signal.SIGINT, set_signal_received)
-        signal.signal(signal.SIGTERM, set_signal_received)
+    install_signal_handlers(set_signal_received)
 
     ret = rw_shard_cleaner(
         database=settings["database"],
@@ -271,7 +272,6 @@ def winery_rw_shard_cleaner(
 @click.pass_context
 def winery_clean_deleted_objects(ctx):
     """Clean deleted objects from Winery"""
-    import os
     import signal
 
     from swh.objstorage.backends.winery.housekeeping import deleted_objects_cleaner
@@ -291,10 +291,7 @@ def winery_clean_deleted_objects(ctx):
         logger.warning("Received signal %s, exiting", signal.strsignal(signum))
         stop_on_next_iteration = True
 
-    # See above
-    if os.environ.get("PYTEST_VERSION") is None:
-        signal.signal(signal.SIGINT, set_signal_received)
-        signal.signal(signal.SIGTERM, set_signal_received)
+    install_signal_handlers(set_signal_received)
 
     base = SharedBase(base_dsn=settings["database"]["db"])
 
