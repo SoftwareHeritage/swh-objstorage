@@ -585,8 +585,10 @@ class SharedBase(Database):
         if not obj_ids:
             return {}
 
+        obj_id_set = set(obj_ids)
+
         # insert in consistent order to avoid deadlocks
-        obj_ids = sorted(set(obj_ids))
+        obj_ids = sorted(obj_id_set)
 
         # for a previously deleted content, we want to overwrite the row with
         # re-added content; this may happen in the context of a swh-alter
@@ -611,8 +613,13 @@ class SharedBase(Database):
                 (obj_ids,),
             )
             signature_to_shard: Dict[bytes, int] = dict(cur)
-        if len(signature_to_shard) != len(set(obj_ids)):
-            raise RuntimeError("Could not record all objects in any shard?")
+
+        unrecorded_objects = signature_to_shard.keys() - obj_id_set
+        if unrecorded_objects:
+            raise RuntimeError(
+                "Could not record all objects in any shard: missing "
+                + ", ".join(sig.hex() for sig in unrecorded_objects)
+            )
         return {obj_id: signature_to_shard[obj_id] for obj_id in obj_ids}
 
     def list_signatures(
