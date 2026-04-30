@@ -169,11 +169,8 @@ def populate_default_settings(
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
 
-    if throttler is not None:
-        if "db" not in throttler:
-            settings["throttler"] = {"db": settings["database"]["db"], **throttler}
-        else:
-            settings["throttler"] = throttler
+    if throttler is not None and "db" not in throttler:
+        settings["throttler"] = {"db": settings["database"]["db"], **throttler}
     else:
         settings["throttler"] = throttler
 
