@@ -61,7 +61,6 @@ First ensure your virtualenv contains the correct dependencies:
 
 .. code-block:: console
 
-    pip install -r requirements-winery.txt
     pip install -e .[winery]
 
 Then create a postgres DB and user (with a dummy password ⚠️):
