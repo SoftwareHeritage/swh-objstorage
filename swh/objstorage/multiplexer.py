@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -41,12 +41,15 @@ DEFAULT_TRANSIENT_READ_EXCEPTIONS = (
 
 
 class ObjStorageThread(threading.Thread):
+    _NAME = "swh-objstorage-multiplexer"
+
     def __init__(self, storage):
-        super().__init__(daemon=True)
+        super().__init__(daemon=True, name=self._NAME)
         self.storage = storage
         self.commands = queue.Queue()
 
     def run(self):
+        logger.info("Started ObjStorageThread")
         while True:
             try:
                 mailbox, command, args, kwargs = self.commands.get(True, 0.05)
@@ -59,6 +62,8 @@ class ObjStorageThread(threading.Thread):
                 self.queue_result(mailbox, "exception", exc)
             else:
                 self.queue_result(mailbox, "result", ret)
+
+        logger.info("Terminated ObjStorageThread")
 
     def queue_command(self, command, *args, mailbox=None, **kwargs):
         """Enqueue a new command to be processed by the thread.
