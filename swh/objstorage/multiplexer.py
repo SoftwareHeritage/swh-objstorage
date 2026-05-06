@@ -42,17 +42,19 @@ DEFAULT_TRANSIENT_READ_EXCEPTIONS = (
 
 class ObjStorageThread(threading.Thread):
     _NAME = "swh-objstorage-multiplexer"
+    _TIMEOUT = 0.05
 
     def __init__(self, storage):
         super().__init__(daemon=True, name=self._NAME)
         self.storage = storage
         self.commands = queue.Queue()
+        self._terminate = False
 
     def run(self):
         logger.info("Started ObjStorageThread")
-        while True:
+        while not self._terminate:
             try:
-                mailbox, command, args, kwargs = self.commands.get(True, 0.05)
+                mailbox, command, args, kwargs = self.commands.get(True, self._TIMEOUT)
             except queue.Empty:
                 continue
 
@@ -150,6 +152,9 @@ class ObjStorageThread(threading.Thread):
         mailbox = self.queue_command("__contains__", *args, **kwargs)
         return self.get_result_from_mailbox(mailbox)
 
+    def terminate(self):
+        self._terminate = True
+
 
 class MultiplexerObjStorage(ObjStorage):
     """Implementation of ObjStorage that distributes between multiple
@@ -228,6 +233,10 @@ class MultiplexerObjStorage(ObjStorage):
         self.active_readers: Set[int] = set()
         self.reset_timers: Dict[int, threading.Timer] = {}
         self.reset_active_readers()
+
+    def __del__(self):
+        for thread in self.storage_threads:
+            thread.terminate()
 
     def reset_active_readers(self):
         """Reset the active readers set to all storages, and cancel all reset_failed_threads"""
