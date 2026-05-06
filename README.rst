@@ -130,7 +130,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
       clean_immediately: false
 
 
-Note that this configuration will force all packing operations to happen manually.
+Note that this configuration implies to run a packer process separately.
 
 Now you'll need a few terminal splits/tabs because we'll start 3 relevant services
 
