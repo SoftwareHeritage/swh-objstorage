@@ -214,7 +214,7 @@ class TestWinery:
             return None
 
         mocker.patch.object(
-            winery_objstorage.roshard.ROShard,
+            winery_objstorage.ROShard,
             "delete",
             side_effect=roshard_delete_side_effect,
         )

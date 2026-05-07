@@ -14,7 +14,7 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
-from swh.objstorage.backends.winery.roshard import FileBackedPool
+from swh.objstorage.backends.winery.pools import FileBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
 from swh.objstorage.factory import get_objstorage
@@ -48,7 +48,7 @@ def file_backed_pool(mocker, tmp_path, shard_max_size, pool_name):
     )
     pool.image_unmap_all()
     mocker.patch(
-        "swh.objstorage.backends.winery.roshard.RBDPool.from_kwargs",
+        "swh.objstorage.backends.winery.pools.RBDPool.from_kwargs",
         return_value=pool,
     )
     pool._settings_for_tests = {

@@ -161,7 +161,8 @@ def winery_rbd(
     """
     import signal
 
-    from swh.objstorage.backends.winery.roshard import manage_images, pool_from_settings
+    from swh.objstorage.backends.winery.pools import pool_from_settings
+    from swh.objstorage.backends.winery.roshard import manage_images
     from swh.objstorage.backends.winery.sleep import sleep_exponential
 
     settings = ctx.obj["winery_settings"]
@@ -290,7 +291,7 @@ def winery_clean_deleted_objects(ctx):
     import signal
 
     from swh.objstorage.backends.winery.housekeeping import deleted_objects_cleaner
-    from swh.objstorage.backends.winery.roshard import pool_from_settings
+    from swh.objstorage.backends.winery.pools import pool_from_settings
     from swh.objstorage.backends.winery.sharedbase import SharedBase
 
     settings = ctx.obj["winery_settings"]

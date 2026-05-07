@@ -12,8 +12,10 @@ from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import ObjStorage, timed
 
-from . import roshard, settings
+from . import settings
 from .housekeeping import pack
+from .pools import Pool, pool_from_settings
+from .roshard import ROShard, ShardNotMapped
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .throttler import Throttler
@@ -49,7 +51,7 @@ class WineryObjStorage(ObjStorage):
         )
 
         self.throttler = Throttler.from_settings(self.settings)
-        self.pool = roshard.pool_from_settings(
+        self.pool = pool_from_settings(
             shards_settings=self.settings["shards"],
             shards_pool_settings=self.settings["shards_pool"],
         )
@@ -138,15 +140,13 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(
-        self, throttler: Throttler, pool: roshard.Pool, database: settings.Database
-    ):
+    def __init__(self, throttler: Throttler, pool: Pool, database: settings.Database):
         self.throttler = throttler
         self.pool = pool
         self.base = SharedBase(
             base_dsn=database["db"], application_name=database["application_name"]
         )
-        self.ro_shards: Dict[str, roshard.ROShard] = {}
+        self.ro_shards: Dict[str, ROShard] = {}
         self.rw_shards: Dict[str, RWShard] = {}
 
     def __contains__(self, obj_id):
@@ -157,15 +157,15 @@ class WineryReader:
     ) -> Iterator[bytes]:
         yield from self.base.list_signatures(after_id, limit)
 
-    def roshard(self, name) -> Optional[roshard.ROShard]:
+    def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
             try:
-                shard = roshard.ROShard(
+                shard = ROShard(
                     name=name,
                     throttler=self.throttler,
                     pool=self.pool,
                 )
-            except roshard.ShardNotMapped:
+            except ShardNotMapped:
                 return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:

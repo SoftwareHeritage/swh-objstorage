@@ -7,6 +7,7 @@ import logging
 from typing import Callable, Optional
 
 from . import roshard, settings
+from .pools import pool_from_settings
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -129,7 +130,7 @@ def pack(
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
     throttler = Throttler.from_settings({"throttler": throttler_settings})
-    pool = roshard.pool_from_settings(
+    pool = pool_from_settings(
         shards_settings=shards_settings, shards_pool_settings=shards_pool_settings
     )
     with roshard.ROShardCreator(
