@@ -289,7 +289,11 @@ class WineryWriter:
             self.release_shard(new_state=ShardState.FULL)
             self.shards_filled.append(filled_name)
             if self.packer_settings["pack_immediately"]:
-                self.pack(filled_name)
+                logger.warning(
+                    "pack_immediately has been disabled. Please use a "
+                    "'swh objstorage winery packer' service instead. "
+                    "Packing will NOT be executed now."
+                )
 
         return stats
 

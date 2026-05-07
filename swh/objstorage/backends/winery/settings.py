@@ -19,7 +19,7 @@ class Packer(TypedDict):
     create_images: NotRequired[bool]
     """Whether to create the images"""
     pack_immediately: NotRequired[bool]
-    """Immediately pack shards (in a separate thread) when overflowing"""
+    """Deprecated (always False)"""
     clean_immediately: NotRequired[bool]
     """Deprecated (always False)"""
 
@@ -28,7 +28,7 @@ def packer_settings_with_defaults(values: Packer) -> Packer:
     """Hydrate Packer settings with default values"""
     return {
         "create_images": True,
-        "pack_immediately": True,
+        "pack_immediately": False,
         "clean_immediately": False,
         **values,
     }
@@ -186,6 +186,11 @@ def populate_default_settings(
     if packer.get("clean_immediately"):
         logger.warning(
             "clean_immediately has been deprecated and is no longer "
+            "used. Please update your configuration and setup."
+        )
+    if packer.get("pack_immediately"):
+        logger.warning(
+            "pack_immediately has been deprecated and is no longer "
             "used. Please update your configuration and setup."
         )
     return settings

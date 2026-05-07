@@ -152,6 +152,8 @@ class TestWinery:
         sha256 = objid_for_content(content)["sha256"]
         winery_writer.add(content=content, obj_id=sha256)
         assert winery_writer.base.locked_shard != shard
+        assert len(winery_writer.packers) == 0
+        winery_writer.pack(shard)
         assert len(winery_writer.packers) == 1
         packer = winery_writer.packers[0]
         packer.join()
@@ -169,13 +171,13 @@ class TestWinery:
             winery_reader.get(sha256)
 
     @pytest.mark.shard_max_size(1)
-    @pytest.mark.pack_immediately(True)
     def test_winery_delete_on_roshard(self, winery_writer, winery_reader, image_pool):
         shard = winery_writer.base.locked_shard
         content = b"SOMETHING"
         sha256 = objid_for_content(content)["sha256"]
         winery_writer.add(content=content, obj_id=sha256)
         assert winery_writer.base.locked_shard != shard
+        winery_writer.pack(shard)
         assert winery_writer.packers
         for packer in winery_writer.packers:
             packer.join()
@@ -210,7 +212,6 @@ class TestWinery:
             assert b"SOMETHING" not in image.read()
 
     @pytest.mark.shard_max_size(20)
-    @pytest.mark.pack_immediately(True)
     def test_winery_deleted_objects_cleaner_handles_exception(
         self, winery_writer, image_pool, mocker
     ):
@@ -226,8 +227,8 @@ class TestWinery:
         content2 = b"CHARDONNAY"
         sha256_2 = objid_for_content(content2)["sha256"]
         winery_writer.add(content=content2, obj_id=sha256_2)
-
         # This should be enough bytes to trigger packing
+        winery_writer.pack(shard)
         for packer in winery_writer.packers:
             packer.join()
         cleanup_rw_shard(shard, base_dsn=winery_writer.base.dsn)
@@ -322,32 +323,14 @@ class TestWinery:
         assert cleanup_rw_shard(shard, base_dsn=winery_settings["database"]["db"])
         assert winery_writer.base.get_shard_state(shard) == ShardState.READONLY
 
-    @pytest.mark.shard_max_size(1024 * 1024)
-    @pytest.mark.pack_immediately(True)
-    def test_winery_writer_pack_immediately_true(self, image_pool, storage):
-        shard = storage.writer.base.locked_shard
-
-        for i in range(1024):
-            content = i.to_bytes(1024, "little")
-            obj_id = objid_for_content(content)
-            storage.add(content=content, obj_id=obj_id)
-
-        assert storage.writer.packers
-        for packer in storage.writer.packers:
-            packer.join()
-
-        assert storage.writer.base.locked_shard != shard
-
-        assert storage.writer.base.get_shard_state(shard) == ShardState.PACKED
-
     @pytest.mark.shard_max_size(300 * 1024)
-    @pytest.mark.pack_immediately(True)
     def test_winery_readonly_storage(self, image_pool, storage, readonly_storage):
         for i in range(1024):
             content = i.to_bytes(1024, "little")
             obj_id = objid_for_content(content)
             storage.add(content=content, obj_id=obj_id)
-
+        for shard in storage.writer.shards_filled:
+            storage.writer.pack(shard)
         assert storage.writer.packers
         for packer in storage.writer.packers:
             packer.join()
@@ -366,7 +349,6 @@ class TestWinery:
             readonly_storage.add(content=content, obj_id=obj_id)
 
     @pytest.mark.shard_max_size(1024 * 1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_writer_pack_immediately_false(self, storage):
         shard = storage.writer.base.locked_shard
 
@@ -419,7 +401,6 @@ class TestWinery:
             )
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_standalone_packer(self, winery_settings, image_pool, storage):
         # create 4 shards
         for i in range(16):
@@ -494,7 +475,6 @@ class TestWinery:
         assert shard_counts == {ShardState.READONLY: 4}
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_packer_clean_up_interrupted_shard(
         self, image_pool, winery_settings, storage, caplog
     ):
@@ -544,8 +524,6 @@ class TestWinery:
             ]
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_packer_clean_up_aborted_shard(
         self, image_pool, winery_settings, storage, caplog
     ):
@@ -581,8 +559,6 @@ class TestWinery:
         assert shards[0][1] == ShardState.FULL
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_cli_packer(
         self, image_pool, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -617,7 +593,6 @@ class TestWinery:
             assert shard_info[shard] == ShardState.PACKED
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_cli_packer_rollback_on_error(
         self, image_pool, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -663,7 +638,6 @@ class TestWinery:
             ), f"{shard} in state {shard_info[shard]}"
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_cli_rbd(
         self, image_pool, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -770,6 +744,10 @@ class TestWinery:
         filled = storage.writer.shards_filled
         assert len(filled) == 4
 
+        # pack them
+        for shard in filled:
+            storage.writer.pack(shard)
+
         for packer in storage.writer.packers:
             packer.join()
             assert packer.exitcode == 0
@@ -819,7 +797,6 @@ class TestWinery:
             assert shard not in shard_tables
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(True)
     def test_winery_cli_rw_shard_cleaner_rollback_on_error(
         self, image_pool, postgresql_dsn, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -831,6 +808,10 @@ class TestWinery:
 
         filled = storage.writer.shards_filled
         assert len(filled) == 4
+
+        # pack them
+        for shard in filled:
+            storage.writer.pack(shard)
 
         for packer in storage.writer.packers:
             packer.join()
@@ -882,7 +863,6 @@ class TestWinery:
             assert shard_info[shard] == ShardState.PACKED
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(False)
     def test_winery_standalone_packer_never_stop_packing(
         self, image_pool, postgresql_dsn, shard_max_size, storage, winery_settings
     ):

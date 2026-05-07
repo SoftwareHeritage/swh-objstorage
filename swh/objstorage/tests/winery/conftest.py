@@ -112,15 +112,6 @@ def shard_max_size(request) -> int:
 
 
 @pytest.fixture
-def pack_immediately(request) -> bool:
-    marker = request.node.get_closest_marker("pack_immediately")
-    if marker is None:
-        return True
-    else:
-        return marker.args[0]
-
-
-@pytest.fixture
 def use_throttler(request) -> int:
     marker = request.node.get_closest_marker("use_throttler")
     if marker is None:
@@ -133,7 +124,6 @@ def use_throttler(request) -> int:
 def winery_settings(
     postgresql_dsn,
     shard_max_size,
-    pack_immediately,
     image_pool,
     use_throttler,
 ) -> settings.Winery:
@@ -151,7 +141,6 @@ def winery_settings(
         ),
         packer={
             "create_images": True,
-            "pack_immediately": pack_immediately,
         },
         shards_pool=image_pool._settings_for_tests,
     )
