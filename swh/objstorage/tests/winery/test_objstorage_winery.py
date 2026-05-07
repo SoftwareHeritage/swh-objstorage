@@ -179,6 +179,7 @@ class TestWinery:
         assert winery_writer.packers
         for packer in winery_writer.packers:
             packer.join()
+        cleanup_rw_shard(shard, base_dsn=winery_writer.base.dsn)
         assert winery_reader.get(sha256) == content
 
         # This will only mark as deleted in SharedBase
@@ -229,6 +230,7 @@ class TestWinery:
         # This should be enough bytes to trigger packing
         for packer in winery_writer.packers:
             packer.join()
+        cleanup_rw_shard(shard, base_dsn=winery_writer.base.dsn)
 
         # We should only have one roshard
         assert len(image_pool.image_list()) == 1
@@ -299,7 +301,6 @@ class TestWinery:
         )
 
     @pytest.mark.shard_max_size(10 * 1024 * 1024)
-    @pytest.mark.clean_immediately(False)
     def test_winery_pack(self, winery_settings, winery_writer, image_pool):
         shard = winery_writer.base.locked_shard
         content = b"SOMETHING"
@@ -337,7 +338,7 @@ class TestWinery:
 
         assert storage.writer.base.locked_shard != shard
 
-        assert storage.writer.base.get_shard_state(shard) == ShardState.READONLY
+        assert storage.writer.base.get_shard_state(shard) == ShardState.PACKED
 
     @pytest.mark.shard_max_size(300 * 1024)
     @pytest.mark.pack_immediately(True)
@@ -419,7 +420,6 @@ class TestWinery:
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_standalone_packer(self, winery_settings, image_pool, storage):
         # create 4 shards
         for i in range(16):
@@ -495,7 +495,6 @@ class TestWinery:
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_packer_clean_up_interrupted_shard(
         self, image_pool, winery_settings, storage, caplog
     ):
@@ -619,7 +618,6 @@ class TestWinery:
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_cli_packer_rollback_on_error(
         self, image_pool, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -760,8 +758,6 @@ class TestWinery:
             assert image_pool.image_mapped(shard) == "ro"
 
     @pytest.mark.shard_max_size(1024)
-    @pytest.mark.pack_immediately(True)
-    @pytest.mark.clean_immediately(False)
     def test_winery_cli_rw_shard_cleaner(
         self, image_pool, postgresql_dsn, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -824,7 +820,6 @@ class TestWinery:
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(True)
-    @pytest.mark.clean_immediately(False)
     def test_winery_cli_rw_shard_cleaner_rollback_on_error(
         self, image_pool, postgresql_dsn, storage, tmp_path, winery_settings, cli_runner
     ):
@@ -888,7 +883,6 @@ class TestWinery:
 
     @pytest.mark.shard_max_size(1024)
     @pytest.mark.pack_immediately(False)
-    @pytest.mark.clean_immediately(False)
     def test_winery_standalone_packer_never_stop_packing(
         self, image_pool, postgresql_dsn, shard_max_size, storage, winery_settings
     ):

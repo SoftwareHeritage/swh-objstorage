@@ -154,8 +154,12 @@ def pack(
     logger.info("RO shard %s: saved", shard)
 
     shared_base.shard_packing_ends(shard)
-    if packer_settings["clean_immediately"]:
-        cleanup_rw_shard(shard, base_dsn=shared_base.dsn)
+    if packer_settings.get("clean_immediately"):
+        logger.warning(
+            "clean_immediately has been disabled. Please use a "
+            "'swh objstorage winery rw-shard-cleaner' service instead. "
+            "Cleaning will NOT be executed now."
+        )
     return True
 
 

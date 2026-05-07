@@ -80,9 +80,6 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
 
     When the shard file is ready, the shard gets packed.
 
-    If `clean_immediately` is set, the write shard is immediately removed and
-    the shard moved to the `readonly` state.
-
     Note: when using a `cls: directory` type for `shards_pool` configuration,
     it is advisable to set `create_images` to True; the `rdb` management
     process is then unnecessary (when writing directly in shard files, there is
@@ -238,8 +235,7 @@ def winery_rw_shard_cleaner(
     shards pool). They get locked in the `cleaning` state, the database cleanup
     is performed, then the shard gets moved in the final `readonly` state.
 
-    This process should run continuously as a background process if the winery
-    setup is configured with `clean_immediately=false`.
+    This process should run continuously as a background process.
 
     """
     import signal
