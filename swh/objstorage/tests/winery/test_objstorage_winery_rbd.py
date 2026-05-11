@@ -8,6 +8,11 @@ import os
 import shutil
 
 import pytest
+import yaml
+
+from swh.objstorage.backends.winery.sharedbase import ShardState
+from swh.objstorage.cli import swh_cli_group
+from swh.objstorage.objstorage import objid_for_content
 
 from .test_objstorage_winery import TestWinery as _TestWinery
 from .test_objstorage_winery import TestWineryObjStorage as _TestWineryObjStorage
@@ -58,40 +63,45 @@ def rbd_map_options():
 
 
 @pytest.fixture
-def ceph_pool(remove_pool, remove_images, pool_name, rbd_map_options, needs_ceph):
-    pool = RBDPoolHelper(
-        shard_max_size=10 * 1024 * 1024,
-        rbd_pool_name=pool_name,
-        rbd_map_options=rbd_map_options,
-    )
-    if remove_pool:
-        pool.remove()
-        pool.pool_create()
-    else:
-        logger.info("Not removing pool")
+def ceph_pools(remove_pool, remove_images, pool_names, rbd_map_options, needs_ceph):
+    pools = []
+    for pool_name in pool_names:
+        pool = RBDPoolHelper(
+            shard_max_size=10 * 1024 * 1024,
+            rbd_pool_name=pool_name,
+            rbd_map_options=rbd_map_options,
+        )
+        if remove_pool:
+            pool.remove()
+            pool.pool_create()
+        else:
+            logger.info("Not removing pool")
 
-    pool._settings_for_tests = {
-        "type": "rbd",
-        "pool_name": pool_name,
-        "map_options": rbd_map_options,
-    }
+        pool._settings_for_tests = {
+            "type": "rbd",
+            "pool_name": pool_name,
+            "map_options": rbd_map_options,
+            "readonly": False,
+        }
+        pools.append(pool)
 
-    yield pool
+    yield pools
 
-    if remove_images or remove_pool:
-        pool.images_remove()
-    else:
-        logger.info("Not removing images")
+    for pool in pools:
+        if remove_images or remove_pool:
+            pool.images_remove()
+        else:
+            logger.info("Not removing images")
 
-    if remove_pool:
-        pool.remove()
-    else:
-        logger.info("Not removing pool")
+        if remove_pool:
+            pool.remove()
+        else:
+            logger.info("Not removing pool")
 
 
 @pytest.fixture
-def image_pool(ceph_pool):
-    return ceph_pool
+def all_image_pools(ceph_pools):
+    return ceph_pools
 
 
 class TestCephWineryObjStorage(_TestWineryObjStorage):
@@ -134,3 +144,96 @@ class TestCephWinery(_TestWinery):
         assert pool.image_mapped(name) is None
         pool.remove()
         assert pool.image_list() == []
+
+    @pytest.mark.shard_max_size(1024)
+    def test_winery_cli_rbd(
+        self, write_pool_name, storage, tmp_path, winery_settings, cli_runner
+    ):
+        # create 4 shards
+        for i in range(16):
+            content = i.to_bytes(256, "little")
+            obj_id = objid_for_content(content)
+            storage.add(content=content, obj_id=obj_id)
+
+        filled = storage.writer.shards_filled
+        assert len(filled) == 4
+
+        shard_info = dict(storage.writer.base.list_shards())
+        for shard in filled:
+            assert shard_info[shard] == ShardState.FULL
+
+        with open(tmp_path / "config.yml", "w") as f:
+            yaml.safe_dump(
+                {"objstorage": {"cls": "winery", **winery_settings}}, stream=f
+            )
+
+        result = cli_runner.invoke(
+            swh_cli_group,
+            (
+                "objstorage",
+                "winery",
+                "rbd",
+                "--stop-instead-of-waiting",
+            ),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+
+        assert result.exit_code == 0
+        image_write_pool = storage.pools[write_pool_name]
+        # The RBD shard mapper was run in "read-only" mode
+        for shard in filled:
+            assert image_write_pool.image_mapped(shard) is None
+
+        first_shard = filled[0]
+
+        result = cli_runner.invoke(
+            swh_cli_group,
+            (
+                "objstorage",
+                "winery",
+                "rbd",
+                "--stop-instead-of-waiting",
+                "--only-prefix",
+                first_shard[:10],
+                "--manage-rw-images",
+            ),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+
+        assert result.exit_code == 0
+
+        for shard in filled:
+            if shard == first_shard:
+                assert image_write_pool.image_mapped(shard) == "rw"
+            else:
+                assert image_write_pool.image_mapped(shard) is None
+
+        result = cli_runner.invoke(
+            swh_cli_group,
+            (
+                "objstorage",
+                "winery",
+                "rbd",
+                "--stop-instead-of-waiting",
+                "--manage-rw-images",
+            ),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+
+        assert result.exit_code == 0
+        for shard in filled:
+            assert image_write_pool.image_mapped(shard) == "rw"
+
+        for shard in filled:
+            storage.writer.base.set_shard_state(name=shard, new_state=ShardState.PACKED)
+
+        result = cli_runner.invoke(
+            swh_cli_group,
+            ("objstorage", "winery", "rbd", "--stop-instead-of-waiting"),
+            env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
+        )
+
+        assert result.exit_code == 0
+
+        for shard in filled:
+            assert image_write_pool.image_mapped(shard) == "ro"

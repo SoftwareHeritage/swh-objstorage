@@ -41,7 +41,8 @@ def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
 def shard_packer(
     database: settings.Database,
     shards: settings.Shards,
-    shards_pool: settings.ShardsPool,
+    shards_pools: Iterable[settings.ShardsPool],
+    shards_active_pool: str,
     packer: Optional[settings.Packer] = None,
     stop_packing: Callable[[int], bool] = never_stop,
     abort_packing: Callable[[int], bool] = never_stop,
@@ -51,6 +52,7 @@ def shard_packer(
         max_duration=60,
         message="No shards to pack",
     ),
+    **kwargs,
 ) -> int:
     """Pack shards until the `stop_packing` function returns True.
 
@@ -69,10 +71,10 @@ def shard_packer(
     all_settings = settings.populate_default_settings(
         database=database,
         shards=shards,
-        shards_pool=shards_pool,
+        shards_pools=shards_pools,
+        shards_active_pool=shards_active_pool,
         packer=(packer or {}),
     )
-
     application_name = (
         all_settings["database"]["application_name"] or "Winery Shard Packer"
     )
@@ -80,6 +82,7 @@ def shard_packer(
     base = SharedBase(
         base_dsn=all_settings["database"]["db"],
         application_name=application_name,
+        active_pool_name=shards_active_pool,
     )
 
     shards_packed = 0
@@ -100,12 +103,18 @@ def shard_packer(
             if locked.name is None:
                 raise RuntimeError("No shard has been locked?")
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
+            pool_name = all_settings["shards_active_pool"]
+            for pool_cfg in all_settings["shards_pools"]:
+                if pool_cfg["pool_name"] == pool_name:
+                    break
+            else:
+                raise ValueError("Missing or unknown active pool")
             ret = pack(
                 shard=locked.name,
                 base_dsn=all_settings["database"]["db"],
                 packer_settings=all_settings["packer"],
                 shards_settings=all_settings["shards"],
-                shards_pool_settings=all_settings["shards_pool"],
+                shards_pool_settings=pool_cfg,
                 shared_base=base,
                 abort_packing=abort_packing,
             )
@@ -132,7 +141,8 @@ def pack(
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
     pool = pool_from_settings(
-        shards_settings=shards_settings, shards_pool_settings=shards_pool_settings
+        shards_settings=shards_settings,
+        shards_pool_settings=shards_pool_settings,
     )
     statsd.gauge(
         "swh_objstorage_winery_packer_shard_max_size_bytes", shards_settings["max_size"]
@@ -262,7 +272,9 @@ def deleted_objects_cleaner(
       stop_running: callback that returns True when the manager should stop running
     """
     count = 0
-    for obj_id, shard_name, shard_state in base.deleted_objects():
+    for obj_id, shard_name, shard_state, _ in base.deleted_objects(
+        pool_name=pool.pool_name
+    ):
         if stop_running():
             break
         if shard_state.readonly:
@@ -287,7 +299,10 @@ def import_ro_shards(
                 logger.info(f"Shard {imgname} already exists, skipping")
                 continue
             try:
-                base._locked_shard = base.create_shard(ShardState.PACKING, name=imgname)
+                base._locked_shard = base.create_shard(
+                    ShardState.PACKING,
+                    name=imgname,
+                )
             except UniqueViolation:
                 # Should not happen, but sh*t happen, so better safe than sorry
                 # The shard already exists in the winery DB, skip it

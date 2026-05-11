@@ -132,13 +132,18 @@ class SharedBase(Database):
 
     """
 
-    current_version: int = 3
+    current_version: int = 4
 
     def __init__(
-        self, base_dsn: str, application_name: Optional[str] = None, **kwargs
+        self,
+        base_dsn: str,
+        application_name: Optional[str] = None,
+        active_pool_name: str | None = None,
+        **kwargs,
     ) -> None:
         if application_name is None:
             application_name = "SWH Winery SharedBase"
+        self.active_pool_name = active_pool_name
 
         super().__init__(
             dsn=base_dsn,
@@ -356,7 +361,9 @@ class SharedBase(Database):
             self._locked_shard = None
 
     def create_shard(
-        self, new_state: ShardState, name: str | None = None
+        self,
+        new_state: ShardState,
+        name: str | None = None,
     ) -> Tuple[str, int]:
         """Create a new write shard (locked by the current `SharedBase`), with a
         generated name.
@@ -380,15 +387,20 @@ class SharedBase(Database):
             name = "i" + name[1:]
         assert not name[0].isnumeric()
 
+        if not self.active_pool_name:
+            raise ValueError(
+                "The writable pool name must be configured to create new shards"
+            )
         with self.pool.connection() as db, db.cursor() as c:
+            args = [name, new_state.value, WRITER_UUID, self.active_pool_name]
+            cols = ["name", "state", "locker", "locker_ts", "pool_name"]
+            vals = ["%s", "%s", "%s", "NOW()", "%s"]
             c.execute(
-                """\
-                INSERT INTO shards
-                  (name, state, locker, locker_ts)
-                VALUES
-                  (%s, %s, %s, NOW())
+                f"""\
+                INSERT INTO shards ({", ".join(cols)})
+                VALUES ({", ".join(vals)})
                 RETURNING name, id""",
-                (name, new_state.value, WRITER_UUID),
+                args,
             )
             res = c.fetchone()
             if res is None:
@@ -482,6 +494,15 @@ class SharedBase(Database):
             if not row:
                 return None
             return ShardState(row[0])
+
+    def get_shard_pool(self, name: str) -> str | None:
+        """Get the pool name for the given shard, if any"""
+        with self.pool.connection() as db, db.cursor() as c:
+            c.execute("SELECT pool_name FROM shards WHERE name = %s", (name,))
+            row = c.fetchone()
+            if not row:
+                return None
+            return row[0]
 
     def list_shards(self) -> Iterator[Tuple[str, ShardState]]:
         """List all known shards and their current :py:class:`ShardState`."""
@@ -700,7 +721,9 @@ class SharedBase(Database):
                 (obj_id,),
             )
 
-    def deleted_objects(self) -> Iterator[Tuple[bytes, str, ShardState]]:
+    def deleted_objects(
+        self, pool_name: str | None = None
+    ) -> Iterator[Tuple[bytes, str, ShardState, str | None]]:
         """List all objects marked for deletion, with the name and state of the
         shard in which the object is stored.
 
@@ -708,15 +731,23 @@ class SharedBase(Database):
           an iterator over ``object_id``, shard name, :py:class:`ShardState` tuples
         """
         with self.pool.connection() as db:
-            cur = db.execute("""SELECT signature, shards.name, shards.state
+            sqlreq = """SELECT signature, shards.name, shards.state, shards.pool_name
                FROM signature2shard objs, shards
                WHERE objs.state = 'deleted'
                  AND shards.id = objs.shard
-               """)
-            for signature, name, state in cur.fetchall():
-                yield bytes(signature), name, ShardState(state)
+            """
+            args = []
+            if pool_name:
+                sqlreq += " AND shards.pool_name = %s"
+                args.append(pool_name)
+            cur = db.execute(sqlreq, args)
+            for signature, name, state, pool_name in cur.fetchall():
+                yield bytes(signature), name, ShardState(state), pool_name
 
     def clean_deleted_object(self, obj_id) -> None:
         """Remove the reference to the deleted object ``obj_id``."""
         with self.pool.connection() as db:
-            db.execute("DELETE FROM signature2shard WHERE signature = %s", (obj_id,))
+            db.execute(
+                "DELETE FROM signature2shard WHERE state='deleted' AND signature = %s",
+                (obj_id,),
+            )

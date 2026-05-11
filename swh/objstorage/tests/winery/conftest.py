@@ -62,33 +62,41 @@ def shards():
 
 
 @pytest.fixture
-def pool_name(request, pytestconfig):
-    return "winery-test-shards"
+def pool_names(request, pytestconfig):
+    return ["winery-test-shards"]
 
 
 @pytest.fixture
-def file_backed_pool(mocker, tmp_path, shard_max_size, pool_name):
-    pool = FileBackedPool(
-        base_directory=tmp_path,
-        shard_max_size=10 * 1024 * 1024,
-        pool_name=pool_name,
-    )
-    pool.image_unmap_all()
-    mocker.patch(
-        "swh.objstorage.backends.winery.pools.RBDPool.from_kwargs",
-        return_value=pool,
-    )
-    pool._settings_for_tests = {
-        "type": "directory",
-        "base_directory": str(tmp_path),
-        "pool_name": pool_name,
-    }
-    yield pool
+def file_backed_pools(tmp_path, shard_max_size, pool_names):
+    pools = []
+    for pool_name in pool_names:
+        pool = FileBackedPool(
+            base_directory=tmp_path,
+            shard_max_size=shard_max_size,
+            pool_name=pool_name,
+        )
+        pool.image_unmap_all()
+        pool._settings_for_tests = {
+            "type": "directory",
+            "base_directory": str(tmp_path),
+            "pool_name": pool_name,
+        }
+        pools.append(pool)
+    return pools
 
 
 @pytest.fixture
-def image_pool(file_backed_pool):
-    return file_backed_pool
+def image_pools(file_backed_pools):
+    return file_backed_pools
+
+
+@pytest.fixture
+def write_pool_name(image_pools):
+    rw_pools = [pool for pool in image_pools if "-ro" not in pool.pool_name]
+    assert len(rw_pools) <= 1
+    if rw_pools:
+        return rw_pools[0].pool_name
+    return None
 
 
 def add_guest_user(**kwargs):
@@ -142,7 +150,8 @@ def shard_max_size(request) -> int:
 def winery_settings(
     postgresql_dsn,
     shard_max_size,
-    image_pool,
+    image_pools,
+    write_pool_name,
 ) -> settings.Winery:
     return dict(
         shards={"max_size": shard_max_size},
@@ -150,18 +159,26 @@ def winery_settings(
         packer={
             "create_images": True,
         },
-        shards_pool=image_pool._settings_for_tests,
+        shards_pools=[pool._settings_for_tests for pool in image_pools],
+        shards_active_pool=write_pool_name,
     )
 
 
 @pytest.fixture
 def storage(
     winery_settings,
-    pool_name,
+    image_pools,
 ):
     storage = get_objstorage(cls="winery", **winery_settings)
     assert isinstance(storage, WineryObjStorage)
-    logger.debug("Instantiated storage %s on rbd pool %s", storage, pool_name)
+    logger.debug(
+        "Instantiated storage %s using %s pools (%s)",
+        storage,
+        len(image_pools),
+        ", ".join(
+            f"{pool.__class__.__name__}:{pool.pool_name}" for pool in image_pools
+        ),
+    )
     yield storage
     storage.on_shutdown()
     names = [
@@ -176,13 +193,13 @@ def storage(
 def readonly_storage(
     winery_settings,
     readonly_postgresql_dsn,
-    pool_name,
 ):
     storage = get_objstorage(
         cls="winery",
         readonly=True,
         database={"db": readonly_postgresql_dsn},
-        shards_pool=winery_settings["shards_pool"],
+        shards_pools=winery_settings["shards_pools"],
+        shards_active_pool=None,
         shards=winery_settings["shards"],
     )
     yield storage

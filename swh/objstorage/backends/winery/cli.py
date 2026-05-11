@@ -135,12 +135,14 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
 @click.option("--stop-instead-of-waiting", is_flag=True)
 @click.option("--manage-rw-images", is_flag=True)
 @click.option("--only-prefix")
+@click.option("--active-pool")
 @click.pass_context
 def winery_rbd(
     ctx,
     stop_instead_of_waiting: bool = False,
     manage_rw_images: bool = True,
     only_prefix: str | None = None,
+    active_pool: str | None = None,
 ):
     """Run a winery RBD image manager process
 
@@ -193,10 +195,21 @@ def winery_rbd(
 
     install_signal_handlers(set_signal_received)
 
-    pool = pool_from_settings(
-        shards_settings=settings["shards"],
-        shards_pool_settings=settings["shards_pool"],
-    )
+    if not active_pool:
+        active_pool = settings.get("shards_active_pool")
+    if not active_pool:
+        raise click.ClickException("No active pool has been defined")
+    for pool_cfg in settings["shards_pools"]:
+        if pool_cfg["pool_name"] == active_pool:
+            pool = pool_from_settings(
+                shards_settings=settings["shards"],
+                shards_pool_settings=pool_cfg,
+            )
+            break
+    else:
+        raise click.ClickException(
+            "Active pool not found in the list of configured shards pools"
+        )
 
     manage_images(
         pool=pool,
@@ -311,12 +324,17 @@ def winery_clean_deleted_objects(ctx):
 
     base = SharedBase(base_dsn=settings["database"]["db"])
 
-    pool = pool_from_settings(
-        shards_settings=settings["shards"],
-        shards_pool_settings=settings["shards_pool"],
-    )
-
-    deleted_objects_cleaner(base, pool, stop_running)
+    pools = [
+        pool_from_settings(
+            shards_settings=settings["shards"],
+            shards_pool_settings=shards_pool,
+        )
+        for shards_pool in settings["shards_pools"]
+    ]
+    for pool in pools:
+        if stop_running():
+            break
+        deleted_objects_cleaner(base, pool, stop_running)
 
 
 # Stolen from pypi's click_pendulum 0.2.1 package:
@@ -594,21 +612,63 @@ def winery_import_shards(ctx):
     from swh.objstorage.backends.winery.sharedbase import SharedBase
 
     settings = ctx.obj["winery_settings"]
-
-    if settings["shards_pool"]["type"] != "directory":
-        raise click.ClickException("winery import only works on a directory shard_pool")
-
-    pool = pool_from_settings(
-        shards_settings=settings["shards"],
-        shards_pool_settings=settings["shards_pool"],
-    )
-    base = SharedBase(base_dsn=settings["database"]["db"])
-
-    n_obj, n_shard = import_ro_shards(base, pool)
-    if n_obj:
-        click.echo(
-            "Pool %s: imported %s objects from %s shards"
-            % (pool.pool_name, n_obj, n_shard)
+    pool_cfgs = settings["shards_pools"]
+    pool_cfgs = [pool_cfg for pool_cfg in pool_cfgs if pool_cfg["type"] == "directory"]
+    if not pool_cfgs:
+        raise click.ClickException(
+            "No directory shard pools found in this configuration"
         )
-    else:
-        click.echo("Pool %s: nothing to do" % (pool.pool_name,))
+
+    for pool_cfg in pool_cfgs:
+        base = SharedBase(
+            base_dsn=settings["database"]["db"], active_pool_name=pool_cfg["pool_name"]
+        )
+        pool = pool_from_settings(
+            shards_settings=settings["shards"],
+            shards_pool_settings=pool_cfg,
+        )
+        n_obj, n_shard = import_ro_shards(base, pool)
+        if n_obj:
+            click.echo(
+                "Pool %s: imported %s objects from %s shards"
+                % (pool.pool_name, n_obj, n_shard)
+            )
+        else:
+            click.echo("Pool %s: nothing to do" % (pool.pool_name,))
+
+
+@winery.command("upgrade")
+@click.option(
+    "--pool-name",
+    help=(
+        "pool name to set as value for the added 'pool_name' "
+        "column in the 'shards' table"
+    ),
+)
+@click.pass_context
+def winery_upgrade(ctx, pool_name):
+    """Upgrade the winery DB to version 4"""
+    from swh.core.db.db_utils import connect_to_conninfo, swh_db_version
+
+    settings = ctx.obj["winery_settings"]
+    if not pool_name:
+        pool_name = settings.get("shards_active_pool")
+    if not pool_name:
+        raise click.ClickException("You must specify the pool name to set shards in")
+
+    conninfo = settings["database"]["db"]
+    if swh_db_version(conninfo) == 3:
+        click.echo(
+            "Migration of the database is required. It will set "
+            f"the pool name for all shards to {pool_name}. "
+            "Is it OK?"
+        )
+        with connect_to_conninfo(conninfo) as db:
+            with db.cursor() as c:
+                query = (
+                    "ALTER TABLE shards "
+                    "ADD COLUMN IF NOT EXISTS pool_name text NOT NULL "
+                    "DEFAULT %s"
+                )
+                c.execute(query, (pool_name,))
+                db.commit()
