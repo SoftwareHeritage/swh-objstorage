@@ -190,7 +190,7 @@ def test_winery_import_shards_nothing(winery_settings):
 
 
 def test_winery_import_shards_do_import(storage, winery_settings, shards):
-    pool = storage.pool
+    pool = next(iter(storage.pools.values()))
     pooldir = pool.base_directory / pool.pool_name
     for shard in shards:
         name = os.path.basename(shard)

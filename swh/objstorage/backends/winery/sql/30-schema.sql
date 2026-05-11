@@ -14,7 +14,8 @@ CREATE TABLE shards (
     locker_ts timestamptz,
     locker uuid,
     name char(32) NOT NULL UNIQUE,
-    mapped_on_hosts_when_packed text[] NOT NULL DEFAULT '{}'
+    mapped_on_hosts_when_packed text[] NOT NULL DEFAULT '{}',
+    pool_name text NOT NULL
 );
 
 CREATE TYPE signature_state AS ENUM (

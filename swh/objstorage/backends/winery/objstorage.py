@@ -6,7 +6,7 @@
 from collections import OrderedDict
 from functools import partial
 import logging
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.statsd import statsd
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -35,7 +35,8 @@ class WineryObjStorage(ObjStorage):
         self,
         database: settings.Database,
         shards: settings.Shards,
-        shards_pool: settings.ShardsPool,
+        shards_pools: Iterable[settings.ShardsPool],
+        shards_active_pool: str | None = None,
         packer: Optional[settings.Packer] = None,
         readonly: bool = False,
         allow_delete: bool = False,
@@ -49,26 +50,51 @@ class WineryObjStorage(ObjStorage):
         self.settings = settings.populate_default_settings(
             database=database,
             shards=shards,
-            shards_pool=shards_pool,
+            shards_pools=shards_pools,
+            shards_active_pool=shards_active_pool,
             packer=(packer or {}),
         )
 
-        self.pool = pool_from_settings(
-            shards_settings=self.settings["shards"],
-            shards_pool_settings=self.settings["shards_pool"],
-        )
+        self.pools: Dict[str, Pool] = {}
+        active_pool_settings: settings.ShardsPool | None = None
+        for shards_pool_cfg in self.settings["shards_pools"]:
+            pool_name = shards_pool_cfg["pool_name"]
+            if pool_name in self.pools:
+                raise ValueError("shards pool names must be unique")
+            self.pools[pool_name] = pool_from_settings(
+                shards_settings=self.settings["shards"],
+                shards_pool_settings=shards_pool_cfg,
+            )
+            if shards_active_pool == pool_name:
+                active_pool_settings = shards_pool_cfg
+
+        if not self.pools:
+            raise TypeError("Winery backend must declare at least one shards read pool")
+
         self.reader: WineryReader = WineryReader(
-            pool=self.pool,
+            pools=self.pools,
             database=self.settings["database"],
             cache_size=readers_cache_size,
         )
 
         self.writer: Optional[WineryWriter] = None
         if not readonly:
+            if not self.settings.get("shards_active_pool"):
+                raise TypeError(
+                    "A writable Winery backend must have shards_active_pool set"
+                )
+            if self.settings["shards_active_pool"] not in self.pools:
+                raise ValueError(
+                    "shards_active_pool must be the name of a given shards pool"
+                )
+
+            # mostly to please mypy, it has no easyway to figure this out...
+            assert active_pool_settings is not None
+
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
                 shards_settings=self.settings["shards"],
-                shards_pool_settings=self.settings["shards_pool"],
+                shards_pool_settings=active_pool_settings,
                 database_settings=self.settings["database"],
             )
 
@@ -162,8 +188,13 @@ class LRUDict(OrderedDict):
 
 
 class WineryReader:
-    def __init__(self, pool: Pool, database: settings.Database, cache_size: int = 1000):
-        self.pool = pool
+    def __init__(
+        self,
+        pools: Dict[str, Pool],
+        database: settings.Database,
+        cache_size: int = 1000,
+    ):
+        self.pools = pools
         self.base = SharedBase(
             base_dsn=database["db"], application_name=database["application_name"]
         )
@@ -180,33 +211,38 @@ class WineryReader:
 
     def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
+            pool_name = self.base.get_shard_pool(name)
+            if pool_name is None:
+                return None
+            pool = self.pools[pool_name]
             try:
                 with statsd.timed(
                     SHARD_OPEN_DURATION_METRIC,
-                    tags={"shard_type": "ro", "pool_name": self.pool.pool_name},
+                    tags={"shard_type": "ro", "pool_name": pool_name},
                 ):
                     shard = ROShard(
                         name=name,
-                        pool=self.pool,
+                        pool=pool,
                     )
-                statsd.increment(
-                    SHARD_CACHE_METRIC,
-                    tags={
-                        "shard_type": "ro",
-                        "cache_status": "miss",
-                        "pool_name": self.pool.pool_name,
-                    },
-                )
+                    statsd.increment(
+                        SHARD_CACHE_METRIC,
+                        tags={
+                            "shard_type": "ro",
+                            "cache_status": "miss",
+                            "pool_name": pool_name,
+                        },
+                    )
             except ShardNotMapped:
                 statsd.increment(
                     SHARD_CACHE_METRIC,
                     tags={
                         "shard_type": "ro",
                         "cache_status": "fallthrough",
-                        "pool_name": self.pool.pool_name,
+                        "pool_name": pool_name,
                     },
                 )
                 return None
+
             self.ro_shards[name] = shard
             if name in self.rw_shards:
                 del self.rw_shards[name]
@@ -216,7 +252,7 @@ class WineryReader:
                 tags={
                     "shard_type": "ro",
                     "cache_status": "hit",
-                    "pool_name": self.pool.pool_name,
+                    "pool_name": self.ro_shards[name].pool.pool_name,
                 },
             )
         return self.ro_shards[name]
@@ -275,6 +311,7 @@ class WineryWriter:
         self.base = SharedBase(
             base_dsn=database_settings["db"],
             application_name=database_settings["application_name"],
+            active_pool_name=shards_pool_settings["pool_name"],
         )
         self.shards_filled: List[str] = []
         self._shard: Optional[RWShard] = None

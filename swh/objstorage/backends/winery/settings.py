@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Any, Literal, NotRequired, Optional, Tuple, TypedDict
+from typing import Any, Iterable, List, Literal, NotRequired, Optional, Tuple, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ class ShardsPool(TypedDict):
     """Settings for the Shards pool"""
 
     type: Literal["rbd", "directory"]
+    pool_name: NotRequired[str]
 
 
 class RbdShardsPool(ShardsPool, TypedDict):
@@ -59,7 +60,6 @@ class RbdShardsPool(ShardsPool, TypedDict):
 
     use_sudo: NotRequired[bool]
     map_options: NotRequired[str]
-    pool_name: NotRequired[str]
     data_pool_name: NotRequired[Optional[str]]
     image_features_unsupported: NotRequired[Tuple[str, ...]]
 
@@ -83,7 +83,6 @@ class DirectoryShardsPool(ShardsPool, TypedDict):
     """Settings for the File-based Shards pool"""
 
     base_directory: str
-    pool_name: NotRequired[str]
 
 
 def directory_shards_pool_settings_with_defaults(
@@ -100,7 +99,7 @@ def directory_shards_pool_settings_with_defaults(
         )
     return {
         "type": "directory",
-        "pool_name": values.get("pool_name", "shards"),  # type: ignore[typeddict-item]
+        "pool_name": values.get("pool_name", "shards"),
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
     }
 
@@ -124,17 +123,27 @@ class Winery(TypedDict, total=False):
 
     database: Database
     shards: Shards
-    shards_pool: ShardsPool
+    shards_pools: Iterable[ShardsPool]
+    shards_active_pool: str | None
     packer: Packer
 
 
-SETTINGS = frozenset({"database", "shards", "shards_pool", "packer"})
+SETTINGS = frozenset(
+    {
+        "database",
+        "shards",
+        "shards_pools",
+        "shards_active_pool",
+        "packer",
+    }
+)
 
 
 def populate_default_settings(
     database: Optional[Database] = None,
     shards: Optional[Shards] = None,
-    shards_pool: Optional[ShardsPool] = None,
+    shards_pools: Iterable[ShardsPool] = (),
+    shards_active_pool: str | None = None,
     packer: Optional[Packer] = None,
     throttler: Any = None,
 ) -> Winery:
@@ -155,15 +164,24 @@ def populate_default_settings(
         shards = shards_settings_with_defaults(shards)
         settings["shards"] = shards
 
-    if shards_pool is not None:
+    pools: List[ShardsPool] = []
+    for shards_pool in shards_pools:
         if shards_pool["type"] == "rbd":
-            shards_pool = rbd_shards_pool_settings_with_defaults(shards_pool)
-            settings["shards_pool"] = shards_pool
+            pools.append(rbd_shards_pool_settings_with_defaults(shards_pool))
         elif shards_pool["type"] == "directory":
-            shards_pool = directory_shards_pool_settings_with_defaults(shards_pool)
-            settings["shards_pool"] = shards_pool
+            pools.append(directory_shards_pool_settings_with_defaults(shards_pool))
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
+    if not pools:
+        raise ValueError("At least one shards pool must be defined")
+    settings["shards_pools"] = pools
+
+    if shards_active_pool is not None:
+        if shards_active_pool not in [pool["pool_name"] for pool in pools]:
+            raise ValueError(
+                "shards_active_pool must be the name of a given shards pool"
+            )
+        settings["shards_active_pool"] = shards_active_pool
 
     if packer is not None:
         packer = packer_settings_with_defaults(packer)
