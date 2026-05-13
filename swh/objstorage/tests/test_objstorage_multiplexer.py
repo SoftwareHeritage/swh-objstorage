@@ -1,11 +1,14 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import gc
 import logging
 import os
 import re
+import threading
+import time
 from typing import Dict, List, Tuple
 
 import pytest
@@ -22,6 +25,7 @@ from swh.objstorage.multiplexer import (
     MP_BACKEND_ENABLED_METRICS,
     MP_COUNTER_METRICS,
     MultiplexerObjStorage,
+    ObjStorageThread,
 )
 from swh.objstorage.objstorage import DURATION_METRICS, objid_for_content
 
@@ -417,3 +421,34 @@ def test_multiplexer_transient_error_nobackendsleft(mocker, caplog):
 
     with pytest.raises(NoBackendsLeftError):
         multiplexer.get(obj_id=obj_id_p)
+
+
+def test_multiplexer_terminate_thread(mocker):
+    thread_name = "test-swh-objstorage-multiplexer"
+
+    def count_threads():
+        multiplexer_threads = 0
+        for thread in threading.enumerate():
+            if thread.name == thread_name:
+                multiplexer_threads += 1
+        return multiplexer_threads
+
+    assert count_threads() == 0
+
+    mocker.patch("swh.objstorage.multiplexer.ObjStorageThread._NAME", thread_name)
+    storage1 = InMemoryObjStorage()
+    storage2 = InMemoryObjStorage()
+    multiplexer = MultiplexerObjStorage(objstorages=[storage1, storage2])
+
+    gc.collect()
+
+    assert count_threads() == 2
+
+    del multiplexer
+    gc.collect()
+
+    # the terminate() request is only checked from time to time + we need some slack in case
+    # the system is too busy to run the thread
+    time.sleep(ObjStorageThread._TIMEOUT + 0.1)
+
+    assert count_threads() == 0

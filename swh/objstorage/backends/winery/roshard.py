@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -240,7 +240,13 @@ class FileBackedPool(Pool):
     def image_create(self, image: str) -> None:
         path = self.image_path(image)
         if os.path.exists(path):
-            raise ValueError(f"Image {image} already exists")
+            if os.stat(path).st_mode == 0o100600:
+                # If the image exists but is -rw------- it is expected to be a
+                # dandling/stale shard file left by a crashed/aborted packing
+                # process
+                logger.warning("Stale image found. Reusing it")
+            else:
+                raise ValueError(f"Image {image} already exists")
         open(path, "w").close()
         self.image_map(image, "rw")
 
@@ -556,9 +562,10 @@ class ROShardCreator:
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
-        self.shard.__exit__(exc_type, exc_val, exc_tb)
-        if self.rbd_create_images and not exc_type:
-            self.pool.image_remap_ro(self.name)
+        if exc_type is None:
+            self.shard.__exit__(exc_type, exc_val, exc_tb)
+            if self.rbd_create_images:
+                self.pool.image_remap_ro(self.name)
 
     def zero_image_if_needed(self):
         """Check whether the image is empty, and zero it out if it's not.

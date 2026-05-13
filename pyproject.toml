@@ -37,6 +37,7 @@ testing = {file = [
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.objstorage" = "swh.objstorage.cli"
+"swh.objstorage.winery" = "swh.objstorage.backends.winery.cli"
 
 [project.entry-points."swh.objstorage.classes"]
 "pathslicing" = "swh.objstorage.backends.pathslicing:PathSlicingObjStorage"
