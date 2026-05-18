@@ -63,13 +63,12 @@ First ensure your virtualenv contains the correct dependencies:
 
     pip install -e .[winery]
 
-Then create a postgres DB and user (with a dummy password ⚠️):
+Then create a postgres DB, called `winery`:
 
 .. code-block:: console
 
-    sudo -u postgres psql -c "CREATE USER winery WITH PASSWORD 'winery';"
-    sudo -u postgres psql -c "CREATE DATABASE winery OWNER winery;"
-    sudo -u postgres psql -h localhost -U winery -W -d winery -f swh/objstorage/backends/winery/sql/30-schema.sql
+    swh db create -d winery objstorage.backends.winery
+    swh db init -d winery objstorage.backends.winery
 
 Prepare a container folder:
 
@@ -97,9 +96,8 @@ And set it in a configuration file we'll call `localwinery.yml`:
       rw_idle_timeout: 300
 
     database:
-
       # string: PostgreSQL connection string for the object index and read-write shards
-      db: "dbname=winery user=winery password=winery host=localhost"
+      db: "dbname=winery"
 
       # string: PostgreSQL application name for connections (unset by default)
       application_name: localwinery
