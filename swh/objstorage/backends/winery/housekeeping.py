@@ -17,7 +17,6 @@ from .pools import Pool, pool_from_settings
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
-from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,6 @@ def shard_packer(
     database: settings.Database,
     shards: settings.Shards,
     shards_pool: settings.ShardsPool,
-    throttler: settings.Throttler,
     packer: Optional[settings.Packer] = None,
     stop_packing: Callable[[int], bool] = never_stop,
     abort_packing: Callable[[int], bool] = never_stop,
@@ -60,7 +58,6 @@ def shard_packer(
       database: database settings (e.g. db connection string)
       shards: shards settings (e.g. max_size)
       shards_pool: shards pool settings (e.g. Ceph RBD settings)
-      throttler: throttler settings
       packer: packer settings
       stop_packing: callback to determine whether the packer should exit
       abort_packing: callback to determine whether the packer should abort
@@ -71,7 +68,6 @@ def shard_packer(
         database=database,
         shards=shards,
         shards_pool=shards_pool,
-        throttler=throttler,
         packer=(packer or {}),
     )
 
@@ -106,7 +102,6 @@ def shard_packer(
                 shard=locked.name,
                 base_dsn=all_settings["database"]["db"],
                 packer_settings=all_settings["packer"],
-                throttler_settings=all_settings["throttler"],
                 shards_settings=all_settings["shards"],
                 shards_pool_settings=all_settings["shards_pool"],
                 shared_base=base,
@@ -123,7 +118,6 @@ def pack(
     shard: str,
     base_dsn: str,
     packer_settings: settings.Packer,
-    throttler_settings: Optional[settings.Throttler],
     shards_settings: settings.Shards,
     shards_pool_settings: settings.ShardsPool,
     shared_base: Optional[SharedBase] = None,
@@ -135,14 +129,12 @@ def pack(
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
-    throttler = Throttler.from_settings({"throttler": throttler_settings})
     pool = pool_from_settings(
         shards_settings=shards_settings, shards_pool_settings=shards_pool_settings
     )
     with roshard.ROShardCreator(
         name=shard,
         count=count,
-        throttler=throttler,
         pool=pool,
         rbd_create_images=packer_settings["create_images"],
     ) as ro:

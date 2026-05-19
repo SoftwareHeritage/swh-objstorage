@@ -256,19 +256,6 @@ Here is a typical configuration for a RBD shards pool backend::
       # cleans read-write shards immediately)
       clean_immediately: false
 
-    # Optional throttler configuration, leave unset to disable throttling
-    throttler:
-      # string: PostgreSQL connection string for the throttler database. Can be
-      # shared with (and defaults to) the main database set in the `database`
-      # section. Must be read-write even for readonly instances.
-      db: winery
-
-      # integer: max read bytes per second
-      max_read_bps: 100_000_000
-
-      # integer: max write bytes per second
-      max_write_bps: 100_000_000
-
 
 Here is typical configuration for a directory shards pool backend::
 
@@ -321,41 +308,6 @@ Here is typical configuration for a directory shards pool backend::
       # cleans read-write shards immediately)
       clean_immediately: true
 
-    # Optional throttler configuration, leave unset to disable throttling
-    throttler:
-      # string: PostgreSQL connection string for the throttler database. Can be
-      # shared with (and defaults to) the main database set in the `database`
-      # section. Must be read-write even for readonly instances.
-      db: winery
-
-      # integer: max read bytes per second
-      max_read_bps: 100_000_000
-
-      # integer: max write bytes per second
-      max_write_bps: 100_000_000
-
-
-IO Throttling
---------------
-
-Ceph (Pacific) implements IO QoS in librbd but it is only effective within a
-single process, not cluster wide. The preliminary benchmarks showed that
-accumulated read and write throughput must be throttled client side to prevent
-performance degradation (slower throughput and increased latency).
-
-Table are created in a PostgreSQL database dedicated to throttling, so
-independent processes performing I/O against the Ceph cluster can synchronize
-with each other and control their accumulated throughput for reads and writes.
-Workers creates a row in the read and write tables and update them every minute
-with their current read and write throughput, in bytes per second. They also
-query all rows to figure out the current accumulated bandwidth.
-
-If the current accumulated bandwidth is above the maximum desired speed for N
-active workers, the process will reduce its throughput to use a maximum of 1/N
-of the maximum desired speed. For instance, if the current accumulated usage is
-above 100MB/s and there are 10 workers, the process will reduce its own speed
-to 10MB/s. After the 10 workers independently do the same, each of them will
-share 1/10 of the bandwidth.
 
 Implementation notes
 --------------------

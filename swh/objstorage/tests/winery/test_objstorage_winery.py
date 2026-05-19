@@ -6,7 +6,6 @@
 from collections import Counter
 import logging
 import threading
-import time
 
 import pytest
 import yaml
@@ -25,12 +24,6 @@ import swh.objstorage.backends.winery.objstorage
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
 from swh.objstorage.backends.winery.sharedbase import ShardState, SharedBase
 from swh.objstorage.backends.winery.sleep import sleep_exponential
-from swh.objstorage.backends.winery.throttler import (
-    BandwidthCalculator,
-    IOThrottler,
-    LeakyBucket,
-    Throttler,
-)
 from swh.objstorage.cli import swh_cli_group
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
@@ -81,13 +74,6 @@ class TestWinery:
             winery_reader.get(b"unknown")
         winery_writer.shard.drop()
 
-    @pytest.mark.parametrize(
-        (),
-        [
-            pytest.param(marks=pytest.mark.use_throttler(False), id="throttler=False"),
-            pytest.param(marks=pytest.mark.use_throttler(True), id="throttler=True"),
-        ],
-    )
     def test_winery_add_concurrent(self, winery_settings, mocker):
         num_threads = 4
 
@@ -270,7 +256,6 @@ class TestWinery:
             shard=shard,
             base_dsn=winery_settings["database"]["db"],
             packer_settings=winery_settings["packer"],
-            throttler_settings=winery_settings["throttler"],
             shards_settings=winery_settings["shards"],
             shards_pool_settings=winery_settings["shards_pool"],
         )
@@ -443,7 +428,6 @@ class TestWinery:
                 database=winery_settings["database"],
                 shards=winery_settings["shards"],
                 shards_pool=winery_settings["shards_pool"],
-                throttler=winery_settings["throttler"],
                 packer={**winery_settings.get("packer"), "create_images": False},
                 stop_packing=stop_after_shards(1),
             )
@@ -484,7 +468,6 @@ class TestWinery:
                 database=winery_settings["database"],
                 shards=winery_settings["shards"],
                 shards_pool=winery_settings["shards_pool"],
-                throttler=winery_settings["throttler"],
                 packer={**winery_settings.get("packer"), "create_images": True},
                 stop_packing=stop_after_shards(1),
                 abort_packing=stop_after_shards(2),
@@ -861,142 +844,12 @@ class TestWinery:
                 shard,
                 base_dsn=winery_settings["database"]["db"],
                 packer_settings=winery_settings["packer"],
-                throttler_settings=winery_settings["throttler"],
                 shards_settings=winery_settings["shards"],
                 shards_pool_settings=winery_settings["shards_pool"],
             )
             is True
         )
         assert winery_reader.get(sha256) == content
-
-    def test_winery_leaky_bucket_tick(self, mocker):
-        total = 100
-        half = 50
-        b = LeakyBucket(total)
-        sleep = mocker.spy(time, "sleep")
-        assert b.current == b.total
-        sleep.assert_not_called()
-        #
-        # Bucket is at 100, add(50) => drops to 50
-        #
-        b.add(half)
-        assert b.current == half
-        sleep.assert_not_called()
-        #
-        # Bucket is at 50, add(50) => drops to 0
-        #
-        b.add(half)
-        assert b.current == 0
-        sleep.assert_not_called()
-        #
-        # Bucket is at 0, add(50) => waits until it is at 50 and then drops to 0
-        #
-        b.add(half)
-        assert b.current == 0
-        sleep.assert_called_once()
-        #
-        # Sleep more than one second, bucket is full again, i.e. at 100
-        #
-        time.sleep(2)
-        mocker.resetall()
-        b.add(0)
-        assert b.current == total
-        sleep.assert_not_called()
-        #
-        # Bucket is full at 100 and and waits when requesting 150 which is
-        # more than it can contain
-        #
-        b.add(total + half)
-        assert b.current == 0
-        sleep.assert_called_once()
-        mocker.resetall()
-        #
-        # Bucket is empty and and waits when requesting 150 which is more
-        # than it can contain
-        #
-        b.add(total + half)
-        assert b.current == 0
-        sleep.assert_called_once()
-        mocker.resetall()
-
-    def test_winery_leaky_bucket_reset(
-        self,
-    ):
-        b = LeakyBucket(100)
-        assert b.total == 100
-        assert b.current == b.total
-        b.reset(50)
-        assert b.total == 50
-        assert b.current == b.total
-        b.reset(100)
-        assert b.total == 100
-        assert b.current == 50
-
-    def test_winery_bandwidth_calculator(self, mocker):
-        now = 1
-
-        def monotonic():
-            return now
-
-        mocker.patch("time.monotonic", side_effect=monotonic)
-        b = BandwidthCalculator()
-        assert b.get() == 0
-        count = 100 * 1024 * 1024
-        going_up = []
-        for t in range(b.duration):
-            now += 1
-            b.add(count)
-            going_up.append(b.get())
-        assert b.get() == count
-        going_down = []
-        for t in range(b.duration - 1):
-            now += 1
-            b.add(0)
-            going_down.append(b.get())
-        going_down.reverse()
-        assert going_up[:-1] == going_down
-        assert len(b.history) == b.duration - 1
-
-    def test_winery_io_throttler(self, postgresql_dsn, mocker):
-        sleep = mocker.spy(time, "sleep")
-        speed = 100
-        i = IOThrottler(name="read", db=postgresql_dsn, max_speed=100)
-        count = speed
-        i.add(count)
-        sleep.assert_not_called()
-        i.add(count)
-        sleep.assert_called_once()
-        #
-        # Force slow down
-        #
-        mocker.resetall()
-        i.sync_interval = 0
-        i.max_speed = 1
-        assert i.max_speed != i.bucket.total
-        i.add(2)
-        assert i.max_speed == i.bucket.total
-        sleep.assert_called_once()
-
-    def test_winery_throttler(self, postgresql_dsn):
-        t = Throttler(
-            db=postgresql_dsn,
-            max_write_bps=100,
-            max_read_bps=100,
-        )
-
-        base = {}
-        key = "KEY"
-        content = "CONTENT"
-
-        def reader(k):
-            return base[k]
-
-        def writer(k, v):
-            base[k] = v
-            return True
-
-        assert t.throttle_add(writer, key, content) is True
-        assert t.throttle_get(reader, key) == content
 
 
 class TestWineryObjStorage(ObjStorageTestFixture):

@@ -22,7 +22,6 @@ from swh.shard import Shard, ShardCreator
 from .pools import Pool
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
-from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +188,7 @@ def manage_images(
 
 
 class ROShard:
-    def __init__(self, name, throttler, pool):
+    def __init__(self, name, pool):
         self.pool = pool
         image_status = self.pool.image_mapped(name)
 
@@ -199,7 +198,6 @@ class ROShard:
                 f"{' read-only' if image_status == 'rw' else ''}"
             )
 
-        self.throttler = throttler
         self.name = name
         self.path = self.pool.image_path(self.name)
         self.shard = None
@@ -216,7 +214,7 @@ class ROShard:
         if not self.shard:
             self.open()
 
-        return self.throttler.throttle_get(self.shard.lookup, key)
+        return self.shard.lookup(key)
 
     def close(self):
         if shard := getattr(self, "shard", None):
@@ -244,7 +242,6 @@ class ROShardCreator:
     Arguments:
       name: Name of the shard to be initialized
       count: Number of objects to provision in the shard
-      throttler: An instance of a winery throttler
       rbd_create_images: whether the ROShardCreator should create the rbd
         image, or delegate to the rbd_shard_manager
       rbd_wait_for_image: function called when waiting for a shard to be mapped
@@ -256,7 +253,6 @@ class ROShardCreator:
         self,
         name: str,
         count: int,
-        throttler: Throttler,
         pool: Pool,
         rbd_create_images: bool = True,
         rbd_wait_for_image: Callable[[int], None] = sleep_exponential(
@@ -268,7 +264,6 @@ class ROShardCreator:
         **kwargs,
     ):
         self.pool = pool
-        self.throttler = throttler
         self.name = name
         self.count = count
         self.path = self.pool.image_path(self.name)
@@ -334,4 +329,4 @@ class ROShardCreator:
             logger.warning("%s failed:", shlex.join(command), self.path, exc_info=True)
 
     def add(self, content, obj_id):
-        return self.throttler.throttle_add(self.shard.write, obj_id, content)
+        return self.shard.write(obj_id, content)

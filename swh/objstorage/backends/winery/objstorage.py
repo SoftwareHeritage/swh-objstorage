@@ -18,7 +18,6 @@ from .pools import Pool, pool_from_settings
 from .roshard import ROShard, ShardNotMapped
 from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
-from .throttler import Throttler
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,6 @@ class WineryObjStorage(ObjStorage):
         database: settings.Database,
         shards: settings.Shards,
         shards_pool: settings.ShardsPool,
-        throttler: settings.Throttler,
         packer: Optional[settings.Packer] = None,
         readonly: bool = False,
         allow_delete: bool = False,
@@ -46,24 +44,21 @@ class WineryObjStorage(ObjStorage):
             database=database,
             shards=shards,
             shards_pool=shards_pool,
-            throttler=throttler,
             packer=(packer or {}),
         )
 
-        self.throttler = Throttler.from_settings(self.settings)
         self.pool = pool_from_settings(
             shards_settings=self.settings["shards"],
             shards_pool_settings=self.settings["shards_pool"],
         )
         self.reader: WineryReader = WineryReader(
-            throttler=self.throttler, pool=self.pool, database=self.settings["database"]
+            pool=self.pool, database=self.settings["database"]
         )
 
         self.writer: Optional[WineryWriter] = None
         if not readonly:
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
-                throttler_settings=self.settings.get("throttler"),
                 shards_settings=self.settings["shards"],
                 shards_pool_settings=self.settings["shards_pool"],
                 database_settings=self.settings["database"],
@@ -140,8 +135,7 @@ class WineryObjStorage(ObjStorage):
 
 
 class WineryReader:
-    def __init__(self, throttler: Throttler, pool: Pool, database: settings.Database):
-        self.throttler = throttler
+    def __init__(self, pool: Pool, database: settings.Database):
         self.pool = pool
         self.base = SharedBase(
             base_dsn=database["db"], application_name=database["application_name"]
@@ -162,7 +156,6 @@ class WineryReader:
             try:
                 shard = ROShard(
                     name=name,
-                    throttler=self.throttler,
                     pool=self.pool,
                 )
             except ShardNotMapped:
@@ -208,13 +201,11 @@ class WineryWriter:
     def __init__(
         self,
         packer_settings: settings.Packer,
-        throttler_settings: Optional[settings.Throttler],
         shards_settings: settings.Shards,
         shards_pool_settings: settings.ShardsPool,
         database_settings: settings.Database,
     ):
         self.packer_settings = packer_settings
-        self.throttler_settings = throttler_settings
         self.shards_settings = shards_settings
         self.shards_pool_settings = shards_pool_settings
         self.base = SharedBase(
@@ -328,7 +319,6 @@ class WineryWriter:
             shard=shard_name,
             base_dsn=self.base.dsn,
             packer_settings=self.packer_settings,
-            throttler_settings=self.throttler_settings,
             shards_settings=self.shards_settings,
             shards_pool_settings=self.shards_pool_settings,
         )

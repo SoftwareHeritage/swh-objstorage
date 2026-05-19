@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Literal, NotRequired, Optional, Tuple, TypedDict
+from typing import Any, Literal, NotRequired, Optional, Tuple, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -105,17 +105,6 @@ def directory_shards_pool_settings_with_defaults(
     }
 
 
-class Throttler(TypedDict):
-    """Settings for the winery throttler"""
-
-    db: NotRequired[str]
-    """Throttler database connection string"""
-    max_read_bps: int
-    """Max read bytes per second"""
-    max_write_bps: int
-    """Max write bytes per second"""
-
-
 class Database(TypedDict):
     """Settings for the winery database"""
 
@@ -136,24 +125,28 @@ class Winery(TypedDict, total=False):
     database: Database
     shards: Shards
     shards_pool: ShardsPool
-    throttler: Optional[Throttler]
     packer: Packer
 
 
-SETTINGS = frozenset({"database", "shards", "shards_pool", "throttler", "packer"})
+SETTINGS = frozenset({"database", "shards", "shards_pool", "packer"})
 
 
 def populate_default_settings(
     database: Optional[Database] = None,
     shards: Optional[Shards] = None,
     shards_pool: Optional[ShardsPool] = None,
-    throttler: Optional[Throttler] = None,
     packer: Optional[Packer] = None,
+    throttler: Any = None,
 ) -> Winery:
     """Given some settings for a Winery objstorage, add all the appropriate
     default settings."""
     settings: Winery = {}
 
+    if throttler is not None:
+        logger.warning(
+            "Throttling support has been removed; please update your configuration "
+            "file (remove the throttler section)"
+        )
     if database is not None:
         database = database_settings_with_defaults(database)
         settings["database"] = database
@@ -171,12 +164,6 @@ def populate_default_settings(
             settings["shards_pool"] = shards_pool
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
-
-    if throttler is not None:
-        if "db" not in throttler:
-            settings["throttler"] = {"db": settings["database"]["db"], **throttler}
-        else:
-            settings["throttler"] = throttler
 
     if packer is not None:
         packer = packer_settings_with_defaults(packer)

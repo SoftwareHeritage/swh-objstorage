@@ -139,33 +139,14 @@ def shard_max_size(request) -> int:
 
 
 @pytest.fixture
-def use_throttler(request) -> int:
-    marker = request.node.get_closest_marker("use_throttler")
-    if marker is None:
-        return True
-    else:
-        return marker.args[0]
-
-
-@pytest.fixture
 def winery_settings(
     postgresql_dsn,
     shard_max_size,
     image_pool,
-    use_throttler,
 ) -> settings.Winery:
     return dict(
         shards={"max_size": shard_max_size},
         database={"db": postgresql_dsn},
-        throttler=(
-            {
-                "db": postgresql_dsn,
-                "max_write_bps": 200 * 1024 * 1024,
-                "max_read_bps": 100 * 1024 * 1024,
-            }
-            if use_throttler
-            else None
-        ),
         packer={
             "create_images": True,
         },
@@ -203,7 +184,6 @@ def readonly_storage(
         database={"db": readonly_postgresql_dsn},
         shards_pool=winery_settings["shards_pool"],
         shards=winery_settings["shards"],
-        throttler=None,
     )
     yield storage
     storage.on_shutdown()

@@ -132,7 +132,7 @@ class SharedBase(Database):
 
     """
 
-    current_version: int = 2
+    current_version: int = 3
 
     def __init__(
         self, base_dsn: str, application_name: Optional[str] = None, **kwargs
