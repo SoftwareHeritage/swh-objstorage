@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class Pool(Protocol):
+    pool_name: str
+
     def image_exists(self, image: str) -> bool:
         """Check whether the named image exists (it does not have to be mapped)"""
         ...
