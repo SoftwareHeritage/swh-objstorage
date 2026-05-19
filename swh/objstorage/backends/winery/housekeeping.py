@@ -4,10 +4,12 @@
 # See top-level LICENSE file for more information
 
 import logging
+from time import monotonic
 from typing import Callable, Iterable, Optional, Tuple
 
 from psycopg.errors import UniqueViolation
 
+from swh.core.statsd import statsd
 from swh.core.utils import grouper
 from swh.shard import Shard
 from swh.shard.cli import NULLKEY
@@ -132,25 +134,39 @@ def pack(
     pool = pool_from_settings(
         shards_settings=shards_settings, shards_pool_settings=shards_pool_settings
     )
-    with roshard.ROShardCreator(
-        name=shard,
-        count=count,
-        pool=pool,
-        rbd_create_images=packer_settings["create_images"],
-    ) as ro:
-        logger.info("Created RO shard %s", shard)
-        for i, (obj_id, content) in enumerate(rw.all()):
-            ro.add(content, obj_id)
-            if abort_packing(i):
-                logger.info("Aborting packing of %s", shard)
-                raise AbortOperation("Packing shard %s aborted" % shard)
+    statsd.gauge(
+        "swh_objstorage_winery_packer_shard_max_size_bytes", shards_settings["max_size"]
+    )
+    tags = {"pool_name": pool.pool_name}
+    t0 = monotonic()
+    with statsd.timed("swh_objstorage_winery_packer_seconds", tags=tags):
+        with roshard.ROShardCreator(
+            name=shard,
+            count=count,
+            pool=pool,
+            rbd_create_images=packer_settings["create_images"],
+        ) as ro:
+            logger.info("Created RO shard %s", shard)
+            for i, (obj_id, content) in enumerate(rw.all()):
+                ro.add(content, obj_id)
+                if abort_packing(i):
+                    logger.info("Aborting packing of %s", shard)
+                    raise AbortOperation("Packing shard %s aborted" % shard)
 
-            if i % 100 == 99:
-                logger.debug("RO shard %s: added %s/%s objects", shard, i + 1, count)
+                if i % 100 == 99:
+                    logger.debug(
+                        "RO shard %s: added %s/%s objects", shard, i + 1, count
+                    )
+                statsd.increment("swh_objstorage_winery_packer_objects", tags=tags)
+                statsd.increment(
+                    "swh_objstorage_winery_packer_volume_bytes",
+                    value=len(content),
+                    tags=tags,
+                )
 
-        logger.debug("RO shard %s: added %s objects, saving", shard, count)
+            logger.debug("RO shard %s: added %s objects, saving", shard, count)
 
-    logger.info("RO shard %s: saved", shard)
+    logger.info("RO shard %s: saved (in %ds)", shard, monotonic() - t0)
 
     shared_base.shard_packing_ends(shard)
     if packer_settings.get("clean_immediately"):
