@@ -5,7 +5,6 @@
 
 from functools import partial
 import logging
-from multiprocessing import Process
 from typing import Dict, Iterator, List, Optional, Tuple
 
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -223,7 +222,6 @@ class WineryWriter:
             application_name=database_settings["application_name"],
         )
         self.shards_filled: List[str] = []
-        self.packers: List[Process] = []
         self._shard: Optional[RWShard] = None
         self.idle_timeout = shards_settings.get("rw_idle_timeout", 300)
 
@@ -326,29 +324,14 @@ class WineryWriter:
 
     def pack(self, shard_name: str):
         self.base.shard_packing_starts(shard_name)
-        p = Process(
-            target=pack,
-            kwargs={
-                "shard": shard_name,
-                "base_dsn": self.base.dsn,
-                "packer_settings": self.packer_settings,
-                "throttler_settings": self.throttler_settings,
-                "shards_settings": self.shards_settings,
-                "shards_pool_settings": self.shards_pool_settings,
-            },
+        return pack(
+            shard=shard_name,
+            base_dsn=self.base.dsn,
+            packer_settings=self.packer_settings,
+            throttler_settings=self.throttler_settings,
+            shards_settings=self.shards_settings,
+            shards_pool_settings=self.shards_pool_settings,
         )
-        p.start()
-        self.packers.append(p)
 
     def on_shutdown(self):
         self.release_shard()
-        for p in self.packers:
-            p.join()
-
-    def __del__(self):
-        for p in getattr(self, "packers", []):
-            if not p.is_alive():
-                continue
-            logger.warning("Killing packer %s", p)
-            p.kill()
-            p.join()

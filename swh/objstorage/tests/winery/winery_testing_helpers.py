@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,8 +8,11 @@ import logging
 from subprocess import CalledProcessError
 from typing import Iterable, Optional, Tuple
 
+from swh.objstorage.backends.winery.housekeeping import cleanup_rw_shard
 from swh.objstorage.backends.winery.roshard import RBDPool
 from swh.objstorage.backends.winery.settings import DEFAULT_IMAGE_FEATURES_UNSUPPORTED
+from swh.objstorage.backends.winery.sharedbase import ShardState
+from swh.objstorage.objstorage import objid_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,24 @@ DEFAULT_DATA_POOL_SETTINGS = {
     "pg_autoscale_mode": "off",
     "pg_num": 128,
 }
+
+
+def make_packed_shard(objstorage, contents):
+    winery_writer = objstorage.writer
+    winery_settings = objstorage.settings
+    base_dsn = winery_settings["database"]["db"]
+
+    shard = winery_writer.base.locked_shard
+    hashes = []
+    for content in contents:
+        sha256 = objid_for_content(content)["sha256"]
+        winery_writer.add(content=content, obj_id=sha256)
+        hashes.append(sha256)
+    # enforce shard full
+    winery_writer.base.set_shard_state(ShardState.FULL)
+    assert objstorage.writer.pack(shard)
+    cleanup_rw_shard(shard, base_dsn=base_dsn)
+    return shard, hashes
 
 
 class RBDPoolHelper(RBDPool):
