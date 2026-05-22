@@ -4,16 +4,47 @@
 # See top-level LICENSE file for more information
 
 import logging
-import math
 import os
 from pathlib import Path
-import shutil
+import shlex
+import stat
 import subprocess
-from typing import Iterable, List, Literal, Optional, Protocol, Tuple
+from types import TracebackType
+from typing import List, Literal, Optional, Protocol
 
-from . import settings
+from .. import settings
 
 logger = logging.getLogger(__name__)
+
+
+class ImageReader(Protocol):
+    """
+    Protocol for images' reader classes. This allows a pool to pick a class depending
+    on the backing file format (currently swh.shard.Shard or swh.mosaic.MosaicReader)
+    """
+
+    def lookup(self, key: bytes) -> bytes | None: ...
+
+    def close(self) -> None: ...
+
+
+class ImageWriter(Protocol):
+    """
+    Protocol for images' writer classes. This allows a pool to pick a class depending
+    on the backing file format (currently swh.shard.ShardCreator or
+    swh.mosaic.MosaicWriter).
+    """
+
+    def __enter__(self) -> "ImageWriter": ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[BaseException],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool: ...
+
+    def write(self, key: bytes, object: bytes) -> None: ...
 
 
 class Pool(Protocol):
@@ -60,146 +91,50 @@ class Pool(Protocol):
         """Import an existing image file in the current pool"""
         ...
 
+    def image_open(self, image: str) -> ImageReader: ...
 
-class RBDPool(Pool):
-    """Manage a Ceph RBD pool for Winery shards.
+    def delete_object(self, shard_name: str, obj_id: bytes) -> None: ...
 
-    Arguments:
-      shard_max_size: max size of shard contents
-      rbd_use_sudo: whether to use sudo for rbd commands
-      rbd_pool_name: name of the pool used for RBD images (metadata)
-      rbd_data_pool_name: name of the pool used for RBD images (data)
-      rbd_image_features_unsupported: features not supported by the kernel
-        mounting the rbd images
-      rbd_map_options: options to pass to ``rbd device map``, e.g.
-        ``ms_mode=prefer-secure`` to connect to a ceph cluster with encryption
-        enabled
-    """
+    def open_writer(
+        self, shard_name: str, nb_objects: int, xcreate_image: bool
+    ) -> ImageWriter:
+        """Instantiate the correct ImageWriter object for the given shard
 
-    def __init__(
-        self,
-        shard_max_size: int,
-        rbd_use_sudo: bool = True,
-        rbd_pool_name: str = "shards",
-        rbd_data_pool_name: Optional[str] = None,
-        rbd_image_features_unsupported: Tuple[
-            str, ...
-        ] = settings.DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
-        rbd_map_options: str = "",
-    ) -> None:
-        self.use_sudo = rbd_use_sudo
-        self.pool_name = rbd_pool_name
-        self.data_pool_name = rbd_data_pool_name or f"{self.pool_name}-data"
-        self.features_unsupported = rbd_image_features_unsupported
-        self.map_options = rbd_map_options
-        self.image_size = math.ceil((shard_max_size * 2) / (1024 * 1024))
-
-    POOL_CONFIG: Tuple[str, ...] = (
-        "shard_max_size",
-        "rbd_use_sudo",
-        "rbd_pool_name",
-        "rbd_data_pool_name",
-        "rbd_image_features_unsupported",
-        "rbd_map_options",
-    )
-
-    @classmethod
-    def from_kwargs(cls, **kwargs) -> "RBDPool":
-        """Create a Pool from a set of arbitrary keyword arguments"""
-        return cls(**{k: kwargs[k] for k in cls.POOL_CONFIG if k in kwargs})
-
-    def run(self, *cmd: str) -> Iterable[str]:
-        """Run the given command, and return its output as lines.
-
-        Return: the standard output of the run command
-
-        Raises: CalledProcessError if the command doesn't exit with exit code 0.
+        This is used at time of packing a batch of objects in a shard file.
         """
+        ...
 
-        sudo = ("sudo",) if self.use_sudo else ()
-        cmd = sudo + cmd
+    @staticmethod
+    def _zero_image_if_needed(path):
+        """Check whether the image is empty, and zero it out if it's not.
 
-        logger.debug(" ".join(repr(item) if " " in item else item for item in cmd))
-        result = subprocess.check_output(cmd, encoding="utf-8", stderr=subprocess.PIPE)
+        We really check only the first 1kB, as we assume that the SWHShard
+        marker will have been written at the beginning of the image under all
+        circumstances if the RO Shard creation has been interrupted.
+        """
+        with open(path, "rb") as f:
+            start = f.read(1024)
+            if not start or set(start) == {0}:
+                return
 
-        return result.splitlines()
-
-    def rbd(self, *arguments: str) -> Iterable[str]:
-        """Run rbd with the given arguments"""
-
-        return self.run("rbd", f"--pool={self.pool_name}", *arguments)
-
-    def image_exists(self, image: str):
-        try:
-            self.rbd("info", image)
-        except subprocess.CalledProcessError:
-            return False
+        logger.warning("RO image %s isn't empty, cleaning it up", path)
+        st = os.stat(path)
+        if stat.S_ISBLK(st.st_mode):
+            # Block device, use DISCARD
+            command = ["/usr/sbin/blkdiscard", path]
         else:
-            return True
-
-    def image_list(self):
+            # Regular file, use fallocate --punch-hole
+            command = [
+                "/usr/bin/fallocate",
+                "--punch-hole",
+                "-l",
+                str(st.st_size),
+                path,
+            ]
         try:
-            images = self.rbd("ls")
-        except subprocess.CalledProcessError as exc:
-            if exc.returncode == 2 and "No such file or directory" in exc.stderr:
-                return []
-            else:
-                raise
-        return [image.strip() for image in images]
-
-    def image_path(self, image: str) -> str:
-        return f"/dev/rbd/{self.pool_name}/{image}"
-
-    def image_create(self, image: str):
-        self.rbd(
-            "create",
-            f"--size={self.image_size}",
-            f"--data-pool={self.data_pool_name}",
-            image,
-        )
-        if self.features_unsupported:
-            self.rbd(
-                "feature",
-                "disable",
-                f"{self.pool_name}/{image}",
-                *self.features_unsupported,
-            )
-        self.image_map(image, "rw")
-
-    def image_map(self, image: str, options: str):
-        self.rbd(
-            "device",
-            "map",
-            "-o",
-            f"{options},{self.map_options}" if self.map_options else options,
-            image,
-        )
-
-    def image_unmap(self, image: str):
-        if os.path.exists(self.image_path(image)):
-            try:
-                self.rbd("device", "unmap", self.image_path(image))
-            except subprocess.CalledProcessError as exc:
-                if exc.returncode == 22 and "Invalid argument" in exc.stderr:
-                    logger.warning(
-                        "Image %s already unmapped? stderr: %s", image, exc.stderr
-                    )
-                else:
-                    logger.warning(
-                        "unmap(%s) failed (%d): %s",
-                        image,
-                        exc.returncode,
-                        exc.stderr,
-                    )
-                    raise
-
-    def image_import(self, image: str) -> None:
-        name = os.path.basename(image)
-        dst = self.image_path(name)
-        self.image_create(name)
-        with open(image, "rb") as s:
-            with open(dst, "wb") as d:
-                shutil.copyfileobj(s, d)
+            subprocess.run(command, check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            logger.warning("%s failed:", shlex.join(command), path, exc_info=True)
 
 
 class FileBackedPool(Pool):
@@ -270,6 +205,8 @@ def pool_from_settings(
     """Return a Pool from the settings"""
     pool_type = shards_pool_settings["type"]
     if pool_type == "rbd":
+        from .rbd import RBDPool
+
         rbd_settings = settings.rbd_shards_pool_settings_with_defaults(
             shards_pool_settings
         )
@@ -282,10 +219,12 @@ def pool_from_settings(
             rbd_map_options=rbd_settings["map_options"],
         )
     elif pool_type == "directory":
+        from .shard import ShardBackedPool
+
         dir_settings = settings.directory_shards_pool_settings_with_defaults(
             shards_pool_settings
         )
-        return FileBackedPool(
+        return ShardBackedPool(
             shard_max_size=shards_settings["max_size"],
             base_directory=Path(dir_settings["base_directory"]),
             pool_name=dir_settings["pool_name"],

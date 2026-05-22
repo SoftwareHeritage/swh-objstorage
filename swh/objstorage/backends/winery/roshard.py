@@ -225,7 +225,7 @@ class ROShard:
         self.close()
 
     @staticmethod
-    def delete(pool, shard_name, obj_id):
+    def delete(pool: Pool, shard_name: str, obj_id: bytes):
         image_status = pool.image_mapped(shard_name)
         if image_status == "ro":
             raise PermissionError(
@@ -233,7 +233,7 @@ class ROShard:
             )
         if not image_status:
             pool.image_map(shard_name, options="rw")
-        Shard.delete(pool.image_path(shard_name), obj_id)
+        pool.delete_object(shard_name, obj_id)
 
 
 class ROShardCreator:

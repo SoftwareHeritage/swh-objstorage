@@ -9,7 +9,7 @@ from subprocess import CalledProcessError
 from typing import Iterable, Optional, Tuple
 
 from swh.objstorage.backends.winery.housekeeping import cleanup_rw_shard
-from swh.objstorage.backends.winery.pools import RBDPool
+from swh.objstorage.backends.winery.pools.rbd import RBDPool
 from swh.objstorage.backends.winery.settings import DEFAULT_IMAGE_FEATURES_UNSUPPORTED
 from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.objstorage import objid_for_content

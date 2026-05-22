@@ -19,7 +19,8 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
-from swh.objstorage.backends.winery.pools import FileBackedPool, RBDPool
+from swh.objstorage.backends.winery.pools.rbd import RBDPool
+from swh.objstorage.backends.winery.pools.shard import ShardBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
 from swh.objstorage.factory import get_objstorage
@@ -103,7 +104,7 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
     For each pool name in 'pool_names', it will instantiate the corresponding
     Pool backend based on a simple pool name pattern: if the pool name ends with:
 
-    - '-directory': produces a FileBackedPool
+    - '-directory': produces a ShardBackedPool
     - '-rbd': produces a RBDPool (actually a RBDPoolHelper, see winery_testing_helpers)
 
     On teardown, clean RBD pools if needed.
@@ -120,7 +121,7 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
     pools = []
     for pool_name in pool_names:
         if pool_name.endswith("-directory"):
-            pool = FileBackedPool(
+            pool = ShardBackedPool(
                 base_directory=tmp_path,
                 shard_max_size=shard_max_size,
                 pool_name=pool_name,
