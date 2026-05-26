@@ -169,15 +169,14 @@ def populate_default_settings(
         packer = packer_settings_with_defaults(packer)
         settings["packer"] = packer
 
-    assert packer is not None
-    if packer.get("clean_immediately"):
-        logger.warning(
-            "clean_immediately has been deprecated and is no longer "
-            "used. Please update your configuration and setup."
-        )
-    if packer.get("pack_immediately"):
-        logger.warning(
-            "pack_immediately has been deprecated and is no longer "
-            "used. Please update your configuration and setup."
-        )
+        if packer.get("clean_immediately"):
+            logger.warning(
+                "clean_immediately has been deprecated and is no longer "
+                "used. Please update your configuration and setup."
+            )
+        if packer.get("pack_immediately"):
+            logger.warning(
+                "pack_immediately has been deprecated and is no longer "
+                "used. Please update your configuration and setup."
+            )
     return settings
