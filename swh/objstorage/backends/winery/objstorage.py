@@ -112,7 +112,7 @@ class WineryObjStorage(ObjStorage):
         hashed_contents_list = list(hashed_contents)
         if hashed_contents_list:
             return self.writer.add_batch(hashed_contents_list)
-        return {}
+        return {"object:add": 0, "object:add:bytes": 0}
 
     def delete(self, obj_id: HashDict):
         if not self.writer:
