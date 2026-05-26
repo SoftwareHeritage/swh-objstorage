@@ -409,8 +409,8 @@ class MultiplexerObjStorage(ObjStorage):
 
         summed = {"object:add": 0, "object:add:bytes": 0}
         for result in results:
-            summed["object:add"] += result["object:add"]
-            summed["object:add:bytes"] += result["object:add:bytes"]
+            summed["object:add"] += result.get("object:add", 0)
+            summed["object:add:bytes"] += result.get("object:add:bytes", 0)
 
         return {
             "object:add": summed["object:add"] // len(results),
