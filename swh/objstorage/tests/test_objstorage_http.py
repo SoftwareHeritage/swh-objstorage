@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -39,7 +39,7 @@ def mock_http_responses(sto_back, requests_mock=None, aioresponses=None):
         dirname, basename = path.rsplit("/", 1)
         primary_hash = bytes.fromhex(basename)
         back_objid = {sto_back.primary_hash: primary_hash}
-        if dirname == "/content" and back_objid in sto_back:
+        if dirname == "/content" and sto_back.contains(back_objid):
             return (200, sto_back.get(back_objid))
         return (404, b"")
 
@@ -47,7 +47,7 @@ def mock_http_responses(sto_back, requests_mock=None, aioresponses=None):
         dirname, basename = path.rsplit("/", 1)
         primary_hash = bytes.fromhex(basename)
         back_objid = {sto_back.primary_hash: primary_hash}
-        if dirname != "/content" or back_objid not in sto_back:
+        if dirname != "/content" or not sto_back.contains(back_objid):
             return (404, b"Not Found")
         return (200, b"Found")
 
@@ -101,7 +101,7 @@ def test_http_objstorage(objstorages, obj_ids):
     sto_front, sto_back = objstorages
 
     for obj_id in obj_ids:
-        assert obj_id in sto_front
+        assert sto_front.contains(obj_id)
         assert sto_front.get(obj_id) == sto_back.get(obj_id)
         assert sto_front.get(obj_id).decode().startswith("some content ")
 
@@ -109,7 +109,7 @@ def test_http_objstorage(objstorages, obj_ids):
 def test_http_objstorage_missing(objstorages):
     sto_front, _ = objstorages
 
-    assert FIRST_OBJID not in sto_front
+    assert not sto_front.contains(FIRST_OBJID)
 
 
 def test_http_objstorage_get_missing(objstorages):
@@ -156,7 +156,7 @@ def test_http_objstorage_download_url(objstorages, obj_ids):
     sto_front, _ = objstorages
 
     for obj_id in obj_ids:
-        assert obj_id in sto_front
+        assert sto_front.contains(obj_id)
         response = requests.get(sto_front.download_url(obj_id))
         assert response.text.startswith("some content ")
 
