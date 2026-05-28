@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -53,4 +53,5 @@ class RemoteObjStorage(RPCClient):
 # just overload the methods in the class definition.
 RemoteObjStorage.get = timed(RemoteObjStorage.get)  # type: ignore
 RemoteObjStorage.add = timed(RemoteObjStorage.add)  # type: ignore
+RemoteObjStorage.add_batch = timed(RemoteObjStorage.add_batch)  # type: ignore
 RemoteObjStorage.__contains__ = timed(RemoteObjStorage.__contains__)  # type: ignore
