@@ -21,6 +21,8 @@ from typing import (
 )
 import zlib
 
+from deprecated import deprecated
+
 from swh.core import statsd
 from swh.model.hashutil import HashDict, MultiHash, hash_to_hex
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -165,11 +167,18 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             self.executor = ThreadPoolExecutor(max_workers=max_batch_workers)
             self.map_contents = self.executor.map
 
+    @deprecated(
+        version="6.0.2",
+        reason="Use `objstorage.contains(x)` instead of `x in objstorage`",
+    )
+    def __contains__(self, obj_id: HashDict) -> bool:
+        return self.contains(obj_id)
+
     def _add(
         self, content: Tuple[HashDict, bytes], check_presence: bool
     ) -> Tuple[int, int]:
         obj_id, content_data = content
-        if check_presence and obj_id in self:
+        if check_presence and self.contains(obj_id):
             return (0, 0)
         else:
             self.add(content_data, obj_id, check_presence=False)

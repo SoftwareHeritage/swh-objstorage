@@ -148,8 +148,8 @@ class ObjStorageThread(threading.Thread):
 
         return call
 
-    def __contains__(self, *args, **kwargs):
-        mailbox = self.queue_command("__contains__", *args, **kwargs)
+    def contains(self, *args, **kwargs):
+        mailbox = self.queue_command("contains", *args, **kwargs)
         return self.get_result_from_mailbox(mailbox)
 
     def terminate(self):
@@ -336,7 +336,7 @@ class MultiplexerObjStorage(ObjStorage):
             )
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:
@@ -348,7 +348,7 @@ class MultiplexerObjStorage(ObjStorage):
 
         """
         for storage in self.get_read_threads(obj_id):
-            if obj_id in storage:
+            if storage.contains(obj_id):
                 return True
         return False
 

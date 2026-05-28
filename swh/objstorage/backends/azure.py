@@ -233,7 +233,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         """Does the storage contains the obj_id."""
         return self._async_loop.run_until_complete(self._contains_async(obj_id))
 
@@ -327,7 +327,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
 
     def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content."""
-        if obj_id in self:
+        if self.contains(obj_id):
             self.delete(obj_id)
 
         return self.add(content, obj_id, check_presence=False)

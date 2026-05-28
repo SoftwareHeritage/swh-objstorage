@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -130,7 +130,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
         return True
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         try:
             self._get_object(obj_id)
         except ObjNotFoundError:
@@ -142,7 +142,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
-        if check_presence and obj_id in self:
+        if check_presence and self.contains(obj_id):
             return
 
         self._put_object(content, obj_id)

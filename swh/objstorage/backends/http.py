@@ -100,7 +100,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return check_write is False
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         resp = self.session.head(self._path(obj_id))
         return resp.status_code == 200
 

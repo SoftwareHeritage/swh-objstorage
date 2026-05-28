@@ -24,7 +24,7 @@ class NoopObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id, *args, **kwargs):
+    def contains(self, obj_id, *args, **kwargs):
         return False
 
     @timed

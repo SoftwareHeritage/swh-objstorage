@@ -27,8 +27,8 @@ class ReadOnlyProxyObjStorage(ObjStorage):
             get_objstorage(**storage) if isinstance(storage, dict) else storage
         )
 
-    def __contains__(self, *args, **kwargs):
-        return self.storage.__contains__(*args, **kwargs)
+    def contains(self, *args, **kwargs):
+        return self.storage.contains(*args, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)

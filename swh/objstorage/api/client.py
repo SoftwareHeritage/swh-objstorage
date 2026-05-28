@@ -66,4 +66,4 @@ class RemoteObjStorage(_RemoteObjStorage):
 RemoteObjStorage.get = timed(RemoteObjStorage.get)  # type: ignore
 RemoteObjStorage.add = timed(RemoteObjStorage.add)  # type: ignore
 RemoteObjStorage.add_batch = timed(RemoteObjStorage.add_batch)  # type: ignore
-RemoteObjStorage.__contains__ = timed(RemoteObjStorage.__contains__)  # type: ignore
+RemoteObjStorage.contains = timed(RemoteObjStorage.contains)  # type: ignore
