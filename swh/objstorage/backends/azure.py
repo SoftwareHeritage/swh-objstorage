@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -260,7 +260,7 @@ class AzureCloudObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         """Does the storage contains the obj_id."""
         hex_obj_id = self._internal_id(obj_id)
         client = self.get_blob_client(hex_obj_id)
@@ -276,7 +276,7 @@ class AzureCloudObjStorage(ObjStorage):
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
         """Add an obj in storage if it's not there already."""
-        if check_presence and obj_id in self:
+        if check_presence and self.contains(obj_id):
             return
 
         hex_obj_id = self._internal_id(obj_id)
@@ -296,7 +296,7 @@ class AzureCloudObjStorage(ObjStorage):
 
     def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content."""
-        if obj_id in self:
+        if self.contains(obj_id):
             self.delete(obj_id)
 
         return self.add(content, obj_id, check_presence=False)

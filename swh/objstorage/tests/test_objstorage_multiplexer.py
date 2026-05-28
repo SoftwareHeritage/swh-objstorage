@@ -112,8 +112,8 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         content_p, obj_id_p = self.hash_content(b"contains_present")
         content_m, obj_id_m = self.hash_content(b"contains_missing")
         self.storage.add(content_p, obj_id=obj_id_p)
-        assert obj_id_p in self.storage
-        assert obj_id_m not in self.storage
+        assert self.storage.contains(obj_id_p)
+        assert not self.storage.contains(obj_id_m)
 
     @pytest.fixture
     def allow_delete(self):
@@ -135,7 +135,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         with pytest.raises(ReadOnlyObjStorageError):
             self.storage.storages[0].add(content, obj_id=obj_id)
         # Try to retrieve it on the main storage
-        assert obj_id not in self.storage
+        assert not self.storage.contains(obj_id)
 
     def test_get_statsd_multiplexer(self, statsd):
         content1, obj_id1 = self.hash_content(b"add_get_batch_1")
@@ -202,7 +202,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # check metrics reported by the ro backend (aka pathslicer_1)
         expected_ro_payloads = [
             # first get()
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
             (
                 f"{DURATION_METRICS}_error_count",
                 {
@@ -212,7 +212,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                 },
             ),
             # second get()
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
             (
                 f"{DURATION_METRICS}_error_count",
                 {
@@ -222,7 +222,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                 },
             ),
             # third get()
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
             (DURATION_METRICS, {"endpoint": "get", "name": "pathslicer_1"}),
         ]
         ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
@@ -231,10 +231,10 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # check metrics reported by the rw backend (aka rw_backend)
         expected_rw_payloads = [
             # first get()
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
             (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
             # second get()
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
             (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
         ]
         rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
@@ -242,33 +242,33 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
 
         # clear the statsd messages
         statsd.socket.payloads.clear()
-        # and check metrics for the __contains__ method
-        assert obj_id1 in self.storage
-        assert obj_id2 in self.storage
-        assert obj_id3 in self.storage
+        # and check metrics for the contains method
+        assert self.storage.contains(obj_id1)
+        assert self.storage.contains(obj_id2)
+        assert self.storage.contains(obj_id3)
 
         # for now, there is no counter (MP_COUNTER_METRICS) on any other method
         # than get, so we don't have any simple stat on who answered the
         # request...
         expected_mp_payloads = [
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "multiplexer"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
         ]
         mp_payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert mp_payloads == expected_mp_payloads
 
         expected_ro_payloads = [
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
         ]
         ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
         assert ro_payloads == expected_ro_payloads
 
         expected_rw_payloads = [
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
-            (DURATION_METRICS, {"endpoint": "__contains__", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
+            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
         ]
         rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
         assert rw_payloads == expected_rw_payloads
@@ -293,8 +293,8 @@ def test_multiplexer_corruption_fallback(mocker, caplog):
     multiplexer = MultiplexerObjStorage(objstorages=[corrupt_storage, ok_storage])
     multiplexer.add(content_p, obj_id=obj_id_p)
 
-    assert obj_id_p in corrupt_storage
-    assert obj_id_p in ok_storage
+    assert corrupt_storage.contains(obj_id_p)
+    assert ok_storage.contains(obj_id_p)
 
     with (
         caplog.at_level(logging.WARNING, "swh.core.statsd"),
@@ -335,8 +335,8 @@ def test_multiplexer_transient_error_fallback(mocker, caplog, statsd):
     )
     multiplexer.add(content_p, obj_id=obj_id_p)
 
-    assert obj_id_p in timeout_storage
-    assert obj_id_p in ok_storage
+    assert timeout_storage.contains(obj_id_p)
+    assert ok_storage.contains(obj_id_p)
 
     with caplog.at_level(
         logging.WARNING, "swh.objstorage.multiplexer.multiplexer_objstorage"

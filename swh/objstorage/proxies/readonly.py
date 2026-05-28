@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -25,8 +25,8 @@ class ReadOnlyProxyObjStorage(ObjStorage):
             get_objstorage(**storage) if isinstance(storage, dict) else storage
         )
 
-    def __contains__(self, *args, **kwargs):
-        return self.storage.__contains__(*args, **kwargs)
+    def contains(self, *args, **kwargs):
+        return self.storage.contains(*args, **kwargs)
 
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)

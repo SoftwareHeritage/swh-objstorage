@@ -76,7 +76,7 @@ class WineryObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         return self._hash(obj_id) in self.reader
 
     @timed

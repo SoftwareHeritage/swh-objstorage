@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -24,7 +24,7 @@ class NoopObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id, *args, **kwargs):
+    def contains(self, obj_id, *args, **kwargs):
         return False
 
     @timed

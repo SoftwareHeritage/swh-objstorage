@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -52,7 +52,7 @@ class ObjStorageInterface(Protocol):
     Conceptually, the object storage offers the following methods:
 
     - check_config()  check if the object storage is properly configured
-    - __contains__()  check if an object is present, by object id
+    - contains()      check if an object is present, by object id
     - add()           add a new object, returning an object id
     - restore()       same as add() but erase an already existed content
     - get()           retrieve the content of an object, by object id
@@ -101,7 +101,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/contains")
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         """Indicate if the given object is present in the storage.
 
         Args:

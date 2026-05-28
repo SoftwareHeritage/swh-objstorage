@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2025  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -32,28 +32,28 @@ class InMemoryObjStorage(ObjStorage):
         return obj_id[self.primary_hash]
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         return self._state_key(obj_id) in self.state
 
     @timed
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
-        if check_presence and obj_id in self:
+        if check_presence and self.contains(obj_id):
             return
 
         self.state[self._state_key(obj_id)] = content
 
     @timed
     def get(self, obj_id: HashDict) -> bytes:
-        if obj_id not in self:
+        if not self.contains(obj_id):
             raise ObjNotFoundError(obj_id)
 
         return self.state[self._state_key(obj_id)]
 
     def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
-        if obj_id not in self:
+        if not self.contains(obj_id):
             raise ObjNotFoundError(obj_id)
 
         self.state.pop(self._state_key(obj_id))

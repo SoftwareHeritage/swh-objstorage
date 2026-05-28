@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -101,15 +101,9 @@ class ObjStorageTestFixture:
         missing_methods = []
 
         for meth_name in dir(interface):
-            if (
-                meth_name.startswith("_")
-                and meth_name
-                not in (
-                    "__iter__",
-                    "__contains__",
-                )
-                or meth_name in ("primary_hash",)  # XXX not exactly sure here...:
-            ):
+            if meth_name.startswith("_") or meth_name in (
+                "primary_hash",
+            ):  # XXX not exactly sure here...:
                 continue
             interface_meth = getattr(interface, meth_name)
             concrete_meth = getattr(self.storage, meth_name)
@@ -153,20 +147,20 @@ class ObjStorageTestFixture:
             )
         content_p, obj_id_p = self.hash_content(b"contains_present")
         self.storage.add(content_p, obj_id=obj_id_p)
-        assert obj_id_p in self.storage
+        assert self.storage.contains(obj_id_p)
         for hashalgo in ["sha1", "sha256"]:
             if hashalgo == self.storage.primary_hash:
-                assert {hashalgo: obj_id_p[hashalgo]} in self.storage
+                assert self.storage.contains({hashalgo: obj_id_p[hashalgo]})
             else:
                 with pytest.raises(KeyError):
-                    assert {hashalgo: obj_id_p[hashalgo]} not in self.storage
+                    assert not self.storage.contains({hashalgo: obj_id_p[hashalgo]})
 
     def test_contains(self):
         content_p, obj_id_p = self.hash_content(b"contains_present")
         content_m, obj_id_m = self.hash_content(b"contains_missing")
         self.storage.add(content_p, obj_id=obj_id_p)
-        assert obj_id_p in self.storage
-        assert obj_id_m not in self.storage
+        assert self.storage.contains(obj_id_p)
+        assert not self.storage.contains(obj_id_m)
 
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
@@ -247,7 +241,7 @@ class ObjStorageTestFixture:
         with pytest.raises((ObjCorruptedError, ObjNotFoundError)):
             # raise Corrupted except read only storage that raises NotFound,
             self.storage.check(valid_obj_id)
-        assert valid_obj_id in self.storage
+        assert self.storage.contains(valid_obj_id)
         self.storage.restore(valid_content, valid_obj_id)
         self.assertContentMatch(valid_obj_id, valid_content)
 
@@ -330,7 +324,7 @@ class ObjStorageTestFixture:
         }
 
         for obj_id, content in contents:
-            assert obj_id in self.storage
+            assert self.storage.contains(obj_id)
 
     def test_download_url(self):
         content = b"foo"

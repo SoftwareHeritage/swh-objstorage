@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -219,7 +219,7 @@ class PathSlicingObjStorage(ObjStorage):
         return True
 
     @timed
-    def __contains__(self, obj_id: HashDict) -> bool:
+    def contains(self, obj_id: HashDict) -> bool:
         hex_obj_id = objid_to_default_hex(obj_id, self.primary_hash)
         return os.path.isfile(self.slicer.get_path(hex_obj_id))
 
@@ -230,7 +230,7 @@ class PathSlicingObjStorage(ObjStorage):
         obj_id: HashDict,
         check_presence: bool = True,
     ) -> None:
-        if check_presence and obj_id in self:
+        if check_presence and self.contains(obj_id):
             # If the object is already present, return immediately.
             return
 
@@ -240,7 +240,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     @timed
     def get(self, obj_id: HashDict) -> bytes:
-        if obj_id not in self:
+        if not self.contains(obj_id):
             raise ObjNotFoundError(obj_id)
 
         # Open the file and return its content as bytes
@@ -250,7 +250,7 @@ class PathSlicingObjStorage(ObjStorage):
 
     def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
-        if obj_id not in self:
+        if not self.contains(obj_id):
             raise ObjNotFoundError(obj_id)
 
         hex_obj_id = objid_to_default_hex(obj_id, self.primary_hash)
