@@ -12,7 +12,8 @@ from swh.core.statsd import statsd
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import HashDict
-from swh.objstorage.objstorage import ObjStorage, timed
+from swh.objstorage.metrics import timed
+from swh.objstorage.objstorage import ObjStorage
 
 from . import settings
 from .housekeeping import pack
@@ -126,13 +127,13 @@ class WineryObjStorage(ObjStorage):
 
     @timed
     def add_batch(
-        self, contents: list[tuple[HashDict, bytes]], check_presence: bool = True
+        self, contents: Iterable[tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
         """``contents`` should be pairs of ``(obj_id, content)``"""
         return self._add_batch(contents, check_presence)
 
     def _add_batch(
-        self, contents: list[tuple[HashDict, bytes]], check_presence: bool = True
+        self, contents: Iterable[tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
         """Same as ``add_batch``, but not wrapped by ``@timed``, so ``add()`` is not
         double-counted"""

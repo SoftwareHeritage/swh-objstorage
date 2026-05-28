@@ -15,7 +15,7 @@ from swh.objstorage.exc import (
     ObjStorageAPIError,
 )
 from swh.objstorage.interface import HashDict, ObjStorageInterface
-from swh.objstorage.objstorage import timed
+from swh.objstorage.metrics import timed
 
 
 # parent of the actual `RemoteObjStorage` so it can use super().get_batch in its overridden

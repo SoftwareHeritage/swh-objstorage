@@ -18,7 +18,8 @@ from swh.mosaic import IdxDescription, MosaicReader
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import ObjId
-from swh.objstorage.objstorage import ObjStorage, timed
+from swh.objstorage.metrics import timed
+from swh.objstorage.objstorage import ObjStorage
 
 HashToIDX: dict[LiteralPrimaryHash, IdxDescription] = {
     "sha1": IdxDescription.SHA1FMPHGO,

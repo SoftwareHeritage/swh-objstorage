@@ -20,6 +20,7 @@ from swh.objstorage.exc import (
     ReadOnlyObjStorageError,
 )
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.metrics import DURATION_METRIC
 from swh.objstorage.multiplexer import (
     MP_BACKEND_DISABLED_METRICS,
     MP_BACKEND_ENABLED_METRICS,
@@ -27,7 +28,7 @@ from swh.objstorage.multiplexer import (
     MultiplexerObjStorage,
     ObjStorageThread,
 )
-from swh.objstorage.objstorage import DURATION_METRICS, objid_for_content
+from swh.objstorage.objstorage import objid_for_content
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -145,9 +146,9 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         self.storage.add(content2, obj_id2)
         expected_payloads = [
             # first call to add()
-            (DURATION_METRICS, {"endpoint": "add", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "add", "name": "multiplexer"}),
             # second call to add()
-            (DURATION_METRICS, {"endpoint": "add", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "add", "name": "multiplexer"}),
         ]
         payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert payloads == expected_payloads
@@ -172,7 +173,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                     "name": "multiplexer",
                 },
             ),
-            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "multiplexer"}),
             # second get()
             (
                 MP_COUNTER_METRICS,
@@ -183,7 +184,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                     "name": "multiplexer",
                 },
             ),
-            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "multiplexer"}),
             # third get()
             (
                 MP_COUNTER_METRICS,
@@ -194,7 +195,7 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                     "name": "multiplexer",
                 },
             ),
-            (DURATION_METRICS, {"endpoint": "get", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "multiplexer"}),
         ]
         mp_payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert mp_payloads == expected_mp_payloads
@@ -202,9 +203,9 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # check metrics reported by the ro backend (aka pathslicer_1)
         expected_ro_payloads = [
             # first get()
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
             (
-                f"{DURATION_METRICS}_error_count",
+                f"{DURATION_METRIC}_error_count",
                 {
                     "endpoint": "get",
                     "error_type": "ObjNotFoundError",
@@ -212,9 +213,9 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                 },
             ),
             # second get()
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
             (
-                f"{DURATION_METRICS}_error_count",
+                f"{DURATION_METRIC}_error_count",
                 {
                     "endpoint": "get",
                     "error_type": "ObjNotFoundError",
@@ -222,8 +223,8 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
                 },
             ),
             # third get()
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
-            (DURATION_METRICS, {"endpoint": "get", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "pathslicer_1"}),
         ]
         ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
         assert ro_payloads == expected_ro_payloads
@@ -231,11 +232,11 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # check metrics reported by the rw backend (aka rw_backend)
         expected_rw_payloads = [
             # first get()
-            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
-            (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "rw_backend"}),
             # second get()
-            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
-            (DURATION_METRICS, {"endpoint": "get", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "get", "name": "rw_backend"}),
         ]
         rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
         assert rw_payloads == expected_rw_payloads
@@ -251,24 +252,24 @@ class TestMultiplexerObjStorage(ObjStorageTestFixture):
         # than get, so we don't have any simple stat on who answered the
         # request...
         expected_mp_payloads = [
-            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
-            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
-            (DURATION_METRICS, {"endpoint": "contains", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "multiplexer"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "multiplexer"}),
         ]
         mp_payloads = statsd_payloads_having_tags(statsd, name="multiplexer")
         assert mp_payloads == expected_mp_payloads
 
         expected_ro_payloads = [
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
-            (DURATION_METRICS, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "pathslicer_1"}),
         ]
         ro_payloads = statsd_payloads_having_tags(statsd, name="pathslicer_1")
         assert ro_payloads == expected_ro_payloads
 
         expected_rw_payloads = [
-            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
-            (DURATION_METRICS, {"endpoint": "contains", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "rw_backend"}),
+            (DURATION_METRIC, {"endpoint": "contains", "name": "rw_backend"}),
         ]
         rw_payloads = statsd_payloads_having_tags(statsd, name="rw_backend")
         assert rw_payloads == expected_rw_payloads

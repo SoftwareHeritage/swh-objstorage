@@ -18,11 +18,11 @@ from libcloud.storage.types import ObjectDoesNotExistError, Provider
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
+from swh.objstorage.metrics import timed
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
-    timed,
 )
 
 logger = logging.getLogger(__name__)

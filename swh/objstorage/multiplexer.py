@@ -21,7 +21,8 @@ from swh.objstorage.exc import (
 )
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import HashDict, ObjStorageInterface
-from swh.objstorage.objstorage import ObjStorage, timed
+from swh.objstorage.metrics import timed
+from swh.objstorage.objstorage import ObjStorage
 from swh.objstorage.utils import format_obj_id
 
 MP_COUNTER_METRICS = "swh_objstorage_multiplexer_backend_total"

@@ -1,9 +1,8 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import contextlib
 import functools
 import logging
 import os
@@ -21,25 +20,16 @@ from swh.objstorage.exc import (
 )
 from swh.objstorage.factory import get_objstorage as get_swhobjstorage
 from swh.objstorage.interface import ObjStorageInterface
+from swh.objstorage.metrics import DURATION_METRIC
 
 
 def timed(f):
     @functools.wraps(f)
     def w(*a, **kw):
-        with statsd.timed(
-            "swh_objstorage_request_duration_seconds", tags={"endpoint": f.__name__}
-        ):
+        with statsd.timed(DURATION_METRIC, tags={"endpoint": f.__name__}):
             return f(*a, **kw)
 
     return w
-
-
-@contextlib.contextmanager
-def timed_context(f_name):
-    with statsd.timed(
-        "swh_objstorage_request_duration_seconds", tags={"endpoint": f_name}
-    ):
-        yield
 
 
 def get_objstorage():
