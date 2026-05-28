@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import OrderedDict
 from functools import partial
 import logging
 from typing import Dict, Iterator, List, Optional, Tuple
@@ -35,6 +36,7 @@ class WineryObjStorage(ObjStorage):
         readonly: bool = False,
         allow_delete: bool = False,
         name: str = "winery",
+        readers_cache_size: int = 1000,
     ) -> None:
         super().__init__(allow_delete=allow_delete, name=name)
         if self.primary_hash != "sha256":
@@ -52,7 +54,9 @@ class WineryObjStorage(ObjStorage):
             shards_pool_settings=self.settings["shards_pool"],
         )
         self.reader: WineryReader = WineryReader(
-            pool=self.pool, database=self.settings["database"]
+            pool=self.pool,
+            database=self.settings["database"],
+            cache_size=readers_cache_size,
         )
 
         self.writer: Optional[WineryWriter] = None
@@ -134,13 +138,32 @@ class WineryObjStorage(ObjStorage):
             self.writer.on_shutdown()
 
 
+class LRUDict(OrderedDict):
+    def __init__(self, capacity: int):
+        assert capacity > 0
+        super().__init__()
+        self.capacity = capacity
+
+    def __getitem__(self, key):
+        if key in self:
+            self.move_to_end(key)
+            return self.get(key)
+        return None
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        if len(self) > self.capacity:
+            self.popitem(last=False)
+
+
 class WineryReader:
-    def __init__(self, pool: Pool, database: settings.Database):
+    def __init__(self, pool: Pool, database: settings.Database, cache_size: int = 1000):
         self.pool = pool
         self.base = SharedBase(
             base_dsn=database["db"], application_name=database["application_name"]
         )
-        self.ro_shards: Dict[str, ROShard] = {}
+        self.ro_shards: Dict[str, ROShard] = LRUDict(cache_size)
         self.rw_shards: Dict[str, RWShard] = {}
 
     def __contains__(self, obj_id):
@@ -193,7 +216,7 @@ class WineryReader:
     def on_shutdown(self):
         for shard in self.ro_shards.values():
             shard.close()
-        self.ro_shards = {}
+        self.ro_shards.clear()
         self.rw_shards = {}
 
 

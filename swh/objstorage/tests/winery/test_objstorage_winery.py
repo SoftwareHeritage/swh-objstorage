@@ -4,7 +4,9 @@
 # See top-level LICENSE file for more information
 
 from collections import Counter
+import inspect
 import logging
+import os
 import threading
 
 import pytest
@@ -15,6 +17,7 @@ from swh.objstorage.backends.winery.housekeeping import (
     AbortOperation,
     cleanup_rw_shard,
     deleted_objects_cleaner,
+    import_ro_shards,
     pack,
     rw_shard_cleaner,
     shard_packer,
@@ -341,9 +344,13 @@ class TestWinery:
             assert shard_info[shard] == ShardState.FULL
 
         # Pack a single shard
+        packer_params = inspect.signature(shard_packer).parameters
+        packer_settings = {
+            k: v for k, v in winery_settings.items() if k in packer_params
+        }
         assert (
             shard_packer(
-                **winery_settings,
+                **packer_settings,
                 stop_packing=stop_after_shards(1),
             )
             == 1
@@ -372,9 +379,13 @@ class TestWinery:
         }
 
         # Pack all remaining shards
+        packer_params = inspect.signature(shard_packer).parameters
+        packer_settings = {
+            k: v for k, v in winery_settings.items() if k in packer_params
+        }
         assert (
             shard_packer(
-                **winery_settings,
+                **packer_settings,
                 stop_packing=stop_after_shards(3),
             )
             == 3
@@ -804,9 +815,13 @@ class TestWinery:
             if attempt >= 4:
                 raise NoShardLeft(attempt)
 
+        packer_params = inspect.signature(shard_packer).parameters
+        packer_settings = {
+            k: v for k, v in winery_settings.items() if k in packer_params
+        }
         with pytest.raises(NoShardLeft):
             shard_packer(
-                **winery_settings,
+                **packer_settings,
                 wait_for_shard=wait_five_times,
             )
 
@@ -850,6 +865,49 @@ class TestWinery:
             is True
         )
         assert winery_reader.get(sha256) == content
+
+    def test_winery_reader_lru(self, storage, shards):
+        pooldir = storage.pool.base_directory
+        poolname = storage.pool.pool_name
+        for shard in shards:
+            name = os.path.basename(shard)
+            os.link(shard, os.path.join(pooldir, poolname, name))
+        n_objs, n_shards = import_ro_shards(storage.writer.base, storage.pool)
+        assert n_shards == 6
+        assert n_objs == 12 * 6
+
+        # ensure all shards are loaded
+        for shard, objids in shards.items():
+            for objid in objids:
+                objid_for_content(storage.get(objid)) == objid
+
+        # all shards should be in the reader's ro_shards cache
+        assert len(storage.reader.ro_shards) == n_shards
+
+    def test_winery_reader_lru_limited(self, winery_settings, shards):
+        winery_settings["readers_cache_size"] = 2
+        storage = get_objstorage(cls="winery", **winery_settings)
+
+        pooldir = storage.pool.base_directory
+        poolname = storage.pool.pool_name
+        for shard in shards:
+            name = os.path.basename(shard)
+            os.link(shard, os.path.join(pooldir, poolname, name))
+        n_objs, n_shards = import_ro_shards(storage.writer.base, storage.pool)
+        assert n_shards == 6
+        assert n_objs == 12 * 6
+
+        # ensure all shards are loaded
+        for shard, objids in shards.items():
+            for objid in objids:
+                objid_for_content(storage.get(objid)) == objid
+
+        # only the last 2 shards should be in the reader's ro_shards cache
+        assert len(storage.reader.ro_shards) == 2
+        assert (
+            list(storage.reader.ro_shards.keys())
+            == [os.path.basename(x) for x in shards.keys()][-2:]
+        )
 
 
 class TestWineryObjStorage(ObjStorageTestFixture):
