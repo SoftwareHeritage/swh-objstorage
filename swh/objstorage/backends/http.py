@@ -18,11 +18,11 @@ from swh.model import hashutil
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import HashDict
+from swh.objstorage.metrics import timed
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     objid_to_default_hex,
-    timed,
 )
 
 LOGGER = logging.getLogger(__name__)

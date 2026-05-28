@@ -16,12 +16,12 @@ from swh.objstorage.constants import (
 )
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
+from swh.objstorage.metrics import timed
 from swh.objstorage.objstorage import (
     CompressionFormat,
     ObjStorage,
     compressors,
     objid_to_default_hex,
-    timed,
 )
 
 BUFSIZ = 1048576

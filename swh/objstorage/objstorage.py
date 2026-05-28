@@ -23,31 +23,10 @@ import zlib
 
 from deprecated import deprecated
 
-from swh.core import statsd
 from swh.model.hashutil import HashDict, MultiHash, hash_to_hex
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjCorruptedError, ObjNotFoundError
 from swh.objstorage.interface import ObjStorageInterface, objid_from_dict
-
-DURATION_METRICS = "swh_objstorage_request_duration_seconds"
-
-
-def timed(f):
-    """A simple decorator used to add statsd probes on main ObjStorage methods
-    (add, get and __contains__)
-    """
-
-    @functools.wraps(f)
-    def w(self, *a, **kw):
-        with statsd.statsd.timed(
-            DURATION_METRICS,
-            tags={"endpoint": f.__name__, "name": self.name},
-        ):
-            return f(self, *a, **kw)
-
-    w._timed = True
-    w._f = f
-    return w
 
 
 def objid_to_default_hex(obj_id: HashDict, algo: LiteralPrimaryHash) -> str:

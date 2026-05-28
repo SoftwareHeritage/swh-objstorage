@@ -15,7 +15,7 @@ from swh.objstorage.exc import (
     ObjStorageAPIError,
 )
 from swh.objstorage.interface import HashDict, ObjStorageInterface
-from swh.objstorage.objstorage import timed
+from swh.objstorage.metrics import timed
 
 
 class RemoteObjStorage(RPCClient):

@@ -3,7 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.objstorage.objstorage import ObjStorage, timed
+from swh.objstorage.metrics import timed
+from swh.objstorage.objstorage import ObjStorage
 
 # we decorate methods with timed here to make tests pass without special care
 

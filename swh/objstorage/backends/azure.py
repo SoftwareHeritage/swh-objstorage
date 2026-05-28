@@ -26,7 +26,8 @@ from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
-from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
+from swh.objstorage.metrics import timed
+from swh.objstorage.objstorage import CompressionFormat, ObjStorage
 from swh.objstorage.utils import call_async
 
 logger = logging.getLogger(__name__)
