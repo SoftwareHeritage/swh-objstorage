@@ -1,10 +1,12 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Union
+from datetime import timedelta
+from typing import Dict, Iterable, Iterator, Optional, Union
 
+from swh.model.hashutil import HashDict
 from swh.objstorage.exc import ReadOnlyObjStorageError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import ObjStorageInterface
@@ -30,6 +32,17 @@ class ReadOnlyProxyObjStorage(ObjStorage):
 
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)
+
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+        return self.storage.get_batch(obj_ids)
+
+    def download_url(
+        self,
+        obj_id: HashDict,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
+        return self.storage.download_url(obj_id, content_disposition, expiry)
 
     def check(self, obj_id, *args, **kwargs):
         return self.storage.check(obj_id, *args, **kwargs)
