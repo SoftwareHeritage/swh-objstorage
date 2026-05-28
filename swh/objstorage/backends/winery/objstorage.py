@@ -8,6 +8,7 @@ from functools import partial
 import logging
 from typing import Dict, Iterator, List, Optional, Tuple
 
+from swh.core.statsd import statsd
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import HashDict
@@ -21,6 +22,9 @@ from .rwshard import RWShard
 from .sharedbase import ShardState, SharedBase
 
 logger = logging.getLogger(__name__)
+
+SHARD_OPEN_DURATION_METRIC = "swh_objstorage_winery_shard_open_seconds"
+SHARD_CACHE_METRIC = "swh_objstorage_winery_shard_request_count"
 
 
 class WineryObjStorage(ObjStorage):
@@ -177,23 +181,60 @@ class WineryReader:
     def roshard(self, name) -> Optional[ROShard]:
         if name not in self.ro_shards:
             try:
-                shard = ROShard(
-                    name=name,
-                    pool=self.pool,
+                with statsd.timed(
+                    SHARD_OPEN_DURATION_METRIC,
+                    tags={"shard_type": "ro", "pool_name": self.pool.pool_name},
+                ):
+                    shard = ROShard(
+                        name=name,
+                        pool=self.pool,
+                    )
+                statsd.increment(
+                    SHARD_CACHE_METRIC,
+                    tags={
+                        "shard_type": "ro",
+                        "cache_status": "miss",
+                        "pool_name": self.pool.pool_name,
+                    },
                 )
             except ShardNotMapped:
+                statsd.increment(
+                    SHARD_CACHE_METRIC,
+                    tags={
+                        "shard_type": "ro",
+                        "cache_status": "fallthrough",
+                        "pool_name": self.pool.pool_name,
+                    },
+                )
                 return None
             self.ro_shards[name] = shard
             if name in self.rw_shards:
                 del self.rw_shards[name]
+        else:
+            statsd.increment(
+                SHARD_CACHE_METRIC,
+                tags={
+                    "shard_type": "ro",
+                    "cache_status": "hit",
+                    "pool_name": self.pool.pool_name,
+                },
+            )
         return self.ro_shards[name]
 
     def rwshard(self, name) -> RWShard:
         if name not in self.rw_shards:
-            shard = RWShard(
-                name, shard_max_size=0, base_dsn=self.base.dsn, readonly=True
+            statsd.increment(
+                SHARD_CACHE_METRIC, tags={"shard_type": "rw", "cache_status": "miss"}
             )
-            self.rw_shards[name] = shard
+            with statsd.timed(SHARD_OPEN_DURATION_METRIC, tags={"shard_type": "rw"}):
+                shard = RWShard(
+                    name, shard_max_size=0, base_dsn=self.base.dsn, readonly=True
+                )
+                self.rw_shards[name] = shard
+        else:
+            statsd.increment(
+                SHARD_CACHE_METRIC, tags={"shard_type": "rw", "cache_status": "hit"}
+            )
         return self.rw_shards[name]
 
     def get(self, obj_id: bytes) -> bytes:
