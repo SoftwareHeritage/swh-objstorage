@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -51,9 +51,9 @@ def contentdata(objstorage):
 
 
 def test_can_contains(objstorage, contentdata):
-    assert contentdata["valid_id"] in objstorage
-    assert contentdata["invalid_id"] in objstorage
-    assert contentdata["absent_id"] not in objstorage
+    assert objstorage.contains(contentdata["valid_id"])
+    assert objstorage.contains(contentdata["invalid_id"])
+    assert not objstorage.contains(contentdata["absent_id"])
 
 
 def test_can_get(objstorage, contentdata):

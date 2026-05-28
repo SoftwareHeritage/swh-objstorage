@@ -29,7 +29,7 @@ def test_import_ro_shards(storage, shards):
 
     for shard, objids in shards.items():
         for objid in objids:
-            assert objid not in storage
+            assert not storage.contains(objid)
 
     n_objs, n_shards = import_ro_shards(storage.writer.base, pool)
     assert n_shards == 6
@@ -37,7 +37,7 @@ def test_import_ro_shards(storage, shards):
 
     for shard, objids in shards.items():
         for objid in objids:
-            assert objid in storage
+            assert storage.contains(objids)
     # ensure newly imported shards are registered in the right pool
     for shard in shards:
         name = os.path.basename(shard)
@@ -69,7 +69,7 @@ def test_import_ro_shards_w_existing_objects(storage, shards):
 
     for shard, objids in shards.items():
         for objid in objids:
-            assert objid in storage
+            assert storage.contains(objid)
     for objid in existing_objs:
         shardname, state = base.get_shard_info(base.contains(objid["sha256"]))
         assert shardname != os.path.basename(shardpath)
