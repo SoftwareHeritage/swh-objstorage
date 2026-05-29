@@ -390,6 +390,7 @@ class MultiplexerObjStorage(ObjStorage):
             check_presence=check_presence,
         )
 
+    @timed
     def add_batch(
         self,
         contents: Iterable[Tuple[HashDict, bytes]],

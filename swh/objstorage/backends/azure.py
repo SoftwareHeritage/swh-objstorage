@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
 import string
-from typing import Iterable, Iterator, Mapping, Optional, Union
+from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
 from urllib.parse import parse_qs, urlparse
 import warnings
 
@@ -293,6 +293,12 @@ class AzureCloudObjStorage(ObjStorage):
             # replaces or renaming a blob. As the restore operation explicitly
             # removes the blob, it should be safe to just ignore the error.
             pass
+
+    @timed
+    def add_batch(
+        self, contents: Iterable[Tuple[HashDict, bytes]], check_presence: bool = True
+    ) -> Dict:
+        return super().add_batch(contents, check_presence)
 
     def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content."""
