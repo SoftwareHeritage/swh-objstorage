@@ -9,18 +9,29 @@ from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
 import string
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Tuple, Union
+from typing import (
+    AsyncIterator,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 from urllib.parse import parse_qs, urlparse
 import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import (
+    BlobClient,
     BlobSasPermissions,
     ContainerClient,
     ContainerSasPermissions,
     generate_blob_sas,
     generate_container_sas,
 )
+from azure.storage.blob.aio import BlobClient as AsyncBlobClient
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -177,7 +188,9 @@ class AzureCloudObjStorage(ObjStorage):
             return ContainerClient.from_container_url(self.container_url)
 
     @contextlib.asynccontextmanager
-    async def get_async_container_clients(self):
+    async def get_async_container_clients(
+        self,
+    ) -> AsyncIterator[Dict[str, AsyncContainerClient]]:
         """Returns a collection of container clients, to be passed to
         ``get_async_blob_client``.
 
@@ -187,17 +200,18 @@ class AzureCloudObjStorage(ObjStorage):
                 self.connection_string, self.container_name
             )
         else:
+            assert self.container_url is not None
             client = AsyncContainerClient.from_container_url(self.container_url)
         async with client:
             yield {"": client}
 
-    def get_blob_client(self, hex_obj_id):
+    def get_blob_client(self, hex_obj_id) -> BlobClient:
         """Get the azure blob client for the given hex obj id"""
         container_client = self.get_container_client(hex_obj_id)
 
         return container_client.get_blob_client(blob=hex_obj_id)
 
-    def get_async_blob_client(self, hex_obj_id, container_clients):
+    def get_async_blob_client(self, hex_obj_id, container_clients) -> AsyncBlobClient:
         """Get the azure blob client for the given hex obj id and a collection
         yielded by ``get_async_container_clients``."""
 
@@ -383,6 +397,7 @@ class AzureCloudObjStorage(ObjStorage):
         except ResourceNotFoundError:
             raise ObjNotFoundError(obj_id)
         else:
+            assert client.account_name is not None
             signature = generate_blob_sas(
                 client.account_name,
                 client.container_name,
@@ -407,7 +422,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
     def __init__(
         self,
-        accounts: Mapping[str, Union[str, Mapping[str, str]]],
+        accounts: Mapping[str, Union[str, Dict[str, str]]],
         name: str = "azure-prefixed",
         compression: CompressionFormat | None = None,
         **kwargs,
@@ -451,7 +466,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
 
         do_warning = False
 
-        self.container_urls = {}
+        self.container_urls: Dict[str, str] = {}
         for prefix, container_url in accounts.items():
             if isinstance(container_url, dict):
                 do_warning = True
@@ -478,7 +493,9 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         return ContainerClient.from_container_url(self.container_urls[prefix])
 
     @contextlib.asynccontextmanager
-    async def get_async_container_clients(self):
+    async def get_async_container_clients(
+        self,
+    ) -> AsyncIterator[Dict[str, AsyncContainerClient]]:
         # This is equivalent to:
         # client1 = AsyncContainerClient.from_container_url(url1)
         # ...
@@ -494,7 +511,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
                 await stack.enter_async_context(client)
             yield clients
 
-    def get_async_blob_client(self, hex_obj_id, container_clients):
+    def get_async_blob_client(self, hex_obj_id, container_clients) -> AsyncBlobClient:
         """Get the azure blob client for the given hex obj id and a collection
         yielded by ``get_async_container_clients``."""
 
