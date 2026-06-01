@@ -66,11 +66,10 @@ Some tests do require non-python dependencies to be installed on the machine:
 
   .. code-block:: console
 
-     ~/swh$ npm install -g azurite
+     ~/swh$ npm install azurite
 
-  Note: you may want to configure your npm setup so it uses ``~/.local`` as
-  prefix for global installations:
+  and run tests with:
 
   .. code-block:: console
 
-     ~/swh$ npm config set prefix '~/.local/'
+     ~/swh$ AZURITE_EXE=$HOME/node_modules/azurite/dist/src/blob/main.js tox

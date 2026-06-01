@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -24,8 +24,11 @@ from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
 
-AZURITE_EXE = shutil.which(
-    "azurite-blob", path=os.environ.get("AZURITE_PATH", os.environ.get("PATH"))
+AZURITE_EXE = os.environ.get(
+    "AZURITE_EXE",
+    shutil.which(
+        "azurite-blob", path=os.environ.get("AZURITE_PATH", os.environ.get("PATH"))
+    ),
 )
 
 
