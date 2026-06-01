@@ -290,29 +290,74 @@ class AzureCloudObjStorage(ObjStorage):
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
         """Add an obj in storage if it's not there already."""
+        return call_async(self._add_async, content, obj_id, check_presence)
+
+    async def _add_async(
+        self,
+        content: bytes,
+        obj_id: HashDict,
+        check_presence: bool = True,
+        container_clients=None,
+    ) -> Tuple[int, int]:
+        """Coroutine implementing ``add(obj_id)`` using azure-storage-blob's
+        asynchronous implementation.
+        While ``add(obj_id)`` does not need asynchronicity, this is useful to
+        ``add_batch(obj_ids)``, as it can run multiple ``_add_async`` tasks
+        concurrently.
+
+        Returns the number of inserted contents, and their size
+        (ie. `(0, 0)` if the content already existed, `(1, len(content))` otherwise)."""
+        if container_clients is None:
+            # If the container_clients argument is not passed, create a new
+            # collection of container_clients and restart the function with it.
+            async with self.get_async_container_clients() as container_clients:
+                return await self._add_async(
+                    content, obj_id, check_presence, container_clients
+                )
+
         if check_presence and obj_id in self:
-            return
+            return (0, 0)
 
         hex_obj_id = self._internal_id(obj_id)
 
         # Send the compressed content
         data = self.compress(content)
 
-        client = self.get_blob_client(hex_obj_id)
+        client = self.get_async_blob_client(hex_obj_id, container_clients)
+
         try:
-            client.upload_blob(data=data, length=len(data))
+            await client.upload_blob(data=data, length=len(data))
         except ResourceExistsError:
             # There's a race condition between check_presence and upload_blob,
             # that we can't get rid of as the azure api doesn't allow atomic
             # replaces or renaming a blob. As the restore operation explicitly
             # removes the blob, it should be safe to just ignore the error.
-            pass
+            return (0, 0)
+        else:
+            return (1, len(content))
+
+    async def _add_batch_async(
+        self, contents: Iterable[Tuple[HashDict, bytes]], check_presence: bool = True
+    ) -> Dict:
+        async with self.get_async_container_clients() as container_clients:
+            results = await asyncio.gather(
+                *[
+                    self._add_async(content, obj_id, check_presence, container_clients)
+                    for (obj_id, content) in contents
+                ]
+            )
+
+            summary = {"object:add": 0, "object:add:bytes": 0}
+            for added, length in results:
+                summary["object:add"] += added
+                summary["object:add:bytes"] += length
+        return summary
 
     @timed
     def add_batch(
         self, contents: Iterable[Tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
-        return super().add_batch(contents, check_presence)
+        return call_async(self._add_batch_async, contents, check_presence)
 
     def restore(self, content: bytes, obj_id: HashDict) -> None:
         """Restore a content."""
