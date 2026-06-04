@@ -1,11 +1,14 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from importlib.metadata import version
 import random
 import re
+from unittest.mock import Mock
 
+from aiohttp import ClientResponse
 from aioresponses import CallbackResult
 import pytest
 import requests
@@ -61,9 +64,19 @@ def mock_http_responses(sto_back, requests_mock=None, aioresponses=None):
         return cb
 
     def async_request_cb(process_request):
+
+        # workaround https://github.com/pnuckowski/aioresponses/issues/289
+        class _ClientResponse(ClientResponse):
+            def __init__(self, *args, **kwargs):
+                if version("aiohttp") >= "3.14.0":
+                    kwargs["stream_writer"] = Mock(output_size=0)
+                super().__init__(*args, **kwargs)
+
         def cb(url, **kwargs):
             status, body = process_request(url.path)
-            return CallbackResult(status=status, body=body)
+            return CallbackResult(
+                status=status, body=body, response_class=_ClientResponse
+            )
 
         return cb
 
