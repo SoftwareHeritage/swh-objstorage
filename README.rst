@@ -115,7 +115,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
       create_images: true
 
 Note that this configuration implies to run a packer process separately.
-You might want to use a smaller ``max_size`` to trigger the packer more frequently. 
+You might want to use a smaller ``max_size`` to trigger the packer more frequently.
 
 Now you'll need a few terminal splits/tabs because we'll start 3 services
 
