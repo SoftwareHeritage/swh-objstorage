@@ -6,6 +6,7 @@
 from functools import partial
 import logging
 import os
+import shutil
 import tempfile
 import threading
 import uuid
@@ -17,12 +18,14 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
-from swh.objstorage.backends.winery.pools import FileBackedPool
+from swh.objstorage.backends.winery.pools import FileBackedPool, RBDPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
 from swh.shard import Shard, ShardCreator
+
+from .winery_testing_helpers import RBDPoolHelper
 
 logger = logging.getLogger(__name__)
 
@@ -62,40 +65,79 @@ def shards():
 
 
 @pytest.fixture
-def pool_names(request, pytestconfig):
-    return ["winery-test-shards"]
+def needs_ceph(pool_names):
+    if any([True for pool_name in pool_names if pool_name.endswith("-rbd")]):
+        ceph = shutil.which("ceph")
+
+        if not ceph:
+            pytest.skip("the ceph CLI was not found")
+        if os.environ.get("USE_CEPH", "no") != "yes":
+            pytest.skip(
+                "the ceph-based tests have been disabled (USE_CEPH env var is not 'yes')"
+            )
 
 
 @pytest.fixture
-def file_backed_pools(tmp_path, shard_max_size, pool_names):
+def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
+    rbd_map_options = os.environ.get("RBD_MAP_OPTIONS", "")
+    rbd_hardcoded_pool = bool(os.environ.get("CEPH_HARDCODE_POOL"))
+
     pools = []
     for pool_name in pool_names:
-        pool = FileBackedPool(
-            base_directory=tmp_path,
-            shard_max_size=shard_max_size,
-            pool_name=pool_name,
-        )
-        pool.image_unmap_all()
-        pool._settings_for_tests = {
-            "type": "directory",
-            "base_directory": str(tmp_path),
-            "pool_name": pool_name,
-        }
+        if pool_name.endswith("-directory"):
+            pool = FileBackedPool(
+                base_directory=tmp_path,
+                shard_max_size=shard_max_size,
+                pool_name=pool_name,
+            )
+            pool.image_unmap_all()
+            pool._settings_for_tests = {
+                "type": "directory",
+                "base_directory": str(tmp_path),
+                "pool_name": pool_name,
+            }
+        elif pool_name.endswith("-rbd"):
+            pool = RBDPoolHelper(
+                shard_max_size=10 * 1024 * 1024,
+                rbd_pool_name=pool_name,
+                rbd_map_options=rbd_map_options,
+            )
+            if not rbd_hardcoded_pool:
+                pool.remove()
+                pool.pool_create()
+            else:
+                logger.info("Not removing pool")
+
+            pool._settings_for_tests = {
+                "type": "rbd",
+                "pool_name": pool_name,
+                "map_options": rbd_map_options,
+                "readonly": False,
+            }
         pools.append(pool)
-    return pools
 
+    yield pools
 
-@pytest.fixture
-def image_pools(file_backed_pools):
-    return file_backed_pools
+    for pool in pools:
+        if not isinstance(pool, RBDPool):
+            continue
+        if not rbd_hardcoded_pool:
+            pool.images_remove()
+        else:
+            logger.info("Not removing images")
+
+        if not rbd_hardcoded_pool:
+            pool.remove()
+        else:
+            logger.info("Not removing pool")
 
 
 @pytest.fixture
 def write_pool_name(image_pools):
-    rw_pools = [pool for pool in image_pools if "-ro" not in pool.pool_name]
-    assert len(rw_pools) <= 1
-    if rw_pools:
-        return rw_pools[0].pool_name
+    active_pools = [pool for pool in image_pools if "-active-" in pool.pool_name]
+    assert len(active_pools) <= 1, "There can be at most one active pool"
+    if active_pools:
+        return active_pools[0].pool_name
     return None
 
 

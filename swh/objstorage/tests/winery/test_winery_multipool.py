@@ -13,8 +13,8 @@ from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.settings import populate_default_settings
 from swh.objstorage.factory import get_objstorage
 
-from .test_objstorage_winery import TestWinery as _TestWinery
-from .test_objstorage_winery import TestWineryObjStorage as _TestWineryObjStorage
+from .winery_objstorage_testing import TestWinery as _TestWinery
+from .winery_objstorage_testing import TestWineryObjStorage as _TestWineryObjStorage
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def pool_names(request, pytestconfig):
     return [
-        "winery-test-shards-01-ro",
-        "winery-test-shards-02-rw",
-        "winery-test-shards-03-ro",
+        "winery-pool-01-directory",
+        "winery-pool-02-active-directory",
+        "winery-pool-03-directory",
     ]
 
 
@@ -32,8 +32,10 @@ def pool_names(request, pytestconfig):
 def storage(winery_settings, shards):
     """A multipool (obj)storage fixture that will feed RO pools with premade shards"""
     storage = get_objstorage(cls="winery", **winery_settings)
+    # fill non-active pools with random shards
     for pool, shard in zip(
-        cycle(p for p in storage.pools.values() if "-ro" in p.pool_name), shards
+        cycle(p for p in storage.pools.values() if "-active-" not in p.pool_name),
+        shards,
     ):
         shardname = os.path.basename(shard)
         pooldir = pool.base_directory / pool.pool_name

@@ -6,10 +6,17 @@
 import logging
 import os
 
+import pytest
+
 from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.shard import Shard
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def pool_names():
+    return ["winery-pool-active-directory"]
 
 
 def test_import_ro_shards(storage, shards):

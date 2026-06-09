@@ -20,6 +20,11 @@ from swh.objstorage.objstorage import objid_for_content
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture
+def pool_names():
+    return ["winery-pool-active-directory"]
+
+
 def now():
     return datetime.datetime.now(tz=datetime.UTC)
 
@@ -183,13 +188,15 @@ def test_winery_release_stale_shards(
     assert re.match(expected, result.output, re.MULTILINE), result.output
 
 
-def test_winery_import_shards_nothing(winery_settings):
+def test_winery_import_shards_nothing(winery_settings, write_pool_name):
     result = invoke("winery", "import-shards", config=winery_settings)
     assert result.exit_code == 0
-    assert "Pool winery-test-shards: nothing to do" in result.stdout
+    assert f"Pool {write_pool_name}: nothing to do" in result.stdout
 
 
-def test_winery_import_shards_do_import(storage, winery_settings, shards):
+def test_winery_import_shards_do_import(
+    storage, winery_settings, write_pool_name, shards
+):
     pool = next(iter(storage.pools.values()))
     pooldir = pool.base_directory / pool.pool_name
     for shard in shards:
@@ -198,4 +205,4 @@ def test_winery_import_shards_do_import(storage, winery_settings, shards):
 
     result = invoke("winery", "import-shards", config=winery_settings)
     assert result.exit_code == 0
-    assert "Pool winery-test-shards: imported 72 objects from 6 shards" in result.stdout
+    assert f"Pool {write_pool_name}: imported 72 objects from 6 shards" in result.stdout
