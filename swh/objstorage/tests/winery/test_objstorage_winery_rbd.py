@@ -5,7 +5,6 @@
 
 import logging
 import os
-import shutil
 
 import pytest
 import yaml
@@ -14,94 +13,16 @@ from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.cli import swh_cli_group
 from swh.objstorage.objstorage import objid_for_content
 
-from .test_objstorage_winery import TestWinery as _TestWinery
-from .test_objstorage_winery import TestWineryObjStorage as _TestWineryObjStorage
+from .winery_objstorage_testing import TestWinery as _TestWinery
+from .winery_objstorage_testing import TestWineryObjStorage as _TestWineryObjStorage
 from .winery_testing_helpers import RBDPoolHelper
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def needs_ceph():
-    ceph = shutil.which("ceph")
-
-    if not ceph:
-        pytest.skip("the ceph CLI was not found")
-    if os.environ.get("USE_CEPH", "no") != "yes":
-        pytest.skip(
-            "the ceph-based tests have been disabled (USE_CEPH env var is not 'yes')"
-        )
-
-
-@pytest.fixture
-def remove_pool(request, pytestconfig):
-    if os.environ.get("CEPH_HARDCODE_POOL"):
-        return False
-    else:
-        return True
-
-
-@pytest.fixture
-def remove_images(request, pytestconfig):
-    if os.environ.get("CEPH_HARDCODE_POOL"):
-        return False
-    else:
-        return True
-
-
-@pytest.fixture
-def pool_name(request, pytestconfig):
-    if os.environ.get("CEPH_HARDCODE_POOL"):
-        return os.environ["CEPH_HARDCODE_POOL"]
-    else:
-        return "winery-test-shards"
-
-
-@pytest.fixture
-def rbd_map_options():
-    return os.environ.get("RBD_MAP_OPTIONS", "")
-
-
-@pytest.fixture
-def ceph_pools(remove_pool, remove_images, pool_names, rbd_map_options, needs_ceph):
-    pools = []
-    for pool_name in pool_names:
-        pool = RBDPoolHelper(
-            shard_max_size=10 * 1024 * 1024,
-            rbd_pool_name=pool_name,
-            rbd_map_options=rbd_map_options,
-        )
-        if remove_pool:
-            pool.remove()
-            pool.pool_create()
-        else:
-            logger.info("Not removing pool")
-
-        pool._settings_for_tests = {
-            "type": "rbd",
-            "pool_name": pool_name,
-            "map_options": rbd_map_options,
-            "readonly": False,
-        }
-        pools.append(pool)
-
-    yield pools
-
-    for pool in pools:
-        if remove_images or remove_pool:
-            pool.images_remove()
-        else:
-            logger.info("Not removing images")
-
-        if remove_pool:
-            pool.remove()
-        else:
-            logger.info("Not removing pool")
-
-
-@pytest.fixture
-def all_image_pools(ceph_pools):
-    return ceph_pools
+def pool_names():
+    return ["winery-pool-active-rbd"]
 
 
 class TestCephWineryObjStorage(_TestWineryObjStorage):
@@ -112,12 +33,12 @@ class TestCephWinery(_TestWinery):
     @pytest.mark.skipif(
         "CEPH_HARDCODE_POOL" in os.environ, reason="Ceph pool hardcoded"
     )
-    def test_winery_ceph_pool(self, needs_ceph, rbd_map_options):
+    def test_winery_ceph_pool(self, needs_ceph):
         name = "IMAGE"
         pool = RBDPoolHelper(
             shard_max_size=10 * 1024 * 1024,
             rbd_pool_name="test-winery-ceph-pool",
-            rbd_map_options=rbd_map_options,
+            rbd_map_options=os.environ.get("RBD_MAP_OPTIONS", ""),
         )
         pool.remove()
         pool.pool_create()
