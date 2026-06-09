@@ -129,6 +129,18 @@ Winery currently support 2 types of pool to store read-only shard files:
   like NFS or CephFS.
 
 
+The configuration allows to declare several shards pools, but only one of them
+will be declared as the active one, i.e. the one in which new content will be
+stored. The idea is that you may have a storage backend that reaches its
+maximum capacity, you may be in the situation where you have cannot extend it,
+but have another storage backend provided by your IT. In this case, you want to
+use the full backend as a read-only source of shards but use a second backend
+for new contents. Note that you can mix shard pool types (e.g. one Ceph RBD and
+one directory backend).
+
+Note that the pool name in which shards are created is stored in the winery
+database, so you cannot move shards from one pool to the other.
+
 .. _cmph: https://cmph.sourceforge.net/
 
 
@@ -216,12 +228,12 @@ Here is a typical configuration for a RBD shards pool backend::
       application_name: null
 
     # Shards pool settings
-    shards_pool:
-      ## Settings for the RBD shards pool
+    shards_pools:
+    - ## Settings for the RBD shards pool
       type: rbd
 
       # Ceph pool name for RBD metadata (default: shards)
-      pool_name: shards
+      pool_name: ceph_shards
 
       # Ceph pool name for RBD data (default: constructed as
       # `{pool_name}-data`). This is the pool where erasure-coding should be set,
@@ -240,22 +252,13 @@ Here is a typical configuration for a RBD shards pool backend::
       # exclusive-lock, object-map and fast-diff, for Linux kernels older than 5.3
       image_features_unsupported: []
 
+    shards_active_pool: ceph_shards
+
     # Packer-related settings
     packer:
-      # Whether the winery writer should start packing shards immediately, or
-      # defer to the standalone packer (default: true, the writer launches a
-      # background packer process)
-      pack_immediately: false
-
       # Whether the packer should create shards in the shard pool, or defer to
       # the pool manager (default: true, the packer creates images)
       create_images: false
-
-      # Whether the packer should clean read-write shards from the database
-      # immediately, or defer to the rw shard cleaner (default: true, the packer
-      # cleans read-write shards immediately)
-      clean_immediately: false
-
 
 Here is typical configuration for a directory shards pool backend::
 
@@ -285,12 +288,14 @@ Here is typical configuration for a directory shards pool backend::
       application_name: null
 
     # Shards pool settings
-    shards_pool:
-      ## Settings for the directory shards pool
+    shards_pools:
+    - ## Settings for the directory shards pool
       # Shards are stored in `{base_directory}/{pool_name}`
       type: directory
       base_directory: /srv/winery/pool
-      pool_name: shards
+      pool_name: directory_shards
+
+    shards_active_pool: directory_shards
 
     # Packer-related settings
     packer:
@@ -307,6 +312,33 @@ Here is typical configuration for a directory shards pool backend::
       # immediately, or defer to the rw shard cleaner (default: true, the packer
       # cleans read-write shards immediately)
       clean_immediately: true
+
+
+A multi-pool configuration could look like (partial config)::
+
+  objstorage:
+    cls: winery
+
+    # [...]
+
+    # Shards pool settings
+    shards_pools:
+    - ## Settings for the directory shards pool
+      # Shards are stored in `{base_directory}/{pool_name}`
+      type: directory
+      base_directory: /srv/winery/pool
+      pool_name: directory_shards
+    - ## Settings for an RBD shards pool
+      type: rbd
+      pool_name: ceph_shards
+      # [...]
+    - ## Settings for a second directory shards pool
+      type: directory
+      base_directory: /srv/winery/pool
+      pool_name: second_directory_shards
+
+    # only this pool will be used for ingestion
+    shards_active_pool: directory_shards
 
 
 Implementation notes

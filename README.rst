@@ -89,7 +89,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
     shards:
       # integer: threshold in bytes above which shards get packed. Can be
       # overflowed by the max allowed object size.
-      max_size: 100000000  # 100MB
+      max_size: 100_000_000  # 100MB
 
       # float: timeout in seconds after which idle read-write shards get
       # released by the winery writer process
@@ -102,20 +102,21 @@ And set it in a configuration file we'll call `localwinery.yml`:
       # string: PostgreSQL application name for connections (unset by default)
       application_name: localwinery
 
-    shards_pool:
-      ## Settings for the directory shards pool
-      # Shards are stored in `{base_directory}/{pool_name}`
-      type: directory
-      base_directory: /home/martin/objstores/winery
-      pool_name: shards
+    shards_pools:
+      - ## Settings for a directory pool storing swh-shards
+        # Shards are stored in `{base_directory}/{pool_name}`
+        type: directory
+        base_directory: /home/martin/objstores/winery
+        pool_name: the-shards
+    shard_active_pool: the-shards
 
     packer:
       # Whether the packer should create shards in the shard pool, or defer to
       # the pool manager (default: true, the packer creates images)
       create_images: true
 
-Note that this configuration implies to run a packer process separately.
-You might want to use a smaller ``max_size`` to trigger the packer more frequently.
+Note that you have to run a packer and a cleaner process separately. You might
+want to use a smaller ``max_size`` to trigger the packer more frequently.
 
 Now you'll need a few terminal splits/tabs because we'll start 3 services
 
