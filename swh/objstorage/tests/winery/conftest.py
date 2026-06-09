@@ -9,6 +9,7 @@ import os
 import shutil
 import tempfile
 import threading
+from typing import Dict, Generator, List
 import uuid
 
 from click.testing import CliRunner
@@ -22,6 +23,7 @@ from swh.objstorage.backends.winery.pools import FileBackedPool, RBDPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import objid_for_content
 from swh.shard import Shard, ShardCreator
 
@@ -35,6 +37,7 @@ def cli_runner(capsys):
     "Run click commands with log capture disabled"
 
     class CapsysDisabledCliRunner(CliRunner):
+
         def invoke(self, *args, **kwargs):
             with capsys.disabled():
                 return super().invoke(*args, **kwargs)
@@ -43,10 +46,21 @@ def cli_runner(capsys):
 
 
 @pytest.fixture(scope="session")
-def shards():
+def shards() -> Generator[Dict[str, List[HashDict]], None, None]:
+    """A simple fixture generating (legacy) shard files
+
+    Generates a 6 shard files (swh-shard) each with 12 content objects.
+
+    The result is a dict which keys are the shard file path, and values are
+    object ids stored in that shard file.
+
+    Note: this is a session scoped fixture to prevent slowing tests down too
+    much.
+
+    """
     count = 12
     nshards = 6
-    shards = {}
+    shards: Dict[str, List[HashDict]] = {}
     with tempfile.TemporaryDirectory() as shards_dir:
         for nshard in range(nshards):
             name = "i" + uuid.uuid4().hex[1:]
@@ -66,6 +80,11 @@ def shards():
 
 @pytest.fixture
 def needs_ceph(pool_names):
+    """Skip the test is ceph is not available but is needed for the test
+
+    aka if there is at least one rbd pool in the pool names
+    """
+
     if any([True for pool_name in pool_names if pool_name.endswith("-rbd")]):
         ceph = shutil.which("ceph")
 
@@ -79,6 +98,22 @@ def needs_ceph(pool_names):
 
 @pytest.fixture
 def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
+    """Fixture that generates winery shards pools
+
+    For each pool name in 'pool_names', it will instantiate the corresponding
+    Pool backend based on a simple pool name pattern: if the pool name ends with:
+
+    - '-directory': produces a FileBackedPool
+    - '-rbd': produces a RBDPool (actually a RBDPoolHelper, see winery_testing_helpers)
+
+    On teardown, clean RBD pools if needed.
+
+    Note that the 'needs_ceph' fixture will skip any test using this fixture if
+    at least one of the pools is expected to be an RBDPool (aka there is a
+    least one 'xxx-rbd' pool name in 'pool_names') and the environment is not
+    set up to run ceph based tests.
+
+    """
     rbd_map_options = os.environ.get("RBD_MAP_OPTIONS", "")
     rbd_hardcoded_pool = bool(os.environ.get("CEPH_HARDCODE_POOL"))
 
@@ -133,11 +168,19 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
 
 
 @pytest.fixture
-def write_pool_name(image_pools):
-    active_pools = [pool for pool in image_pools if "-active-" in pool.pool_name]
+def write_pool_name(pool_names) -> str | None:
+    """Return the active pool from the list of pool names
+
+    This default implementation select the only '-active-' pool name in the
+    list of pool names.
+
+    Checks there is only one active.
+
+    """
+    active_pools = [pool_name for pool_name in pool_names if "-active-" in pool_name]
     assert len(active_pools) <= 1, "There can be at most one active pool"
     if active_pools:
-        return active_pools[0].pool_name
+        return active_pools[0]
     return None
 
 
