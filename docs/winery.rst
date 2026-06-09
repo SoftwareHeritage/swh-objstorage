@@ -1,16 +1,16 @@
 .. _swh-objstorage-winery:
 
-Winery backend
-==============
+Winery back-end
+===============
 
-The Winery backend is an swh-objstorage backend that implements the `Ceph based
+The Winery back-end is an swh-objstorage back-end that implements the `Ceph based
 object storage architecture
 <https://wiki.softwareheritage.org/wiki/A_practical_approach_to_efficiently_store_100_billions_small_objects_in_Ceph>`__.
 
 Design specifications
 ---------------------
 
-The idea of the Winery backend is to provide an object storage capable of
+The idea of the Winery back-end is to provide an object storage capable of
 storing with decent performances the workload of the |swh| objstorage, that is
 (at time of writing, aka 08/2025):
 
@@ -58,7 +58,7 @@ can be adapted to the desired write throughput -- as long as the
 Writer storage
 ~~~~~~~~~~~~~~
 
-This is the part of the winery objstorage backend responsible for writing new
+This is the part of the winery objstorage back-end responsible for writing new
 objects. Each objstorage writer process will lock a rw-shard, picking an existing
 ``standby`` shard if one is available, or creating a new shard table in the database.
 If the writer storage is deployed with gunicorn configured with ``N`` worker
@@ -80,7 +80,7 @@ in the rw-shard goes over the ``shards:max_size`` limit -- typically 100GiB), th
 shard is marked as ``full`` and does not accept new objects.
 
 When a shard is marked ``full``, the packing process dumps all the object data from the rw-shard database
-table into a :ref:`swh-shard` file stored on the shard backend storage -- typically a Ceph
+table into a :ref:`swh-shard` file stored on the shard back-end storage -- typically a Ceph
 cluster, either using RBD volumes directly, of saving shard files onto a shared filesystem.
 The shard entry in the shards table is then marked as ``packed``, noting that the dedicated
 table can then be destroyed, which in turn allows the shard to be marked as ``readonly``.
@@ -88,7 +88,7 @@ table can then be destroyed, which in turn allows the shard to be marked as ``re
 Reader storage
 ~~~~~~~~~~~~~~
 
-This is the part of the winery objstorage backend responsible for reading
+This is the part of the winery objstorage back-end responsible for reading
 objects.
 
 There are 2 possible cases: the required object can be available in a ro-shard (so
@@ -103,8 +103,8 @@ object content will then be retrieved either from the rw-shard table (if the sha
 is not yet marked as ``readonly``), or retrieved from the ro-shard file otherwise.
 
 
-Shards pool backends
---------------------
+Shards pool back-ends
+---------------------
 
 Shard files use a custom but simple binary file format to pack together a
 number of objects. It uses a cmph_ based index system to allow constant-time
@@ -112,7 +112,7 @@ access to particular objects from their id. The :ref:`swh-shard` library is
 used to create, read and manipulate these files.
 
 In order to support the creation, storage and replication of 10k+ shard files,
-a clustered and safe storage solution must be used as backend.
+a clustered and safe storage solution must be used as back-end.
 
 Winery currently support 2 types of pool to store read-only shard files:
 
@@ -122,7 +122,7 @@ Winery currently support 2 types of pool to store read-only shard files:
   frontend node, RBD volumes are mapped on the winery frontend nodes to be
   usable for object accesses.
 
-- Regular files (``directory``): in this backend, regular files are created in a
+- Regular files (``directory``): in this back-end, regular files are created in a
   directory (the ``base_directory`` configuration entry under the ``shards_pool``
   section). In a production-like deployment, this directory will typically be
   made available on all winery front-end nodes via a shared storage solution
@@ -131,12 +131,12 @@ Winery currently support 2 types of pool to store read-only shard files:
 
 The configuration allows to declare several shards pools, but only one of them
 will be declared as the active one, i.e. the one in which new content will be
-stored. The idea is that you may have a storage backend that reaches its
+stored. The idea is that you may have a storage back-end that reaches its
 maximum capacity, you may be in the situation where you have cannot extend it,
-but have another storage backend provided by your IT. In this case, you want to
-use the full backend as a read-only source of shards but use a second backend
+but have another storage back-end provided by your IT. In this case, you want to
+use the full back-end as a read-only source of shards but use a second back-end
 for new contents. Note that you can mix shard pool types (e.g. one Ceph RBD and
-one directory backend).
+one directory back-end).
 
 Note that the pool name in which shards are created is stored in the winery
 database, so you cannot move shards from one pool to the other.
@@ -173,7 +173,7 @@ other using the shared database (aka in a distributed mode):
   * if ``clean_immediately`` is set, the write shard is immediately removed and
     the shard moved to the ``readonly`` state [#f2]_
 
-* when using the RBD shard pool backend, the RBD shard manager ``swh objstorage
+* when using the RBD shard pool back-end, the RBD shard manager ``swh objstorage
   winery rbd`` handles the management of RBD images:
 
   * all known ``readonly`` shards are mapped immediately (i.e. the RBD block
@@ -200,7 +200,7 @@ Configuration
 
 `Winery` uses a structured configuration schema.
 
-Here is a typical configuration for a RBD shards pool backend::
+Here is a typical configuration for a RBD shards pool back-end::
 
   objstorage:
     cls: winery
@@ -260,7 +260,7 @@ Here is a typical configuration for a RBD shards pool backend::
       # the pool manager (default: true, the packer creates images)
       create_images: false
 
-Here is typical configuration for a directory shards pool backend::
+Here is typical configuration for a directory shards pool back-end::
 
   objstorage:
     cls: winery
@@ -422,12 +422,12 @@ destroyed because it is no longer useful and the process terminates on success.
 
 .. rubric:: Footnotes
 
-.. [#f1] Delegating the shard file creation to a backend process can be useful
-         for the RBD backend shard pool because it requires special permissions
+.. [#f1] Delegating the shard file creation to a back-end process can be useful
+         for the RBD back-end shard pool because it requires special permissions
          to create new RBD images. Delegating the creation allows to
-         circumbscribe this task to a dedicated backend process without having
+         circumbscribe this task to a dedicated back-end process without having
          to run the whole winery service as root.
 
 .. [#f2] The reason for not starting the shard cleaning process immediately is
          to allow other nodes, in a multi-node setup using the RBD shard pool
-         backend, to map newly created RBD shard files.
+         back-end, to map newly created RBD shard files.
