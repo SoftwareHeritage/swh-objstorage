@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -281,7 +281,7 @@ class PathSlicingObjStorage(ObjStorage):
         path = os.path.join(dir, hex_obj_id)
 
         # Create a temporary file.
-        (tmp, tmp_path) = tempfile.mkstemp(suffix=".tmp", prefix="hex_obj_id.", dir=dir)
+        tmp, tmp_path = tempfile.mkstemp(suffix=".tmp", prefix="hex_obj_id.", dir=dir)
 
         # Open the file and yield it for writing.
         tmp_f = os.fdopen(tmp, "wb")

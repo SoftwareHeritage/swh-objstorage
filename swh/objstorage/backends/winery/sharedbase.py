@@ -708,13 +708,11 @@ class SharedBase(Database):
           an iterator over ``object_id``, shard name, :py:class:`ShardState` tuples
         """
         with self.pool.connection() as db:
-            cur = db.execute(
-                """SELECT signature, shards.name, shards.state
+            cur = db.execute("""SELECT signature, shards.name, shards.state
                FROM signature2shard objs, shards
                WHERE objs.state = 'deleted'
                  AND shards.id = objs.shard
-               """
-            )
+               """)
             for signature, name, state in cur.fetchall():
                 yield bytes(signature), name, ShardState(state)
 
