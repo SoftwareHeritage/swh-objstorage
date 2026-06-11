@@ -140,14 +140,13 @@ just started:
 Test dependencies
 -----------------
 
-Some tests do require non-python dependencies to be installed on the machine:
+Some tests do require non-python dependencies to be installed on the machine.
 
-- Ceph: the ``ceph`` executable can be used to run winery tests. When the ``ceph``
-  binary is available, the winery tests will try to create a real ceph Rados
-  Block Device (rbd) pool to run.
+Azurite
+^^^^^^^
 
-- Azurite: the ``azurite`` tool is needed for Azure backend tests. Since it's a
-  npm package, you can install it using:
+The ``azurite`` tool is needed for Azure backend tests. Since it's a
+npm package, you can install it using:
 
   .. code-block:: console
 
@@ -158,3 +157,42 @@ Some tests do require non-python dependencies to be installed on the machine:
   .. code-block:: console
 
      ~/swh$ AZURITE_EXE=$HOME/node_modules/azurite/dist/src/blob/main.js tox
+
+
+Ceph
+^^^^
+
+When the ``ceph`` binary is available, the winery tests will try to create a real ceph
+Rados Block Device (rbd) pool to run. Otherwise these tests are skipped.
+
+On a developer's machine, you can install MicroCeph with snap. We summarize below the
+[official guide](https://documentation.ubuntu.com/canonical-microceph/stable/snap/tutorial/get-started/),
+with a few hints specific to Winery.
+
+  .. code-block:: console
+
+    # maybe:
+    # sudo apt install snapd; sudo reboot;
+
+    sudo snap install microceph
+
+    sudo microceph cluster bootstrap
+    sudo microceph status
+
+    # add storage: 6 Object Storage Daemons (OSDs) using 4GB files
+    sudo microceph disk add loop,4G,6
+
+    # tweak permissions
+    sudo ceph config set mon mon_allow_pool_delete true
+
+    # test:
+    sudo echo hello # avoid the password prompts during the upcoming `sudo`s
+    USE_CEPH=yes pytest swh/objstorage/tests/winery/test_objstorage_winery_rbd.py
+
+    # cleanup
+    sudo snap remove microceph --purge
+
+
+The last step means you will have to perform the whole reinstallation before each session,
+which is not a subtle teardown but at least you will avoid hosting that unsecured
+storage service for too long.
