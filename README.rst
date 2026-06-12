@@ -165,34 +165,14 @@ Ceph
 When the ``ceph`` binary is available, the winery tests will try to create a real ceph
 Rados Block Device (rbd) pool to run. Otherwise these tests are skipped.
 
-On a developer's machine, you can install MicroCeph with snap. We summarize below the
-[official guide](https://documentation.ubuntu.com/canonical-microceph/stable/snap/tutorial/get-started/),
-with a few hints specific to Winery.
+On a developer's machine, you can install MicroCeph with snap, but it has permissions
+issues so you'd also need binaries from the Debian package and a hacky configuration.
+This takes a few minutes so we wrapped it in a Bash script - we advise you read it
+first, unless you don't mind installing many things on your machine:
 
-  .. code-block:: console
+  .. code-block::
 
-    # maybe:
-    # sudo apt install snapd; sudo reboot;
+      ~/swh-environment/swh-objstorage$ ./bin/test_winery_with_microceph.sh
 
-    sudo snap install microceph
-
-    sudo microceph cluster bootstrap
-    sudo microceph status
-
-    # add storage: 6 Object Storage Daemons (OSDs) using 4GB files
-    sudo microceph disk add loop,4G,6
-
-    # tweak permissions
-    sudo ceph config set mon mon_allow_pool_delete true
-
-    # test:
-    sudo echo hello # avoid the password prompts during the upcoming `sudo`s
-    USE_CEPH=yes pytest swh/objstorage/tests/winery/test_objstorage_winery_rbd.py
-
-    # cleanup
-    sudo snap remove microceph --purge
-
-
-The last step means you will have to perform the whole reinstallation before each session,
-which is not a subtle teardown but at least you will avoid hosting that unsecured
-storage service for too long.
+This script uses the ``$PYTEST_FLAGS`` environment variable, that you can set for
+example to ``-v`` or ``-x``.

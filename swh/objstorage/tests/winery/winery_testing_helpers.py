@@ -21,7 +21,7 @@ DEFAULT_ERASURE_CODE_PROFILE = {
     "name": "winery-test-profile",
     "k": "4",
     "m": "2",
-    "crush-failure-domain": "host",
+    "crush-failure-domain": "osd",
 }
 DEFAULT_DATA_POOL_SETTINGS = {
     "allow_ec_overwrites": "true",
