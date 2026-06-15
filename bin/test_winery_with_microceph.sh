@@ -4,10 +4,36 @@
 #
 # ... however: when "rbd" is in a snap it cannot have enough permissions
 # to do RBD mounts (cf. https://github.com/canonical/microceph/issues/175)
-# so we rely on an additional stunt: use ceph/rbd binaries from the "ceph-common"
-# debian package (cf. https://documentation.ubuntu.com/canonical-microceph/stable/snap/how-to/mount-block-device/)
+# so we rely on additional stunts:
+# 1. use ceph/rbd binaries from the "ceph-common" debian package
+# (cf. https://documentation.ubuntu.com/canonical-microceph/stable/snap/how-to/mount-block-device/)
+# 2. create udev rules for a dedicated unix group, so "pytest" can access RBD devices
+# mounted via "sudo", because Winery contains a few open(pool.image_path(name), "rb"))
 
-sudo apt install -y ceph-common
+WGROUP="winery-writer"
+echo "Checking $USER is in $WGROUP group so they can read-write RBD mounts..."
+if ! getent group $WGROUP &> /dev/null; then
+    sudo /usr/sbin/groupadd $WGROUP
+fi
+if ! id | grep $WGROUP &> /dev/null ; then
+    sudo usermod -a -G $WGROUP $USER
+    newgrp $WGROUP -c $0 # execution with the right group will be done in a sub-process
+    exit 0
+fi
+
+RULES="/etc/udev/rules.d/55-rbd-winery.rules"
+if [ ! -f "$RULES" ]; then
+    echo "installing $RULES"
+    sudo dd status=none of=$RULES <<END
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*shards", ATTR{ro}=="0", GROUP="$WGROUP", MODE="0664"
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*shards", ATTR{ro}!="0", GROUP="$WGROUP", MODE="0444"
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="test-winery-ceph-pool", ATTR{ro}=="0", GROUP="$WGROUP", MODE="0664"
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="test-winery-ceph-pool", ATTR{ro}!="0", GROUP="$WGROUP", MODE="0444"
+END
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+fi
+
 sudo snap install microceph
 
 # this creates conf & keyring by the way

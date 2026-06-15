@@ -162,17 +162,19 @@ npm package, you can install it using:
 Ceph
 ^^^^
 
-When the ``ceph`` binary is available, the winery tests will try to create a real ceph
-Rados Block Device (rbd) pool to run. Otherwise these tests are skipped.
+Some Winery tests suites really manipulate RBD images, but this requires the ``ceph``
+binary, configured to access a realistic cluster, and an explicit environment variable
+to flag you really want to run this suite (it takes a few minutes).
+Otherwise these tests are skipped.
 
-On a developer's machine, you can install MicroCeph with snap, but it has permissions
-issues so you'd also need binaries from the Debian package and a hacky configuration.
-This takes a few minutes so we wrapped it in a Bash script - we advise you read it
-first, unless you don't mind installing many things on your machine:
+To run these tests, on a developer's machine you can install MicroCeph with snap. But it
+has permissions issues so you also need binaries from the Debian package and a hacky
+configuration. So we wrapped it in a Bash script. You need to pre-install the `snap` and
+`ceph-common` Debian packages (or your distribution's equivalent), then run:
 
   .. code-block::
 
-      ~/swh-environment/swh-objstorage$ ./bin/test_winery_with_microceph.sh
+      (swh) ~/swh-environment/swh-objstorage$ ./bin/test_winery_with_microceph.sh
 
 This script uses the ``$PYTEST_FLAGS`` environment variable, that you can set for
 example to ``-v`` or ``-x``.
