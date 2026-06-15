@@ -94,8 +94,11 @@ class RBDPoolHelper(RBDPool):
 
         return self.run("ceph", *arguments)
 
-    def image_remove(self, image):
-        self.image_unmap(image)
+    def image_remove(self, image, force=False):
+        if force:
+            self.rbd("device", "unmap", "-o", "force", self.image_path(image))
+        else:
+            self.image_unmap(image)
         self.rbd("remove", image)
 
     def images_remove(self):
@@ -107,7 +110,7 @@ class RBDPoolHelper(RBDPool):
                     "Could not remove image %s, we'll try again in an atexit handler...",
                     image,
                 )
-                atexit.register(self.image_remove, image)
+                atexit.register(self.image_remove, image, force=True)
                 pass
 
     def remove(self):
