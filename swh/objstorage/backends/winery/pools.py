@@ -180,6 +180,7 @@ class RBDPool(Pool):
                         "Image %s already unmapped? stderr: %s", image, exc.stderr
                     )
                 else:
+                    logger.warning("unmap(%s) failed (%d): %s ## %s", image, exc.returncode, exc.stdout, exc.stderr)
                     raise
 
 
