@@ -117,8 +117,10 @@ class TestCephWinery(_TestWinery):
         p = pool.image_path(name)
         assert p.endswith(name)
         something = "SOMETHING"
-        open(p, "w").write(something)
-        assert open(p).read(len(something)) == something
+        with open(p, "w") as f:
+            f.write(something)
+        with open(p) as f:
+            assert f.read(len(something)) == something
         assert pool.image_list() == [name]
         pool.image_remap_ro(name)
         if pool.image_mapped(name) == "rw":
