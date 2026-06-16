@@ -341,6 +341,17 @@ A multi-pool configuration could look like (partial config)::
     shards_active_pool: directory_shards
 
 
+Migration notes
+---------------
+
+:Database version 4: This version of the winery database adds a NOT NULL
+   `pool_name` column to the `shards` table. In order to properly fill this new
+   column when migrating from v3 to v4, a specific `swh objstorage winery
+   prepare-upgrade` command is provided. This command needs to be executed
+   before the standard migration process can be executed (if this preparation
+   step has not been executed, the migration will fail.)
+
+
 Implementation notes
 --------------------
 
