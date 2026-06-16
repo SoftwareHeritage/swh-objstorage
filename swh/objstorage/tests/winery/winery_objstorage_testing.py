@@ -818,16 +818,11 @@ class TestWinery:
         assert winery_reader.get(sha256) == content
 
     def test_winery_reader_lru(self, winery_settings, shards):
-        if os.environ.get("USE_CEPH", "no") == "yes":
-            pytest.skip("FIXME this is not supported by RBDPool")
         storage = get_objstorage(cls="winery", **winery_settings)
-        pool = storage.pools[storage.settings["shards_active_pool"]]
-        pooldir = pool.pool_dir
+        active_pool = storage.pools[storage.settings["shards_active_pool"]]
         for shard in shards:
-            name = os.path.basename(shard)
-            dst = os.path.join(pooldir, name)
-            os.link(shard, dst)
-        n_objs, n_shards = import_ro_shards(storage.writer.base, pool)
+            active_pool.image_import(shard)
+        n_objs, n_shards = import_ro_shards(storage.writer.base, active_pool)
         assert n_shards == 6
         assert n_objs == 12 * 6
 
@@ -840,18 +835,14 @@ class TestWinery:
         assert len(storage.reader.ro_shards) == n_shards
 
     def test_winery_reader_lru_limited(self, winery_settings, shards):
-        if os.environ.get("USE_CEPH", "no") == "yes":
-            pytest.skip("FIXME this is not supported by RBDPool")
         winery_settings["readers_cache_size"] = 2
         storage = get_objstorage(cls="winery", **winery_settings)
+        assert isinstance(storage, WineryObjStorage)
 
-        pool = storage.pools[storage.settings["shards_active_pool"]]
-        pooldir = pool.base_directory
-        poolname = pool.pool_name
+        active_pool = storage.pools[storage.settings["shards_active_pool"]]
         for shard in shards:
-            name = os.path.basename(shard)
-            os.link(shard, os.path.join(pooldir, poolname, name))
-        n_objs, n_shards = import_ro_shards(storage.writer.base, pool)
+            active_pool.image_import(shard)
+        n_objs, n_shards = import_ro_shards(storage.writer.base, active_pool)
         assert n_shards == 6
         assert n_objs == 12 * 6
 

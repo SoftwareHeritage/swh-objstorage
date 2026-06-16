@@ -7,6 +7,7 @@ import logging
 import math
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Iterable, List, Literal, Optional, Protocol, Tuple
 
@@ -54,6 +55,10 @@ class Pool(Protocol):
     def image_remap_ro(self, image: str):
         self.image_unmap(image)
         self.image_map(image, "ro")
+
+    def image_import(self, image: str) -> None:
+        """Import an existing image file in the current pool"""
+        ...
 
 
 class RBDPool(Pool):
@@ -188,6 +193,14 @@ class RBDPool(Pool):
                     )
                     raise
 
+    def image_import(self, image: str) -> None:
+        name = os.path.basename(image)
+        dst = self.image_path(name)
+        self.image_create(name)
+        with open(image, "rb") as s:
+            with open(dst, "wb") as d:
+                shutil.copyfileobj(s, d)
+
 
 class FileBackedPool(Pool):
     """File-backed pool for Winery shards mimicking a Ceph RBD pool.
@@ -243,6 +256,11 @@ class FileBackedPool(Pool):
         for entry in self.pool_dir.iterdir():
             if entry.is_file():
                 entry.chmod(0o000)
+
+    def image_import(self, image: str) -> None:
+        name = os.path.basename(image)
+        dst = self.image_path(name)
+        os.link(image, dst)
 
 
 def pool_from_settings(
