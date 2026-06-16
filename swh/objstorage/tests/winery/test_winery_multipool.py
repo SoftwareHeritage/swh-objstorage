@@ -3,13 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from itertools import cycle
 import logging
 import os
 
 import pytest
 
-from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.settings import populate_default_settings
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
@@ -30,25 +28,11 @@ def pool_names(request, pytestconfig):
     ]
 
 
-@pytest.fixture
-def storage(winery_settings, shards):
-    """A multipool (obj)storage fixture that will feed RO pools with premade shards"""
-    storage = get_objstorage(cls="winery", **winery_settings)
-    # fill non-active pools with random shards
-    for pool, shard in zip(
-        cycle(p for p in storage.pools.values() if "-active-" not in p.pool_name),
-        shards,
-    ):
-        shardname = os.path.basename(shard)
-        pooldir = pool.base_directory / pool.pool_name
-        os.link(shard, pooldir / shardname)
-        import_ro_shards(storage.writer.base, pool)
-
-    yield storage
-    storage.on_shutdown()
-
-
 class TestWineryMultiPool:
+    """
+    Reading objects from all pools is indirectly tested by `test_winery_reader_lru`
+    """
+
     def test_pools_config(self, winery_settings):
         assert populate_default_settings(**winery_settings)
 

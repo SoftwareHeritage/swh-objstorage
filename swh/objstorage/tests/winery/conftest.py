@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from functools import partial
+from itertools import cycle
 import logging
 import os
 import shutil
@@ -18,8 +19,8 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
+from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
-from swh.objstorage.backends.winery.pools.rbd import RBDPool
 from swh.objstorage.backends.winery.pools.shard import ShardBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
@@ -86,7 +87,7 @@ def needs_ceph(pool_names):
     aka if there is at least one rbd pool in the pool names
     """
 
-    if any([True for pool_name in pool_names if pool_name.endswith("-rbd")]):
+    if any(pool_name.endswith("-rbd") for pool_name in pool_names):
         ceph = shutil.which("ceph")
 
         if not ceph:
@@ -241,6 +242,7 @@ def winery_settings(
         },
         shards_pools=[pool._settings_for_tests for pool in image_pools],
         shards_active_pool=write_pool_name,
+        readers_cache_size=3,
     )
 
 
@@ -267,6 +269,35 @@ def storage(
         if thread.name.startswith("IdleHandler")
     ]
     assert not names, f"Some IdleHandlers are still alive: {','.join(names)}"
+
+
+@pytest.fixture
+def prefilled_storage(storage, shards):
+    """
+    Same as storage, but all pools are pre-filled with shards' contents using only
+    Pool's API and direct file access, to ensure Ceph compatibility.
+
+    Those shards will be removed properly by the `storage` fixture.
+    """
+    assert isinstance(storage, WineryObjStorage)
+
+    for pool, shard_path in zip(cycle(storage.pools.values()), shards.keys()):
+        shard_name = os.path.basename(shard_path)
+        copy_path = pool.image_path(shard_name)
+        pool.image_create(shard_name)
+        with open(copy_path, "wb") as destination:
+            with open(shard_path, "rb") as source:
+                destination.write(source.read())
+        pool.image_remap_ro(shard_name)
+    n_objs = 0
+    n_shards = 0
+    for pool in storage.pools.values():
+        o, s = import_ro_shards(storage.writer.base, pool)
+        n_objs += o
+        n_shards += s
+    assert n_shards == 6
+    assert n_objs == 12 * 6
+    yield storage
 
 
 @pytest.fixture

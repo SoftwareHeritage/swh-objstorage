@@ -17,7 +17,6 @@ from swh.objstorage.backends.winery.housekeeping import (
     AbortOperation,
     cleanup_rw_shard,
     deleted_objects_cleaner,
-    import_ro_shards,
     pack,
     rw_shard_cleaner,
     shard_packer,
@@ -816,45 +815,18 @@ class TestWinery:
         )
         assert winery_reader.get(sha256) == content
 
-    def test_winery_reader_lru(self, winery_settings, shards):
-        storage = get_objstorage(cls="winery", **winery_settings)
-        active_pool = storage.pools[storage.settings["shards_active_pool"]]
-        for shard in shards:
-            active_pool.image_import(shard)
-        n_objs, n_shards = import_ro_shards(storage.writer.base, active_pool)
-        assert n_shards == 6
-        assert n_objs == 12 * 6
-
+    def test_winery_reader_lru(self, winery_settings, prefilled_storage, shards):
         # ensure all shards are loaded
-        for shard, objids in shards.items():
+        for objids in shards.values():
             for objid in objids:
-                assert objid_for_content(storage.get(objid)) == objid
-
-        # all shards should be in the reader's ro_shards cache
-        assert len(storage.reader.ro_shards) == n_shards
-
-    def test_winery_reader_lru_limited(self, winery_settings, shards):
-        winery_settings["readers_cache_size"] = 2
-        storage = get_objstorage(cls="winery", **winery_settings)
-        assert isinstance(storage, WineryObjStorage)
-
-        active_pool = storage.pools[storage.settings["shards_active_pool"]]
-        for shard in shards:
-            active_pool.image_import(shard)
-        n_objs, n_shards = import_ro_shards(storage.writer.base, active_pool)
-        assert n_shards == 6
-        assert n_objs == 12 * 6
-
-        # ensure all shards are loaded
-        for shard, objids in shards.items():
-            for objid in objids:
-                assert objid_for_content(storage.get(objid)) == objid
+                assert objid_for_content(prefilled_storage.get(objid)) == objid
 
         # only the last 2 shards should be in the reader's ro_shards cache
-        assert len(storage.reader.ro_shards) == 2
+        cache_size = winery_settings["readers_cache_size"]
+        assert len(prefilled_storage.reader.ro_shards) == cache_size
         assert (
-            list(storage.reader.ro_shards.keys())
-            == [os.path.basename(x) for x in shards.keys()][-2:]
+            list(prefilled_storage.reader.ro_shards.keys())
+            == [os.path.basename(x) for x in shards.keys()][-cache_size:]
         )
 
 
