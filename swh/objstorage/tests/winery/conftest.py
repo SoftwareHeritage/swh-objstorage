@@ -21,6 +21,7 @@ from pytest_postgresql import factories
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
+from swh.objstorage.backends.winery.pools.rbd import RBDPool
 from swh.objstorage.backends.winery.pools.shard import ShardBackedPool
 import swh.objstorage.backends.winery.settings as settings
 from swh.objstorage.backends.winery.sharedbase import SharedBase
@@ -263,6 +264,12 @@ def storage(
     )
     yield storage
     storage.on_shutdown()
+    # NOTE: image_pools != storage.pools so we must unmap those in storage to avoid
+    # lingering RBD mounts
+    for pool in storage.pools.values():
+        if isinstance(pool, RBDPool):
+            for image in pool.image_list():
+                pool.image_unmap(image)
     names = [
         thread.name
         for thread in threading.enumerate()
@@ -272,16 +279,16 @@ def storage(
 
 
 @pytest.fixture
-def prefilled_storage(storage, shards):
+def prefilled_storage(storage, shards, image_pools):
     """
     Same as storage, but all pools are pre-filled with shards' contents using only
     Pool's API and direct file access, to ensure Ceph compatibility.
 
-    Those shards will be removed properly by the `storage` fixture.
+    Those shards will be removed properly by the `image_pools` fixture.
     """
     assert isinstance(storage, WineryObjStorage)
 
-    for pool, shard_path in zip(cycle(storage.pools.values()), shards.keys()):
+    for pool, shard_path in zip(cycle(image_pools), shards.keys()):
         shard_name = os.path.basename(shard_path)
         copy_path = pool.image_path(shard_name)
         pool.image_create(shard_name)
