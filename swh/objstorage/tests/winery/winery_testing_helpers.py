@@ -9,7 +9,7 @@ from subprocess import CalledProcessError
 from typing import Iterable, Optional, Tuple
 
 from swh.objstorage.backends.winery.housekeeping import cleanup_rw_shard
-from swh.objstorage.backends.winery.pools import RBDPool
+from swh.objstorage.backends.winery.pools import Pool, RBDPool
 from swh.objstorage.backends.winery.settings import DEFAULT_IMAGE_FEATURES_UNSUPPORTED
 from swh.objstorage.backends.winery.sharedbase import ShardState
 from swh.objstorage.objstorage import objid_for_content
@@ -170,3 +170,10 @@ class RBDPoolHelper(RBDPool):
             self.ceph("osd", "pool", "set", self.data_pool_name, setting, value)
 
         self.ceph("osd", "pool", "create", self.pool_name)
+
+def copy_file_to_pool(shard_path:str, pool:Pool):
+    pooldir = pool.base_directory
+    poolname = pool.pool_name
+    for shard in shards:
+        name = os.path.basename(shard)
+        os.link(shard, os.path.join(pooldir, poolname, name))

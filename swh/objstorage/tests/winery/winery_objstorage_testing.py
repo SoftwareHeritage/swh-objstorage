@@ -34,7 +34,7 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import objid_for_content
 from swh.objstorage.tests.objstorage_testing import ObjStorageTestFixture
 
-from .winery_testing_helpers import make_packed_shard
+from .winery_testing_helpers import make_packed_shard, copy_file_to_pool
 
 logger = logging.getLogger(__name__)
 
@@ -818,8 +818,6 @@ class TestWinery:
         assert winery_reader.get(sha256) == content
 
     def test_winery_reader_lru(self, winery_settings, shards):
-        if os.environ.get("USE_CEPH", "no") == "yes":
-            pytest.skip("FIXME this is not supported by RBDPool")
         storage = get_objstorage(cls="winery", **winery_settings)
         pool = storage.pools[storage.settings["shards_active_pool"]]
         pooldir = pool.pool_dir
@@ -834,31 +832,27 @@ class TestWinery:
         # ensure all shards are loaded
         for shard, objids in shards.items():
             for objid in objids:
-                objid_for_content(storage.get(objid)) == objid
+                assert objid_for_content(storage.get(objid)) == objid
 
         # all shards should be in the reader's ro_shards cache
         assert len(storage.reader.ro_shards) == n_shards
 
     def test_winery_reader_lru_limited(self, winery_settings, shards):
-        if os.environ.get("USE_CEPH", "no") == "yes":
-            pytest.skip("FIXME this is not supported by RBDPool")
         winery_settings["readers_cache_size"] = 2
         storage = get_objstorage(cls="winery", **winery_settings)
+        assert isinstance(storage, WineryObjStorage)
 
-        pool = storage.pools[storage.settings["shards_active_pool"]]
-        pooldir = pool.base_directory
-        poolname = pool.pool_name
+        active_pool = storage.pools[storage.settings["shards_active_pool"]]
         for shard in shards:
-            name = os.path.basename(shard)
-            os.link(shard, os.path.join(pooldir, poolname, name))
-        n_objs, n_shards = import_ro_shards(storage.writer.base, pool)
+            copy_file_to_pool(shard, active_pool)
+        n_objs, n_shards = import_ro_shards(storage.writer.base, active_pool)
         assert n_shards == 6
         assert n_objs == 12 * 6
 
         # ensure all shards are loaded
         for shard, objids in shards.items():
             for objid in objids:
-                objid_for_content(storage.get(objid)) == objid
+                assert objid_for_content(storage.get(objid)) == objid
 
         # only the last 2 shards should be in the reader's ro_shards cache
         assert len(storage.reader.ro_shards) == 2
