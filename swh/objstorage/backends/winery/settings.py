@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 # driver, e.g. exclusive-lock, object-map and fast-diff for kernels < 5.3
 DEFAULT_IMAGE_FEATURES_UNSUPPORTED: Tuple[str, ...] = ()
 
+SHARD_CACHE_DEFAULT_SIZE = 1000
+
 
 class Packer(TypedDict):
     """Settings for the packer process, either external or internal"""
@@ -126,6 +128,7 @@ class Winery(TypedDict, total=False):
     shards_pools: Iterable[ShardsPool]
     shards_active_pool: str | None
     packer: Packer
+    readers_cache_size: int | None
 
 
 SETTINGS = frozenset(
@@ -135,6 +138,7 @@ SETTINGS = frozenset(
         "shards_pools",
         "shards_active_pool",
         "packer",
+        "readers_cache_size",
     }
 )
 
@@ -146,6 +150,7 @@ def populate_default_settings(
     shards_active_pool: str | None = None,
     packer: Optional[Packer] = None,
     throttler: Any = None,
+    readers_cache_size: int | None = None,
 ) -> Winery:
     """Given some settings for a Winery objstorage, add all the appropriate
     default settings."""
@@ -197,4 +202,13 @@ def populate_default_settings(
                 "pack_immediately has been deprecated and is no longer "
                 "used. Please update your configuration and setup."
             )
+
+    if readers_cache_size is None:
+        settings["readers_cache_size"] = SHARD_CACHE_DEFAULT_SIZE
+    elif readers_cache_size <= 0:
+        logger.warning("readers_cache_size should be a positive number. Ignoring.")
+        settings["readers_cache_size"] = SHARD_CACHE_DEFAULT_SIZE
+    else:
+        settings["readers_cache_size"] = readers_cache_size
+
     return settings

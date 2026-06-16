@@ -41,7 +41,7 @@ class WineryObjStorage(ObjStorage):
         readonly: bool = False,
         allow_delete: bool = False,
         name: str = "winery",
-        readers_cache_size: int = 1000,
+        readers_cache_size: int = settings.SHARD_CACHE_DEFAULT_SIZE,
     ) -> None:
         super().__init__(allow_delete=allow_delete, name=name)
         if self.primary_hash != "sha256":
