@@ -56,7 +56,10 @@ sudo ceph config set mon mon_allow_pool_delete true
 echo "OK:"
 sudo ceph -s
 
-USE_CEPH=yes pytest $PYTEST_FLAGS swh/objstorage/tests/winery/test_objstorage_winery_rbd.py
+USE_CEPH=yes pytest $PYTEST_FLAGS \
+    swh/objstorage/tests/winery/test_winery_mixedpools.py \
+    swh/objstorage/tests/winery/test_objstorage_winery_rbd.py \
+
 
 # cleanup
 sudo rm /etc/ceph/ceph.conf
