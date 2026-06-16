@@ -155,17 +155,11 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
     yield pools
 
     for pool in pools:
-        if not isinstance(pool, RBDPool):
-            continue
-        if not rbd_hardcoded_pool:
-            pool.images_remove()
-        else:
-            logger.info("Not removing images")
-
-        if not rbd_hardcoded_pool:
-            pool.remove()
-        else:
-            logger.info("Not removing pool")
+        if isinstance(pool, RBDPoolHelper):
+            if rbd_hardcoded_pool:
+                logger.info("Not removing pool")
+            else:
+                pool.remove()
 
 
 @pytest.fixture
