@@ -637,7 +637,7 @@ def winery_import_shards(ctx):
             click.echo("Pool %s: nothing to do" % (pool.pool_name,))
 
 
-@winery.command("upgrade")
+@winery.command("prepare-upgrade")
 @click.option(
     "--pool-name",
     help=(
@@ -645,9 +645,24 @@ def winery_import_shards(ctx):
         "column in the 'shards' table"
     ),
 )
+@click.option(
+    "--assume-yes",
+    is_flag=True,
+    default=False,
+    help=("Do not ask for confirmation before executing pre-migration steps"),
+)
 @click.pass_context
-def winery_upgrade(ctx, pool_name):
-    """Upgrade the winery DB to version 4"""
+def winery_prepare_upgrade(ctx, pool_name, assume_yes):
+    """Prepare upgrade the winery DB
+
+    Some DB migration need a preparatory step before being able to be properly
+    done. This command will apply this prep step.
+
+    Pre-migration steps:
+
+    3->4: Add the pool_name column to the shards table and fill it with
+          configured/given pool name.
+    """
     from swh.core.db.db_utils import connect_to_conninfo, swh_db_version
 
     settings = ctx.obj["winery_settings"]
@@ -659,16 +674,16 @@ def winery_upgrade(ctx, pool_name):
     conninfo = settings["database"]["db"]
     if swh_db_version(conninfo) == 3:
         click.echo(
-            "Migration of the database is required. It will set "
+            "Migration of the database may be required. It will set "
             f"the pool name for all shards to {pool_name}. "
-            "Is it OK?"
         )
-        with connect_to_conninfo(conninfo) as db:
-            with db.cursor() as c:
-                query = (
-                    "ALTER TABLE shards "
-                    "ADD COLUMN IF NOT EXISTS pool_name text NOT NULL "
-                    "DEFAULT %s"
-                )
-                c.execute(query, (pool_name,))
-                db.commit()
+        if assume_yes or click.confirm("Is it OK?"):
+            with connect_to_conninfo(conninfo) as db:
+                with db.cursor() as c:
+                    query = (
+                        "ALTER TABLE shards "
+                        "ADD COLUMN IF NOT EXISTS pool_name text NOT NULL "
+                        "DEFAULT %s"
+                    )
+                    c.execute(query, (pool_name,))
+                    db.commit()
