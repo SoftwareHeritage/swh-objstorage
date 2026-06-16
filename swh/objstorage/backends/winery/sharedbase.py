@@ -377,12 +377,14 @@ class SharedBase(Database):
         self,
         new_state: ShardState,
         name: str | None = None,
+        pool_name: str | None = None,
     ) -> Tuple[str, int]:
         """Create a new write shard (locked by the current `SharedBase`), with a
         generated name.
 
         Arguments:
           new_state: the :py:class:`ShardState` for the new shard.
+          pool_name: defaults to the `active_pool_name` provided at construction.
 
         Returns:
           the name and numeric id of the newly created shard.
@@ -400,12 +402,14 @@ class SharedBase(Database):
             name = "i" + name[1:]
         assert not name[0].isnumeric()
 
-        if not self.active_pool_name:
-            raise ValueError(
-                "The writable pool name must be configured to create new shards"
-            )
+        if pool_name is None:
+            if not self.active_pool_name:
+                raise ValueError(
+                    "The writable pool name must be configured to create new shards"
+                )
+            pool_name = self.active_pool_name
         with self.pool.connection() as db, db.cursor() as c:
-            args = [name, new_state.value, WRITER_UUID, self.active_pool_name]
+            args = [name, new_state.value, WRITER_UUID, pool_name]
             cols = ["name", "state", "locker", "locker_ts", "pool_name"]
             vals = ["%s", "%s", "%s", "NOW()", "%s"]
             c.execute(

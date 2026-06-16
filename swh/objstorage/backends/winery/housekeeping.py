@@ -306,6 +306,7 @@ def import_ro_shards(
                 base._locked_shard = base.create_shard(
                     ShardState.PACKING,
                     name=imgname,
+                    pool_name=pool.pool_name,
                 )
             except UniqueViolation:
                 # Should not happen, but sh*t happen, so better safe than sorry
