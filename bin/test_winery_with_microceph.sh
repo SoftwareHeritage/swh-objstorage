@@ -27,8 +27,8 @@ if [ ! -f "$RULES" ]; then
     sudo dd status=none of=$RULES <<END
 KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*shards", ATTR{ro}=="0", GROUP="$WGROUP", MODE="0664"
 KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*shards", ATTR{ro}!="0", GROUP="$WGROUP", MODE="0444"
-KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="test-winery-ceph-pool", ATTR{ro}=="0", GROUP="$WGROUP", MODE="0664"
-KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="test-winery-ceph-pool", ATTR{ro}!="0", GROUP="$WGROUP", MODE="0444"
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*winery*", ATTR{ro}=="0", GROUP="$WGROUP", MODE="0664"
+KERNEL=="rbd[0-9]*", ENV{DEVTYPE}=="disk", ACTION=="add", ATTR{device/pool}=="*winery*", ATTR{ro}!="0", GROUP="$WGROUP", MODE="0444"
 END
     sudo udevadm control --reload-rules
     sudo udevadm trigger
