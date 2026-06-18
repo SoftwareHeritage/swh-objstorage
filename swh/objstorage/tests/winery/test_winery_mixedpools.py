@@ -33,4 +33,5 @@ class TestMixedpoolWinery(_TestWinery):
 
     Reading objects from all pools is indirectly tested by `test_winery_reader_lru`.
     """
+
     pass
