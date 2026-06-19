@@ -42,7 +42,7 @@ def shard_packer(
     database: settings.Database,
     shards: settings.Shards,
     shards_pools: Iterable[settings.ShardsPool],
-    shards_active_pool: str,
+    shards_active_pool: str | None,
     packer: Optional[settings.Packer] = None,
     stop_packing: Callable[[int], bool] = never_stop,
     abort_packing: Callable[[int], bool] = never_stop,
@@ -62,6 +62,8 @@ def shard_packer(
       database: database settings (e.g. db connection string)
       shards: shards settings (e.g. max_size)
       shards_pool: shards pool settings (e.g. Ceph RBD settings)
+      shards_active_pool: the pool for which packing is to be done; if None, pack
+        for all pools
       packer: packer settings
       stop_packing: callback to determine whether the packer should exit
       abort_packing: callback to determine whether the packer should abort
@@ -89,7 +91,9 @@ def shard_packer(
     waited_for_shards = 0
     while not stop_packing(shards_packed):
         locked = base.maybe_lock_one_shard(
-            current_state=ShardState.FULL, new_state=ShardState.PACKING
+            current_state=ShardState.FULL,
+            new_state=ShardState.PACKING,
+            from_pool=shards_active_pool,
         )
 
         if not locked:
@@ -103,7 +107,7 @@ def shard_packer(
             if locked.name is None:
                 raise RuntimeError("No shard has been locked?")
             logger.info("shard_packer: Locked shard %s to pack", locked.name)
-            pool_name = all_settings["shards_active_pool"]
+            pool_name = base.get_shard_pool(locked.name)
             for pool_cfg in all_settings["shards_pools"]:
                 if pool_cfg["pool_name"] == pool_name:
                     break

@@ -64,8 +64,18 @@ def winery(ctx):
 
 @winery.command("packer")
 @click.option("--stop-instead-of-waiting", is_flag=True)
+@click.option(
+    "--pool-name",
+    default=None,
+    help=(
+        "Pool name to pack shards for (overriding the config entry "
+        "'shards_active_pool'). If set to 'all', do pack for all configured pools"
+    ),
+)
 @click.pass_context
-def winery_packer(ctx, stop_instead_of_waiting: bool = False):
+def winery_packer(
+    ctx, stop_instead_of_waiting: bool = False, pool_name: str | None = None
+):
     """Run the winery packer process
 
     This process is in charge of creating (packing) shard files when a winery
@@ -133,6 +143,12 @@ def winery_packer(ctx, stop_instead_of_waiting: bool = False):
     install_signal_handlers(set_signal_received)
 
     logger.info("Image packer starting")
+    if pool_name:
+        if pool_name == "all":
+            settings["shards_active_pool"] = None
+        else:
+            settings["shards_active_pool"] = pool_name
+
     try:
         ret = shard_packer(
             **settings,

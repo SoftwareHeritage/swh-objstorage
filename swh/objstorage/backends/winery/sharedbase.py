@@ -76,6 +76,7 @@ class TemporaryShardLocker:
         current_state: ShardState,
         new_state: ShardState,
         min_mapped_hosts: int = 0,
+        from_pool: str | None = None,
     ) -> None:
         self.base = base
         self.previous_state = current_state
@@ -85,6 +86,7 @@ class TemporaryShardLocker:
             current_state=current_state,
             new_state=new_state,
             min_mapped_hosts=min_mapped_hosts,
+            from_pool=from_pool,
         )
         if locked:
             self.name, self.id = locked
@@ -205,6 +207,7 @@ class SharedBase(Database):
         current_state: ShardState,
         new_state: ShardState,
         min_mapped_hosts: int = 0,
+        from_pool: str | None = None,
     ) -> Optional[Tuple[str, int]]:
         """Lock one shard in `current_state`, putting it into `new_state`. Only
         lock a shard if it has more than `min_mapped_hosts` hosts that have
@@ -217,18 +220,26 @@ class SharedBase(Database):
         with self.pool.connection() as db, db.transaction():
             with db.cursor() as c:
                 # run the next two statements in a transaction
-                c.execute(
-                    """\
+                args = [current_state.value, min_mapped_hosts]
+                if from_pool is not None:
+                    extra = " AND pool_name = %s "
+                    args.append(from_pool)
+                else:
+                    extra = ""
+
+                sqlreq = f"""\
                     SELECT name
                     FROM shards
                     WHERE
                       state = %s
                       AND COALESCE(ARRAY_LENGTH(mapped_on_hosts_when_packed, 1), 0) >= %s
+                      {extra}
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
-                    """,
-                    (current_state.value, min_mapped_hosts),
-                )
+                    """
+
+                c.execute(sqlreq, args)
+
                 result = c.fetchone()
                 if result is None:
                     return None
@@ -265,6 +276,7 @@ class SharedBase(Database):
         current_state: ShardState,
         new_state: ShardState,
         min_mapped_hosts: int = 0,
+        from_pool: str | None = None,
     ) -> TemporaryShardLocker:
         """Opportunistically lock a shard, and, if a shard was locked, provide a
         context manager to rollback the locking on failure.
@@ -290,6 +302,7 @@ class SharedBase(Database):
             current_state=current_state,
             new_state=new_state,
             min_mapped_hosts=min_mapped_hosts,
+            from_pool=from_pool,
         )
 
     def set_shard_state(

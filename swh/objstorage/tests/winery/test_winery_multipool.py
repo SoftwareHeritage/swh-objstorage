@@ -12,7 +12,9 @@ import pytest
 from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.settings import populate_default_settings
 from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import objid_for_content
 
+from .test_winery_cli import invoke
 from .winery_objstorage_testing import TestWinery as _TestWinery
 from .winery_objstorage_testing import TestWineryObjStorage as _TestWineryObjStorage
 
@@ -71,6 +73,106 @@ class TestWineryMultiPool:
             populate_default_settings(
                 **{**winery_settings, "shards_active_pool": "no a pool"}
             )
+
+    def test_packing(self, winery_settings, pool_names, shard_max_size):
+
+        nbytes = shard_max_size // 10
+        for npool, pool_name in enumerate(pool_names):
+            # create a few shards in this pool
+            storage = get_objstorage(
+                cls="winery", **{**winery_settings, "shards_active_pool": pool_name}
+            )
+            # creates 5 shards of 10 objects
+            for n in range(5):
+                for i in range(10):
+                    content = b"%d/%d/%d " % (npool, n, i) + b"\x00" * nbytes
+                    content = content[: nbytes + 1]
+                    objid = objid_for_content(content)
+                    storage.add(content, objid)
+
+        # we should have 5*len(pool_names) full shards a this point...
+        base = storage.writer.base
+        shards = list(base.list_shards())
+        assert len(shards) == 5 * len(pool_names)
+        assert all(state.name == "FULL" for shard, state in shards)
+        pools = [base.get_shard_pool(shard) for shard, state in shards]
+        assert sorted(pools) == sorted(pool_names * 5)
+
+        # now we want to run the packer
+        result = invoke(
+            "winery",
+            "packer",
+            "--stop-instead-of-waiting",
+            config=winery_settings,
+        )
+        assert result.exit_code == 0
+
+        # all shards from current active pool should be packed
+        active_pool = winery_settings["shards_active_pool"]
+        shards = list(base.list_shards())
+        assert len(shards) == 5 * len(pool_names)
+        packed = [
+            state.name == "PACKED"
+            for shard, state in shards
+            if base.get_shard_pool(shard) == active_pool
+        ]
+        assert len(packed) == 5
+        assert all(packed)
+        assert all(
+            state.name == "FULL"
+            for shard, state in shards
+            if base.get_shard_pool(shard) != active_pool
+        )
+
+        # run the packer for a specified pool (other then the configured active one)
+        pool = pool_names[-1]
+        assert pool != active_pool
+
+        result = invoke(
+            "winery",
+            "packer",
+            "--stop-instead-of-waiting",
+            "--pool-name",
+            pool,
+            config=winery_settings,
+        )
+        assert result.exit_code == 0
+        shards = list(base.list_shards())
+        assert len(shards) == 5 * len(pool_names)
+        packed = [
+            state.name == "PACKED"
+            for shard, state in shards
+            if base.get_shard_pool(shard) == pool
+        ]
+        assert len(packed) == 5
+        assert all(packed)
+        assert all(
+            state.name == "FULL"
+            for shard, state in shards
+            if base.get_shard_pool(shard) not in (pool, active_pool)
+        )
+
+        # run the packer for a all the pools
+        result = invoke(
+            "winery",
+            "packer",
+            "--stop-instead-of-waiting",
+            "--pool-name",
+            "all",
+            config=winery_settings,
+        )
+        assert result.exit_code == 0
+        shards = list(base.list_shards())
+        assert len(shards) == 5 * len(pool_names)
+        packed = [state.name == "PACKED" for shard, state in shards]
+        assert len(packed) == 5 * len(pool_names)
+        assert all(packed)
+
+        # each shard file should be stored in the correct pool
+        for shard, _ in shards:
+            pool_name = base.get_shard_pool(shard)
+            pool = storage.pools[pool_name]
+            assert os.path.exists(pool.image_path(shard))
 
 
 class TestWineryMultipoolObjStorage(_TestWineryObjStorage):
