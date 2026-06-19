@@ -63,9 +63,9 @@ def winery(ctx):
 
 
 @winery.command("packer")
-@click.option("--stop-after-shards", type=click.INT, default=None)
+@click.option("--stop-instead-of-waiting", is_flag=True)
 @click.pass_context
-def winery_packer(ctx, stop_after_shards: int | None = None):
+def winery_packer(ctx, stop_instead_of_waiting: bool = False):
     """Run the winery packer process
 
     This process is in charge of creating (packing) shard files when a winery
@@ -89,6 +89,7 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
     import signal
 
     from swh.objstorage.backends.winery.housekeeping import AbortOperation, shard_packer
+    from swh.objstorage.backends.winery.sleep import sleep_exponential
 
     settings = ctx.obj["winery_settings"]
 
@@ -97,13 +98,24 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
 
     def stop_packing(num_shards: int) -> bool:
         """Stop packing when a signal is received or when stop_after_shards is reached"""
-        return signal_stop or (
-            stop_after_shards is not None and num_shards >= stop_after_shards
-        )
+        return signal_stop
 
     def abort_packing(num_shards: int) -> bool:
         """Abort packing when a signal is received."""
         return signal_abort
+
+    def wait_for_shard(attempt: int):
+        nonlocal signal_stop
+        if stop_instead_of_waiting:
+            signal_stop = True
+            return
+
+        return sleep_exponential(
+            min_duration=1,
+            max_duration=60,
+            factor=2,
+            message="No new image to pack",
+        )(attempt)
 
     def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
         nonlocal signal_abort
@@ -123,7 +135,10 @@ def winery_packer(ctx, stop_after_shards: int | None = None):
     logger.info("Image packer starting")
     try:
         ret = shard_packer(
-            **settings, stop_packing=stop_packing, abort_packing=abort_packing
+            **settings,
+            stop_packing=stop_packing,
+            abort_packing=abort_packing,
+            wait_for_shard=wait_for_shard,
         )
 
         logger.info("Packed %s shards", ret)
@@ -224,7 +239,6 @@ def winery_rbd(
 
 
 @winery.command("rw-shard-cleaner")
-@click.option("--stop-after-shards", type=click.INT, default=None)
 @click.option("--stop-instead-of-waiting", is_flag=True)
 @click.option(
     "--min-mapped-hosts",
@@ -235,7 +249,6 @@ def winery_rbd(
 @click.pass_context
 def winery_rw_shard_cleaner(
     ctx,
-    stop_after_shards: int | None = None,
     stop_instead_of_waiting: bool = False,
     min_mapped_hosts: int = 1,
 ):
@@ -263,9 +276,7 @@ def winery_rw_shard_cleaner(
 
     def stop_cleaning(num_shards: int) -> bool:
         """Stop running when requested, or when the max number of shards was reached."""
-        return (
-            stop_after_shards is not None and num_shards >= stop_after_shards
-        ) or stop_on_next_iteration
+        return stop_on_next_iteration
 
     def wait_for_shard(attempt: int):
         nonlocal stop_on_next_iteration

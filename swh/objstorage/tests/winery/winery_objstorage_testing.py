@@ -547,10 +547,9 @@ class TestWinery:
 
         result = cli_runner.invoke(
             swh_cli_group,
-            ("objstorage", "winery", "packer", "--stop-after-shards=4"),
+            ("objstorage", "winery", "packer", "--stop-instead-of-waiting"),
             env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
         )
-
         assert result.exit_code == 0
 
         shard_info = dict(storage.writer.base.list_shards())
@@ -588,7 +587,7 @@ class TestWinery:
             swh.objstorage.backends.winery.housekeeping.pack = failing_pack
             result = cli_runner.invoke(
                 swh_cli_group,
-                ("objstorage", "winery", "packer", "--stop-after-shards=4"),
+                ("objstorage", "winery", "packer", "--stop-instead-of-waiting"),
                 env={"SWH_CONFIG_FILENAME": str(tmp_path / "config.yml")},
             )
         finally:
