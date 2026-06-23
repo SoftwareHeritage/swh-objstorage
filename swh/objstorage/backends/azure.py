@@ -315,15 +315,20 @@ class AzureCloudObjStorage(ObjStorage):
                     content, obj_id, check_presence, container_clients
                 )
 
-        if check_presence and obj_id in self:
-            return (0, 0)
-
         hex_obj_id = self._internal_id(obj_id)
 
         # Send the compressed content
         data = self.compress(content)
 
         client = self.get_async_blob_client(hex_obj_id, container_clients)
+
+        if check_presence:
+            try:
+                await client.get_blob_properties()
+            except ResourceNotFoundError:
+                pass
+            else:
+                return (0, 0)
 
         try:
             await client.upload_blob(data=data, length=len(data))
