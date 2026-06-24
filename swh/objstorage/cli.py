@@ -12,7 +12,7 @@ import time
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import CONTEXT_SETTINGS, setup_config
 from swh.core.cli import swh as swh_cli_group
 
 logger = logging.getLogger(__name__)
@@ -32,23 +32,7 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def objstorage_cli_group(ctx, config_file):
     """Software Heritage Objstorage tools."""
-    from swh.core import config
-
-    if not config_file:
-        config_file = os.environ.get("SWH_CONFIG_FILENAME")
-
-    if config_file:
-        if not os.path.exists(config_file):
-            raise click.ClickException(
-                "Configuration file %s does not exist" % config_file
-            )
-        conf = config.read(config_file)
-    else:
-        conf = {}
-
-    ctx.ensure_object(dict)
-
-    ctx.obj["config"] = conf
+    setup_config(ctx, config_file)
 
 
 # for BW compat
