@@ -205,9 +205,14 @@ def populate_default_settings(
 
     if readers_cache_size is None:
         settings["readers_cache_size"] = SHARD_CACHE_DEFAULT_SIZE
-    elif readers_cache_size <= 0:
-        logger.warning("readers_cache_size should be a positive number. Ignoring.")
+    elif readers_cache_size == 0:
+        logger.warning(
+            "readers_cache_size should be a positive number. Using default size: %d",
+            SHARD_CACHE_DEFAULT_SIZE,
+        )
         settings["readers_cache_size"] = SHARD_CACHE_DEFAULT_SIZE
+    elif readers_cache_size < 0:
+        raise ValueError("readers_cache_size should be a positive number.")
     else:
         settings["readers_cache_size"] = readers_cache_size
 
