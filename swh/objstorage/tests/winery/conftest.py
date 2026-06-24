@@ -289,13 +289,7 @@ def prefilled_storage(storage, shards, image_pools):
     assert isinstance(storage, WineryObjStorage)
 
     for pool, shard_path in zip(cycle(image_pools), shards.keys()):
-        shard_name = os.path.basename(shard_path)
-        copy_path = pool.image_path(shard_name)
-        pool.image_create(shard_name)
-        with open(copy_path, "wb") as destination:
-            with open(shard_path, "rb") as source:
-                destination.write(source.read())
-        pool.image_remap_ro(shard_name)
+        pool.image_import(shard_path)
     n_objs = 0
     n_shards = 0
     for pool in storage.pools.values():
