@@ -184,3 +184,4 @@ class RBDPool(Pool):
         with open(image, "rb") as s:
             with open(dst, "wb") as d:
                 shutil.copyfileobj(s, d)
+        self.image_remap_ro(name)
