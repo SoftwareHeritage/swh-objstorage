@@ -331,6 +331,5 @@ def import_ro_shards(
             base.shard_packing_ends(imgname)
             n_shard += 1
             base.set_shard_state(name=imgname, new_state=ShardState.READONLY)
-            pool.image_map(imgname, options="ro")
 
     return n_obj, n_shard

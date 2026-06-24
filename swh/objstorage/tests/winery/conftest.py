@@ -75,9 +75,13 @@ def shards() -> Generator[Dict[str, List[HashDict]], None, None]:
                     objid = objid_for_content(content)
                     shard.write(objid["sha256"], content)
                     shards[path].append(objid)
+            # enforce file to be RO (so it will be considered as mapped by FileBackedPool)
+            os.chmod(path, 0o400)
+
         for path in shards:
             shard = Shard(path)
             assert shard.header.objects_count == count
+
         yield shards
 
 
