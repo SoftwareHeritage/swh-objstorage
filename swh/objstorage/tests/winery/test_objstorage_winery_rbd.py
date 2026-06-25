@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def pool_names():
-    return ["winery-pool-active-rbd"]
+    return ["winery-pool-rbd"]
 
 
 class TestCephWineryObjStorage(_TestWineryObjStorage):

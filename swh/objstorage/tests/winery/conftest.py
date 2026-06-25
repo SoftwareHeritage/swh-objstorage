@@ -93,25 +93,70 @@ def needs_ceph(pool_names):
     """
 
     if any(pool_name.endswith("-rbd") for pool_name in pool_names):
-        ceph = shutil.which("ceph")
+        msg = _missing_ceph()
+        if msg:
+            pytest.skip(msg)
 
-        if not ceph:
-            pytest.skip("the ceph CLI was not found")
-        if os.environ.get("USE_CEPH", "no") != "yes":
-            pytest.skip(
-                "the ceph-based tests have been disabled (USE_CEPH env var is not 'yes')"
-            )
+
+def _missing_ceph() -> str | None:
+    ceph = shutil.which("ceph")
+
+    if not ceph:
+        return "the ceph CLI was not found"
+    if os.environ.get("USE_CEPH", "no") != "yes":
+        return "the ceph-based tests have been disabled (USE_CEPH env var is not 'yes')"
+
+    return None
+
+
+@pytest.fixture(scope="session")
+def ceph_pool_for_session():
+    if _missing_ceph():
+        yield None
+    else:
+        pool_name = "winery-pool-rbd"
+        rbd_map_options = os.environ.get("RBD_MAP_OPTIONS", "")
+        rbd_hardcoded_pool = bool(os.environ.get("CEPH_HARDCODE_POOL"))
+        pool = RBDPoolHelper(
+            shard_max_size=10 * 1024 * 1024,
+            rbd_pool_name=pool_name,
+            rbd_map_options=rbd_map_options,
+        )
+        if not rbd_hardcoded_pool:
+            pool.remove()
+            pool.pool_create()
+        else:
+            logger.info("Not removing pool")
+
+        pool._settings_for_tests = {
+            "type": "rbd",
+            "pool_name": pool_name,
+            "map_options": rbd_map_options,
+            "readonly": False,
+        }
+
+        yield pool
+
+        if rbd_hardcoded_pool:
+            logger.info("Not removing pool")
+        else:
+            pool.remove()
 
 
 @pytest.fixture
-def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
+def image_pools(
+    tmp_path, shard_max_size, pool_names, needs_ceph, ceph_pool_for_session
+):
     """Fixture that generates winery shards pools
 
-    For each pool name in 'pool_names', it will instantiate the corresponding
-    Pool backend based on a simple pool name pattern: if the pool name ends with:
+    For each entry in 'pool_names', it will instantiate the corresponding pool back-end
+    based on the pool name's suffix:
 
-    - '-directory': produces a ShardBackedPool
-    - '-rbd': produces a RBDPool (actually a RBDPoolHelper, see winery_testing_helpers)
+    - `-directory`: produces a `ShardBackedPool`
+    - `-rbd`: produces a `RBDPool` - actually a session-wide instance of `RBDPoolHelper`
+      built by `ceph_pool_for_session`. Its name will be `winery-pool-rbd`, so
+      according to `write_pool_name` it can be the active pool only when alone (that
+      matches known production settings).
 
     On teardown, clean RBD pools if needed.
 
@@ -119,11 +164,7 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
     at least one of the pools is expected to be an RBDPool (aka there is a
     least one 'xxx-rbd' pool name in 'pool_names') and the environment is not
     set up to run ceph based tests.
-
     """
-    rbd_map_options = os.environ.get("RBD_MAP_OPTIONS", "")
-    rbd_hardcoded_pool = bool(os.environ.get("CEPH_HARDCODE_POOL"))
-
     pools = []
     for pool_name in pool_names:
         if pool_name.endswith("-directory"):
@@ -139,49 +180,35 @@ def image_pools(tmp_path, shard_max_size, pool_names, needs_ceph):
                 "pool_name": pool_name,
             }
         elif pool_name.endswith("-rbd"):
-            pool = RBDPoolHelper(
-                shard_max_size=10 * 1024 * 1024,
-                rbd_pool_name=pool_name,
-                rbd_map_options=rbd_map_options,
-            )
-            if not rbd_hardcoded_pool:
-                pool.remove()
-                pool.pool_create()
-            else:
-                logger.info("Not removing pool")
-
-            pool._settings_for_tests = {
-                "type": "rbd",
-                "pool_name": pool_name,
-                "map_options": rbd_map_options,
-                "readonly": False,
-            }
+            pool = ceph_pool_for_session
+        else:
+            raise ValueError(f"Unsupported pool name: {pool_name}")
         pools.append(pool)
 
     yield pools
 
     for pool in pools:
         if isinstance(pool, RBDPoolHelper):
-            if rbd_hardcoded_pool:
-                logger.info("Not removing pool")
-            else:
-                pool.remove()
+            pool.images_remove()
 
 
 @pytest.fixture
 def write_pool_name(pool_names) -> str | None:
     """Return the active pool from the list of pool names
 
-    This default implementation select the only '-active-' pool name in the
-    list of pool names.
+    This either returns the only pool, or the only one whose name contains `-active-`.
 
     Checks there is only one active.
-
     """
-    active_pools = [pool_name for pool_name in pool_names if "-active-" in pool_name]
-    assert len(active_pools) <= 1, "There can be at most one active pool"
-    if active_pools:
-        return active_pools[0]
+    if len(pool_names) == 1:
+        return pool_names[0]
+    else:
+        active_pools = [
+            pool_name for pool_name in pool_names if "-active-" in pool_name
+        ]
+        assert len(active_pools) <= 1, "There can be at most one active pool"
+        if active_pools:
+            return active_pools[0]
     return None
 
 

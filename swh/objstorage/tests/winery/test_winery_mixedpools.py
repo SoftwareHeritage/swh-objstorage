@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def pool_names(request, pytestconfig):
     return [
-        "winery-pool-01-rbd",
+        "winery-pool-rbd",
         "winery-pool-02-active-directory",
     ]
 
