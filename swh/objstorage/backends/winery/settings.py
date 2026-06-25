@@ -184,7 +184,9 @@ def populate_default_settings(
     if shards_active_pool is not None:
         if shards_active_pool not in [pool["pool_name"] for pool in pools]:
             raise ValueError(
-                "shards_active_pool must be the name of a given shards pool"
+                f"shards_active_pool ({shards_active_pool}) "
+                "must be the name of a given shards pool "
+                f"({[pool['pool_name'] for pool in pools]})"
             )
         settings["shards_active_pool"] = shards_active_pool
 
