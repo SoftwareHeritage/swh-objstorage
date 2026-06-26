@@ -285,7 +285,7 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
 
     @pytest.fixture
     def swh_objstorage_config(self, mocker):
-        (ContainerClient, AsyncContainerClient) = get_MockContainerClient()
+        ContainerClient, AsyncContainerClient = get_MockContainerClient()
         mocker.patch("swh.objstorage.backends.azure.ContainerClient", ContainerClient)
 
         mocker.patch(
@@ -355,7 +355,7 @@ class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
     @pytest.fixture
     def swh_objstorage_config(self, mocker):
-        (self.ContainerClient, self.AsyncContainerClient) = get_MockContainerClient()
+        self.ContainerClient, self.AsyncContainerClient = get_MockContainerClient()
         mocker.patch(
             "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
         )
