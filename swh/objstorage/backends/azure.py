@@ -285,6 +285,20 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             return True
 
+    async def _contains_async(self, obj_id: HashDict, container_clients) -> bool:
+        """Coroutine implementing ``__contains__(obj_id)`` using azure-storage-blob's
+        asynchronous implementation.
+        """
+        hex_obj_id = self._internal_id(obj_id)
+
+        client = self.get_async_blob_client(hex_obj_id, container_clients)
+        try:
+            await client.get_blob_properties()
+        except ResourceNotFoundError:
+            return False
+        else:
+            return True
+
     @timed
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
@@ -315,7 +329,9 @@ class AzureCloudObjStorage(ObjStorage):
                     content, obj_id, check_presence, container_clients
                 )
 
-        if check_presence and obj_id in self:
+        if check_presence and await self._contains_async(
+            obj_id, container_clients=container_clients
+        ):
             return (0, 0)
 
         hex_obj_id = self._internal_id(obj_id)
