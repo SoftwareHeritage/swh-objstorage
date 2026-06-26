@@ -66,6 +66,7 @@ def winery(ctx):
 @click.option("--stop-instead-of-waiting", is_flag=True)
 @click.option(
     "--pool-name",
+    "-n",
     default=None,
     help=(
         "Pool name to pack shards for (overriding the config entry "
@@ -680,6 +681,7 @@ def winery_import_shards(ctx, poolnames):
 @winery.command("prepare-upgrade")
 @click.option(
     "--pool-name",
+    "-n",
     help=(
         "pool name to set as value for the added 'pool_name' "
         "column in the 'shards' table"
