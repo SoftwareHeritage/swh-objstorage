@@ -631,8 +631,19 @@ def winery_release_stale_shards(ctx, shard_ids, lockers, duration, dry_run):
 
 
 @winery.command("import-shards")
+@click.option(
+    "--pool-name",
+    "-n",
+    "poolnames",
+    default=None,
+    multiple=True,
+    help=(
+        "Pool name to import images files; if not specified, will look for "
+        "image files in all configured pools. Can be specified several times."
+    ),
+)
 @click.pass_context
-def winery_import_shards(ctx):
+def winery_import_shards(ctx, poolnames):
     """Populate the winery database from existing shard files"""
     from swh.objstorage.backends.winery.housekeeping import import_ro_shards
     from swh.objstorage.backends.winery.pools import pool_from_settings
@@ -647,6 +658,8 @@ def winery_import_shards(ctx):
         )
 
     for pool_cfg in pool_cfgs:
+        if poolnames and pool_cfg["pool_name"] not in poolnames:
+            continue
         base = SharedBase(
             base_dsn=settings["database"]["db"], active_pool_name=pool_cfg["pool_name"]
         )
