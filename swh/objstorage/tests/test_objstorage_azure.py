@@ -54,10 +54,6 @@ class MockDownloadClient:
     def content_as_bytes(self):
         return self.blob_data
 
-    def __await__(self):
-        yield from ()
-        return MockAsyncDownloadClient(self.blob_data)
-
 
 class MockBlobClient:
     def __init__(self, container, blob):
@@ -86,6 +82,39 @@ class MockBlobClient:
         return MockDownloadClient(self.container.blobs[self.blob])
 
     def delete_blob(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
+
+        del self.container.blobs[self.blob]
+
+
+class MockAsyncBlobClient:
+    def __init__(self, container, blob):
+        self.container = container
+        self.blob = blob
+
+    def get_blob_properties(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
+
+        return {"exists": True}
+
+    async def upload_blob(self, data, length=None):
+        if self.blob in self.container.blobs:
+            raise ResourceExistsError("Blob already exists")
+
+        if length is not None and length != len(data):
+            raise ValueError("Wrong length for blob data!")
+
+        self.container.blobs[self.blob] = data
+
+    async def download_blob(self):
+        if self.blob not in self.container.blobs:
+            raise ResourceNotFoundError("Blob not found")
+
+        return MockAsyncDownloadClient(self.container.blobs[self.blob])
+
+    async def delete_blob(self):
         if self.blob not in self.container.blobs:
             raise ResourceNotFoundError("Blob not found")
 
@@ -182,6 +211,7 @@ class TestAzuriteCloudObjStorageGzip(TestAzuriteCloudObjStorage):
 
 
 def get_MockContainerClient():
+    # shared by the sync and async clients
     blobs = collections.defaultdict(dict)  # {container_url: {blob_id: blob}}
 
     class MockContainerClient:
@@ -210,6 +240,32 @@ def get_MockContainerClient():
         def delete_blob(self, blob):
             self.get_blob_client(blob.name).delete_blob()
 
+    class MockAsyncContainerClient:
+        def __init__(self, container_url):
+            self.container_url = container_url
+            self.blobs = blobs[self.container_url]
+
+        @property
+        def url(self):
+            return self.container_url
+
+        @classmethod
+        def from_container_url(cls, container_url):
+            return cls(container_url)
+
+        def get_container_properties(self):
+            raise EnvironmentError("This raises an error in production")
+
+        def get_blob_client(self, blob):
+            return MockAsyncBlobClient(self, blob)
+
+        async def list_blobs(self):
+            for obj in sorted(self.blobs):
+                yield MockListedObject(obj)
+
+        async def delete_blob(self, blob):
+            self.get_blob_client(blob.name).delete_blob()
+
         def __aenter__(self):
             return self
 
@@ -221,7 +277,7 @@ def get_MockContainerClient():
         def __aexit__(self, *args):
             return self
 
-    return MockContainerClient
+    return (MockContainerClient, MockAsyncContainerClient)
 
 
 class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
@@ -229,11 +285,11 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
 
     @pytest.fixture
     def swh_objstorage_config(self, mocker):
-        ContainerClient = get_MockContainerClient()
+        ContainerClient, AsyncContainerClient = get_MockContainerClient()
         mocker.patch("swh.objstorage.backends.azure.ContainerClient", ContainerClient)
 
         mocker.patch(
-            "swh.objstorage.backends.azure.AsyncContainerClient", ContainerClient
+            "swh.objstorage.backends.azure.AsyncContainerClient", AsyncContainerClient
         )
 
         return {
@@ -299,13 +355,14 @@ class TestMockedAzureCloudObjStorageBz2(TestMockedAzureCloudObjStorage):
 class TestPrefixedAzureCloudObjStorage(ObjStorageTestFixture):
     @pytest.fixture
     def swh_objstorage_config(self, mocker):
-        self.ContainerClient = get_MockContainerClient()
+        self.ContainerClient, self.AsyncContainerClient = get_MockContainerClient()
         mocker.patch(
             "swh.objstorage.backends.azure.ContainerClient", self.ContainerClient
         )
 
         mocker.patch(
-            "swh.objstorage.backends.azure.AsyncContainerClient", self.ContainerClient
+            "swh.objstorage.backends.azure.AsyncContainerClient",
+            self.AsyncContainerClient,
         )
 
         self.accounts = {}
