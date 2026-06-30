@@ -1,6 +1,4 @@
-from .objstorage import WineryObjStorage
-
-__all__ = ["WineryObjStorage", "get_datastore"]
+__all__ = ["get_datastore"]
 
 
 def get_datastore(**cfg):
