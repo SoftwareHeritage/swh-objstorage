@@ -171,10 +171,6 @@ class RBDPool(Pool):
 
         self._zero_image_if_needed(path)
 
-        return self._instantiate_writer(path, nb_objects)
-
-    @staticmethod
-    def _instantiate_writer(path: str, nb_objects: int) -> ImageWriter:
         return ShardCreator(path, nb_objects)
 
     def image_import(self, image: str) -> None:
