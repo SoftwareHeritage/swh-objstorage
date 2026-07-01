@@ -197,6 +197,8 @@ class FileBackedPool(Pool):
         name = os.path.basename(image)
         dst = self.image_path(name)
         os.link(image, dst)
+        # ensure image_mapped()=="ro"
+        os.chmod(dst, 0o400)
 
 
 def pool_from_settings(
