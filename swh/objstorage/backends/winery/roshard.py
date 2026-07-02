@@ -17,8 +17,6 @@ from typing import Callable, Dict, Literal, Optional, Type
 
 from systemd.daemon import notify
 
-from swh.shard import Shard, ShardCreator
-
 from .pools import Pool
 from .sharedbase import ShardState, SharedBase
 from .sleep import sleep_exponential
@@ -206,7 +204,7 @@ class ROShard:
 
     def open(self):
         try:
-            self.shard = Shard(self.path)
+            self.shard = self.pool.image_open(self.name)
         except FileNotFoundError:
             raise ShardNotMapped(f"RBD image for {self.name} not found at {self.path}")
 
@@ -281,7 +279,9 @@ class ROShardCreator:
 
         self.zero_image_if_needed()
 
-        self.shard = ShardCreator(self.path, self.count)
+        self.shard = self.pool.open_writer(
+            self.name, self.count, self.rbd_create_images
+        )
         logger.debug("ROShard %s: created", self.name)
         self.shard.__enter__()
         return self

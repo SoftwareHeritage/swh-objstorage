@@ -169,8 +169,6 @@ class RBDPool(Pool):
                 rbd_wait_for_image(attempt)
                 attempt += 1
 
-        self._zero_image_if_needed(path)
-
         return ShardCreator(path, nb_objects)
 
     def image_import(self, image: str) -> None:

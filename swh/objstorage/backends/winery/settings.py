@@ -53,7 +53,7 @@ def shards_settings_with_defaults(values: Shards) -> Shards:
 class ShardsPool(TypedDict):
     """Settings for the Shards pool"""
 
-    type: Literal["rbd", "directory"]
+    type: Literal["rbd", "directory", "mosaic"]
     pool_name: NotRequired[str]
 
 
@@ -105,6 +105,29 @@ def directory_shards_pool_settings_with_defaults(
         "pool_name": values.get("pool_name", "shards"),
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
         "use_permissions": values.get("use_permissions", True),  # type: ignore[typeddict-item]
+    }
+
+
+class MosaicShardsPool(ShardsPool, TypedDict):
+    """Settings for the MOSAIC-based Shards pool"""
+
+    base_directory: str
+
+
+def mosaic_pool_settings_with_defaults(
+    values: ShardsPool,
+) -> MosaicShardsPool:
+    """Hydrate MOSAIC settings with default values"""
+    if values["type"] != "mosaic":
+        raise ValueError(
+            f"Instantiating a mosaic pool with the wrong type: {values['type']}"
+        )
+    if "base_directory" not in values:
+        raise ValueError("Missing base_directory setting for MOSAIC-based pool")
+    return {
+        "type": "mosaic",
+        "pool_name": values.get("pool_name", "mosaics"),
+        "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
     }
 
 
@@ -177,6 +200,8 @@ def populate_default_settings(
             pools.append(rbd_shards_pool_settings_with_defaults(shards_pool))
         elif shards_pool["type"] == "directory":
             pools.append(directory_shards_pool_settings_with_defaults(shards_pool))
+        elif shards_pool["type"] == "mosaic":
+            pools.append(mosaic_pool_settings_with_defaults(shards_pool))
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
     if not pools:

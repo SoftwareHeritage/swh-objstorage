@@ -114,7 +114,7 @@ used to create, read and manipulate these files.
 In order to support the creation, storage and replication of 10k+ shard files,
 a clustered and safe storage solution must be used as back-end.
 
-Winery currently support 2 types of pool to store read-only shard files:
+Winery currently support 3 types of pool to store read-only shard files:
 
 - Ceph RBD (``rbd``): this is the original design; it directly uses Ceph block
   devices (RBD) to pack all content objects in, using the :ref:`swh-shard` file
@@ -127,6 +127,9 @@ Winery currently support 2 types of pool to store read-only shard files:
   section). In a production-like deployment, this directory will typically be
   made available on all winery front-end nodes via a shared storage solution
   like NFS or CephFS.
+
+- MOSAIC files (``mosaic``): works like ``directory``, but writes
+  :py:mod:`swh.mosaic` files.
 
 
 The configuration allows to declare several shards pools, but only one of them
@@ -365,6 +368,11 @@ Implementation notes
     :py:class:`swh.objstorage.backends.winery.sharedbase.ShardState`. The name
     of the shard is used to create a table (for write shards) or a RBD image
     (for read shards).
+
+:py:mod:`swh.objstorage.backends.winery.pools` handles read-only shard
+    management. It defines the :py:class:`swh.objstorage.backends.winery.pools.Pool`
+    protocol, each implementation adapts shards' lifecycle to storage classes we
+    support.
 
 :py:mod:`swh.objstorage.backends.winery.roshard` handles read-only shard
     management: classes handling the lifecycle of the shards pool, the

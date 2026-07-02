@@ -479,7 +479,7 @@ class TestWinery:
         for record in caplog.records:
             msg = record.getMessage()
             if write_pool.image_path(shard) in msg:
-                if "cleaning it up" in msg:
+                if "cleaning" in msg:
                     found_cleanup_message = True
                 elif "failed:" in msg:
                     found_subprocess_error = True

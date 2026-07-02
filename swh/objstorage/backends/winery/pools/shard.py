@@ -34,6 +34,5 @@ class ShardBackedPool(FileBackedPool):
     ) -> ImageWriter:
         path = self.image_path(shard_name)
         self.image_create(shard_name)
-        self._zero_image_if_needed(path)
 
         return ShardCreator(path, nb_objects)

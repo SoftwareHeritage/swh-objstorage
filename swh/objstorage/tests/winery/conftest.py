@@ -21,6 +21,7 @@ from pytest_postgresql import factories
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.objstorage.backends.winery.housekeeping import import_ro_shards
 from swh.objstorage.backends.winery.objstorage import WineryObjStorage
+from swh.objstorage.backends.winery.pools.mosaic import MosaicBackedPool
 from swh.objstorage.backends.winery.pools.rbd import RBDPool
 from swh.objstorage.backends.winery.pools.shard import ShardBackedPool
 import swh.objstorage.backends.winery.settings as settings
@@ -191,8 +192,21 @@ def image_pools(
             }
         elif pool_name.endswith("-rbd"):
             pool = ceph_pool_for_session
+        elif pool_name.endswith("-mosaic"):
+            pool = MosaicBackedPool(
+                base_directory=tmp_path,
+                shard_max_size=shard_max_size,
+                pool_name=pool_name,
+            )
+            pool.image_unmap_all()
+            pool._settings_for_tests = {
+                "type": "mosaic",
+                "base_directory": str(tmp_path),
+                "pool_name": pool_name,
+            }
         else:
             raise ValueError(f"Unsupported pool name: {pool_name}")
+
         pools.append(pool)
 
     yield pools

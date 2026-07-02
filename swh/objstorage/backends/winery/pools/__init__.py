@@ -6,9 +6,6 @@
 import logging
 import os
 from pathlib import Path
-import shlex
-import stat
-import subprocess
 from types import TracebackType
 from typing import Iterator, List, Literal, Optional, Protocol
 
@@ -112,43 +109,8 @@ class Pool(Protocol):
     def open_writer(
         self, shard_name: str, nb_objects: int, xcreate_image: bool
     ) -> ImageWriter:
-        """Instantiate the correct ImageWriter object for the given shard
-
-        This is used at time of packing a batch of objects in a shard file.
-        """
+        "Instantiate the correct `ImageWriter` object for the given shard"
         ...
-
-    @staticmethod
-    def _zero_image_if_needed(path):
-        """Check whether the image is empty, and zero it out if it's not.
-
-        We really check only the first 1kB, as we assume that the SWHShard
-        marker will have been written at the beginning of the image under all
-        circumstances if the RO Shard creation has been interrupted.
-        """
-        with open(path, "rb") as f:
-            start = f.read(1024)
-            if not start or set(start) == {0}:
-                return
-
-        logger.warning("RO image %s isn't empty, cleaning it up", path)
-        st = os.stat(path)
-        if stat.S_ISBLK(st.st_mode):
-            # Block device, use DISCARD
-            command = ["/usr/sbin/blkdiscard", path]
-        else:
-            # Regular file, use fallocate --punch-hole
-            command = [
-                "/usr/bin/fallocate",
-                "--punch-hole",
-                "-l",
-                str(st.st_size),
-                path,
-            ]
-        try:
-            subprocess.run(command, check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            logger.warning("%s failed:", shlex.join(command), path, exc_info=True)
 
 
 class FileBackedPool(Pool):
@@ -278,5 +240,17 @@ def pool_from_settings(
             pool_name=dir_settings["pool_name"],
             use_permissions=shards_pool_settings["use_permissions"],  # type: ignore[typeddict-item]
         )
+    elif pool_type == "mosaic":
+        from .mosaic import MosaicBackedPool
+
+        mosaic_settings = settings.mosaic_pool_settings_with_defaults(
+            shards_pool_settings
+        )
+        return MosaicBackedPool(
+            base_directory=Path(mosaic_settings["base_directory"]),
+            pool_name=mosaic_settings["pool_name"],
+            shard_max_size=shards_settings["max_size"],
+        )
+
     else:
         raise ValueError(f"Unknown shards pool type: {pool_type}")
