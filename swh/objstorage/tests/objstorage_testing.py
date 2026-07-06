@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -77,6 +77,9 @@ class ObjStorageTestFixture:
     @pytest.fixture(autouse=True)
     def objstorage(self, swh_objstorage):
         self.storage = swh_objstorage
+        yield self.storage
+        if hasattr(self.storage, "close"):
+            self.storage.close()
 
     def fill_objstorage(self, num_objects):
         all_ids = []
