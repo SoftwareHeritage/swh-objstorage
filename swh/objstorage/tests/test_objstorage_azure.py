@@ -195,15 +195,15 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
         content_p, obj_id_p = self.hash_content(b"contains_present")
         self.storage.add(content_p, obj_id=obj_id_p)
         assert self.storage.download_url(obj_id_p).startswith("http://127.0.0.1:")
-        storage2 = get_objstorage(
+        with get_objstorage(
             "azure",
             connection_string=azurite_connection_string,
             container_name=self._container_name,
             compression=self.compression,
             use_secondary_endpoint_for_downloads=True,
             primary_hash=self.storage.primary_hash,
-        )
-        assert storage2.download_url(obj_id_p).startswith("http://localhost:")
+        ) as storage2:
+            assert storage2.download_url(obj_id_p).startswith("http://localhost:")
 
 
 class TestAzuriteCloudObjStorageGzip(TestAzuriteCloudObjStorage):
@@ -240,6 +240,12 @@ def get_MockContainerClient():
         def delete_blob(self, blob):
             self.get_blob_client(blob.name).delete_blob()
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
     class MockAsyncContainerClient:
         def __init__(self, container_url):
             self.container_url = container_url
@@ -266,7 +272,7 @@ def get_MockContainerClient():
         async def delete_blob(self, blob):
             self.get_blob_client(blob.name).delete_blob()
 
-        def __aenter__(self):
+        async def __aenter__(self):
             return self
 
         def __await__(self):
@@ -274,7 +280,7 @@ def get_MockContainerClient():
             future.set_result(self)
             yield from future
 
-        def __aexit__(self, *args):
+        async def __aexit__(self, *args):
             return self
 
     return (MockContainerClient, MockAsyncContainerClient)
@@ -446,7 +452,8 @@ def test_bwcompat_args(monkeypatch):
             container_name="container_name",
         )
 
-    assert objs is not None
+    with objs:
+        assert objs is not None
 
 
 def test_bwcompat_args_prefixed(monkeypatch):
@@ -468,4 +475,5 @@ def test_bwcompat_args_prefixed(monkeypatch):
     with pytest.deprecated_call():
         objs = get_objstorage("azure-prefixed", accounts=accounts)
 
-    assert objs is not None
+    with objs:
+        assert objs is not None
