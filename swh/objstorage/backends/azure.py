@@ -166,10 +166,13 @@ class AzureCloudObjStorage(ObjStorage):
 
     def _init_state(self) -> None:
         self._exit_stack = contextlib.ExitStack()
-        self._container_clients = None
+
+        # {"": client} in AzureCloudObjStorage, {prefix: client} in PrefixedAzureCloudObjStorage
+        self._container_clients: Optional[Dict[str, ContainerClient]] = None
 
         self._async_loop = asyncio.new_event_loop()
         self._async_exit_stack = contextlib.AsyncExitStack()
+        # {"": client} in AzureCloudObjStorage, {prefix: client} in PrefixedAzureCloudObjStorage
         self._async_container_clients: Optional[Dict[str, AsyncContainerClient]] = None
 
     def __enter__(self) -> Self:
