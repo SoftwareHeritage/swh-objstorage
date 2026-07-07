@@ -9,7 +9,18 @@ from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
 import string
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Self, Tuple, Union
+from typing import (
+    Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Self,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from urllib.parse import parse_qs, urlparse
 import warnings
 
@@ -87,73 +98,22 @@ def get_container_url(
     )
 
 
-class AzureCloudObjStorage(ObjStorage):
-    """ObjStorage backend for Azure blob storage accounts.
+# set to AsyncContainerClient for AzureCloudObjStorage and
+# to Dict[str, AsyncContainerClient] for PrefixedAzureCloudObjStorage
+TAsyncContainerClients = TypeVar("TAsyncContainerClients")
 
-    Args:
-      container_url: the URL of the container in which the objects are stored.
-      account_name: (deprecated) the name of the storage account under which objects are
-        stored
-      api_secret_key: (deprecated) the shared account key
-      container_name: (deprecated) the name of the container under which objects are
-        stored
-      compression: the compression algorithm used to compress objects in storage
-      use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
-        url to generate download URLs. To configure the secondary endpoint, use
-        the BlobSecondaryEndpoint entry of the connection string.
 
-    Notes:
-      The container url should contain the credentials via a "Shared Access
-      Signature". The :func:`get_container_url` helper can be used to generate
-      such a URL from the account's access keys. The ``account_name``,
-      ``api_secret_key`` and ``container_name`` arguments are deprecated.
-
-    """
-
+class _BaseAzureCloudObjStorage(ObjStorage, Generic[TAsyncContainerClients]):
     primary_hash: LiteralPrimaryHash = "sha1"
-    name: str = "azure"
 
     def __init__(
         self,
         *,
-        container_url: Optional[str] = None,
-        account_name: Optional[str] = None,
-        api_secret_key: Optional[str] = None,
-        container_name: Optional[str] = None,
-        connection_string: Optional[str] = None,
         compression: CompressionFormat | None = None,
         use_secondary_endpoint_for_downloads=False,
         **kwargs,
     ):
-        if container_url is None and connection_string is None:
-            if account_name is None or api_secret_key is None or container_name is None:
-                raise ValueError(
-                    "AzureCloudObjStorage must have a container_url, a connection_string,"
-                    "or all three account_name, api_secret_key and container_name"
-                )
-            else:
-                warnings.warn(
-                    "The Azure objstorage account secret key parameters are "
-                    "deprecated, please use container URLs instead.",
-                    DeprecationWarning,
-                )
-                container_url = get_container_url(
-                    account_name=account_name,
-                    account_key=api_secret_key,
-                    container_name=container_name,
-                    access_policy="full",
-                )
-        elif connection_string:
-            if container_name is None:
-                raise ValueError(
-                    "container_name is required when using connection_string."
-                )
-            self.container_name = container_name
-
         super().__init__(**kwargs)
-        self.container_url = container_url
-        self.connection_string = connection_string
-        self.use_secondary = use_secondary_endpoint_for_downloads
         if compression is None:
             logger.warning(
                 "Deprecated: compression is undefined. "
@@ -161,21 +121,13 @@ class AzureCloudObjStorage(ObjStorage):
             )
             compression = "gzip"
         self.compression = compression
+        self.use_secondary = use_secondary_endpoint_for_downloads
 
-        self._init_state()
-
-    def _init_state(self) -> None:
         self._entered = False
 
         self._exit_stack = contextlib.ExitStack()
-
-        # {"": client} in AzureCloudObjStorage, {prefix: client} in PrefixedAzureCloudObjStorage
-        self._container_clients: Optional[Dict[str, ContainerClient]] = None
-
         self._async_loop = asyncio.new_event_loop()
         self._async_exit_stack = contextlib.AsyncExitStack()
-        # {"": client} in AzureCloudObjStorage, {prefix: client} in PrefixedAzureCloudObjStorage
-        self._async_container_clients: Optional[Dict[str, AsyncContainerClient]] = None
 
     def __enter__(self) -> Self:
         if self._entered:
@@ -186,6 +138,9 @@ class AzureCloudObjStorage(ObjStorage):
         return self
 
     def __exit__(self, *exc_details):
+        self.close()
+
+    def __del__(self):
         self.close()
 
     def close(self):
@@ -209,53 +164,23 @@ class AzureCloudObjStorage(ObjStorage):
         else:
             exit_stack.close()
 
-    def __del__(self):
-        self.close()
-
     def get_container_client(self, hex_obj_id):
         """Get the container client for the container that contains the object with
         internal id hex_obj_id
 
         This is used to allow the PrefixedAzureCloudObjStorage to dispatch the
         client according to the prefix of the object id.
-
         """
-        if self._container_clients is None:
-            if self.connection_string:
-                self._container_clients = {
-                    "": self._exit_stack.enter_context(
-                        ContainerClient.from_connection_string(
-                            self.connection_string, self.container_name
-                        )
-                    )
-                }
-            else:
-                self._container_clients = {
-                    "": self._exit_stack.enter_context(
-                        ContainerClient.from_container_url(self.container_url)
-                    )
-                }
-        return self._container_clients[""]
+        raise NotImplementedError(f"{self.__class__.__name__}.get_container_client")
 
-    async def get_async_container_clients(
-        self,
-    ) -> Dict[str, AsyncContainerClient]:
+    async def get_async_container_clients(self) -> TAsyncContainerClients:
         """Returns a collection of container clients, to be passed to
         ``get_async_blob_client``.
 
         Each container may not be used in more than one asyncio loop."""
-        if self._async_container_clients is None:
-            if self.connection_string:
-                client = AsyncContainerClient.from_connection_string(
-                    self.connection_string, self.container_name
-                )
-            else:
-                assert self.container_url is not None
-                client = AsyncContainerClient.from_container_url(self.container_url)
-
-            await self._async_exit_stack.enter_async_context(client)
-            self._async_container_clients = {"": client}
-        return self._async_container_clients
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.get_async_container_client"
+        )
 
     def get_blob_client(self, hex_obj_id) -> BlobClient:
         """Get the azure blob client for the given hex obj id"""
@@ -266,12 +191,13 @@ class AzureCloudObjStorage(ObjStorage):
     def get_async_blob_client(self, hex_obj_id, container_clients) -> AsyncBlobClient:
         """Get the azure blob client for the given hex obj id and a collection
         yielded by ``get_async_container_clients``."""
-
-        return container_clients[""].get_blob_client(blob=hex_obj_id)
+        raise NotImplementedError(f"{self.__class__.__name__}.get_async_blob_client")
 
     def get_all_container_clients(self):
         """Get all active block_blob_services"""
-        yield self.get_container_client("")
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.get_all_container_clients"
+        )
 
     def _internal_id(self, obj_id: HashDict) -> str:
         """Internal id is the hex version in objstorage."""
@@ -533,7 +459,116 @@ class AzureCloudObjStorage(ObjStorage):
                 return f"{client.primary_endpoint}?{signature}"
 
 
-class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
+class AzureCloudObjStorage(_BaseAzureCloudObjStorage[AsyncContainerClient]):
+    """ObjStorage backend for Azure blob storage accounts.
+
+    Args:
+      container_url: the URL of the container in which the objects are stored.
+      account_name: (deprecated) the name of the storage account under which objects are
+        stored
+      api_secret_key: (deprecated) the shared account key
+      container_name: (deprecated) the name of the container under which objects are
+        stored
+      compression: the compression algorithm used to compress objects in storage
+      use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
+        url to generate download URLs. To configure the secondary endpoint, use
+        the BlobSecondaryEndpoint entry of the connection string.
+
+    Notes:
+      The container url should contain the credentials via a "Shared Access
+      Signature". The :func:`get_container_url` helper can be used to generate
+      such a URL from the account's access keys. The ``account_name``,
+      ``api_secret_key`` and ``container_name`` arguments are deprecated.
+
+    """
+
+    name: str = "azure"
+
+    def __init__(
+        self,
+        *,
+        container_url: Optional[str] = None,
+        account_name: Optional[str] = None,
+        api_secret_key: Optional[str] = None,
+        container_name: Optional[str] = None,
+        connection_string: Optional[str] = None,
+        compression: CompressionFormat | None = None,
+        **kwargs,
+    ):
+        if container_url is None and connection_string is None:
+            if account_name is None or api_secret_key is None or container_name is None:
+                raise ValueError(
+                    "AzureCloudObjStorage must have a container_url, a connection_string,"
+                    "or all three account_name, api_secret_key and container_name"
+                )
+            else:
+                warnings.warn(
+                    "The Azure objstorage account secret key parameters are "
+                    "deprecated, please use container URLs instead.",
+                    DeprecationWarning,
+                )
+                container_url = get_container_url(
+                    account_name=account_name,
+                    account_key=api_secret_key,
+                    container_name=container_name,
+                    access_policy="full",
+                )
+        elif connection_string:
+            if container_name is None:
+                raise ValueError(
+                    "container_name is required when using connection_string."
+                )
+            self.container_name = container_name
+
+        super().__init__(**kwargs, compression=compression)
+        self.container_url = container_url
+        self.connection_string = connection_string
+
+        self._container_client: Optional[ContainerClient] = None
+
+        self._async_container_clients: Optional[AsyncContainerClient] = None
+
+    def get_container_client(self, hex_obj_id):
+        if self._container_client is None:
+            if self.connection_string:
+                self._container_client = self._exit_stack.enter_context(
+                    ContainerClient.from_connection_string(
+                        self.connection_string, self.container_name
+                    )
+                )
+            else:
+                self._container_client = self._exit_stack.enter_context(
+                    ContainerClient.from_container_url(self.container_url)
+                )
+        return self._container_client
+
+    async def get_async_container_clients(self) -> AsyncContainerClient:
+        if self._async_container_clients is None:
+            if self.connection_string:
+                client = AsyncContainerClient.from_connection_string(
+                    self.connection_string, self.container_name
+                )
+            else:
+                assert self.container_url is not None
+                client = AsyncContainerClient.from_container_url(self.container_url)
+
+            await self._async_exit_stack.enter_async_context(client)
+            self._async_container_client = client
+        return self._async_container_client
+
+    def get_async_blob_client(
+        self, hex_obj_id, container_clients: AsyncContainerClient
+    ) -> AsyncBlobClient:
+        return container_clients.get_blob_client(blob=hex_obj_id)
+
+    def get_all_container_clients(self):
+        """Get all active block_blob_services"""
+        yield self.get_container_client("")
+
+
+class PrefixedAzureCloudObjStorage(
+    _BaseAzureCloudObjStorage[Dict[str, AsyncContainerClient]]
+):
     """ObjStorage with azure capabilities, striped by prefix.
 
     accounts is a dict containing entries of the form:
@@ -547,20 +582,8 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         compression: CompressionFormat | None = None,
         **kwargs,
     ):
-        # shortcut AzureCloudObjStorage __init__
-        ObjStorage.__init__(
-            self,
-            name=name,
-            **kwargs,
-        )
-
-        if compression is None:
-            logger.warning(
-                "Deprecated: compression is undefined. "
-                "Defaulting to gzip, but please set it explicitly."
-            )
-            compression = "gzip"
-        self.compression = compression
+        super().__init__(**kwargs, compression=compression)
+        self.name = name
 
         # Definition sanity check
         prefix_lengths = set(len(prefix) for prefix in accounts)
@@ -605,12 +628,13 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
                 DeprecationWarning,
             )
 
-        self._init_state()
+        # {prefix: client}
+        self._container_clients: Optional[Dict[str, ContainerClient]] = None
+
+        # {prefix: client}
+        self._async_container_clients: Optional[Dict[str, AsyncContainerClient]] = None
 
     def get_container_client(self, hex_obj_id):
-        """Get the block_blob_service and container that contains the object with
-        internal id hex_obj_id
-        """
         if self._container_clients is None:
             clients = {
                 prefix: ContainerClient.from_container_url(url)
@@ -623,9 +647,7 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
         prefix = hex_obj_id[: self.prefix_len]
         return self._container_clients[prefix]
 
-    async def get_async_container_clients(
-        self,
-    ) -> Dict[str, AsyncContainerClient]:
+    async def get_async_container_clients(self) -> Dict[str, AsyncContainerClient]:
         if self._async_container_clients is None:
             # This is equivalent to:
             # client1 = AsyncContainerClient.from_container_url(url1)
@@ -640,16 +662,16 @@ class PrefixedAzureCloudObjStorage(AzureCloudObjStorage):
             for client in clients.values():
                 await self._async_exit_stack.enter_async_context(client)
             self._async_container_clients = clients
+
         return self._async_container_clients
 
-    def get_async_blob_client(self, hex_obj_id, container_clients) -> AsyncBlobClient:
-        """Get the azure blob client for the given hex obj id and a collection
-        yielded by ``get_async_container_clients``."""
+    def get_async_blob_client(
+        self, hex_obj_id, container_clients: Dict[str, AsyncContainerClient]
+    ) -> AsyncBlobClient:
         prefix = hex_obj_id[: self.prefix_len]
         return container_clients[prefix].get_blob_client(blob=hex_obj_id)
 
     def get_all_container_clients(self):
-        """Get all active container clients"""
         # iterate on items() to sort blob services;
         yield from (
             self.get_container_client(prefix) for prefix in sorted(self.container_urls)
