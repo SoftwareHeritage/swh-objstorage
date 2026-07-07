@@ -27,6 +27,13 @@ SHARD_OPEN_DURATION_METRIC = "swh_objstorage_winery_shard_open_seconds"
 SHARD_CACHE_METRIC = "swh_objstorage_winery_shard_request_count"
 
 
+def get_datastore(**cfg):
+    assert "db" in cfg
+    from .sharedbase import SharedBase
+
+    return SharedBase(base_dsn=cfg["db"])
+
+
 class WineryObjStorage(ObjStorage):
     primary_hash: LiteralPrimaryHash = "sha256"
     name: str = "winery"
