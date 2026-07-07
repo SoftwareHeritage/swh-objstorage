@@ -165,6 +165,8 @@ class AzureCloudObjStorage(ObjStorage):
         self._init_state()
 
     def _init_state(self) -> None:
+        self._entered = False
+
         self._exit_stack = contextlib.ExitStack()
 
         # {"": client} in AzureCloudObjStorage, {prefix: client} in PrefixedAzureCloudObjStorage
@@ -176,6 +178,11 @@ class AzureCloudObjStorage(ObjStorage):
         self._async_container_clients: Optional[Dict[str, AsyncContainerClient]] = None
 
     def __enter__(self) -> Self:
+        if self._entered:
+            raise RuntimeError(
+                f"{self.__class__.__name__} is not a re-entrant context manager"
+            )
+        self._entered = True
         return self
 
     def __exit__(self, *exc_details):
