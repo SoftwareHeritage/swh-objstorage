@@ -15,7 +15,6 @@ import warnings
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import (
-    BlobClient,
     BlobSasPermissions,
     ContainerClient,
     ContainerSasPermissions,
@@ -148,15 +147,6 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         else:
             exit_stack.close()
 
-    def get_container_client(self, hex_obj_id):
-        """Get the container client for the container that contains the object with
-        internal id hex_obj_id
-
-        This is used to allow the PrefixedAzureCloudObjStorage to dispatch the
-        client according to the prefix of the object id.
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.get_container_client")
-
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
         """Returns a collection of container clients, to be passed to
         ``get_async_blob_client``.
@@ -166,22 +156,10 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             f"{self.__class__.__name__}.get_async_container_client"
         )
 
-    def get_blob_client(self, hex_obj_id) -> BlobClient:
-        """Get the azure blob client for the given hex obj id"""
-        container_client = self.get_container_client(hex_obj_id)
-
-        return container_client.get_blob_client(blob=hex_obj_id)
-
     def get_async_blob_client(self, hex_obj_id) -> AsyncBlobClient:
         """Get the azure blob client for the given hex obj id and a collection
         yielded by ``get_async_container_clients``."""
         raise NotImplementedError(f"{self.__class__.__name__}.get_async_blob_client")
-
-    def get_all_container_clients(self):
-        """Get all active block_blob_services"""
-        raise NotImplementedError(
-            f"{self.__class__.__name__}.get_all_container_clients"
-        )
 
     def _internal_id(self, obj_id: HashDict) -> str:
         """Internal id is the hex version in objstorage."""
@@ -190,8 +168,14 @@ class _BaseAzureCloudObjStorage(ObjStorage):
 
     def check_config(self, *, check_write):
         """Check the configuration for this object storage"""
+        return self._async_loop.run_until_complete(
+            self._check_config_async(check_write=check_write)
+        )
+
+    async def _check_config_async(self, *, check_write):
+        """Check the configuration for this object storage"""
         now = datetime.now(tz=timezone.utc).isoformat()
-        for container_client in self.get_all_container_clients():
+        for container_client in self.get_async_container_clients():
             parsed = urlparse(container_client.url)
             # The query string for the container_client url contains a bunch of
             # fields that are associated with the permissions given by the
@@ -238,14 +222,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
     @timed
     def __contains__(self, obj_id: HashDict) -> bool:
         """Does the storage contains the obj_id."""
-        hex_obj_id = self._internal_id(obj_id)
-        client = self.get_blob_client(hex_obj_id)
-        try:
-            client.get_blob_properties()
-        except ResourceNotFoundError:
-            return False
-        else:
-            return True
+        return self._async_loop.run_until_complete(self._contains_async(obj_id))
 
     async def _contains_async(self, obj_id: HashDict) -> bool:
         """Coroutine implementing ``__contains__(obj_id)`` using azure-storage-blob's
@@ -386,10 +363,14 @@ class _BaseAzureCloudObjStorage(ObjStorage):
     def delete(self, obj_id: HashDict):
         """Delete an object."""
         super().delete(obj_id)  # Check delete permission
+        return self._async_loop.run_until_complete(self._delete_async(obj_id))
+
+    async def _delete_async(self, obj_id: HashDict) -> bool:
         hex_obj_id = self._internal_id(obj_id)
-        client = self.get_blob_client(hex_obj_id)
+
+        client = self.get_async_blob_client(hex_obj_id)
         try:
-            client.delete_blob()
+            await client.delete_blob()
         except ResourceNotFoundError:
             raise ObjNotFoundError(obj_id) from None
 
@@ -401,10 +382,21 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         content_disposition: Optional[str] = None,
         expiry: Optional[timedelta] = None,
     ) -> Optional[str]:
+        return self._async_loop.run_until_complete(
+            self._download_url_async(obj_id, content_disposition, expiry)
+        )
+
+    async def _download_url_async(
+        self,
+        obj_id: HashDict,
+        content_disposition: Optional[str] = None,
+        expiry: Optional[timedelta] = None,
+    ) -> Optional[str]:
         hex_obj_id = self._internal_id(obj_id)
-        client = self.get_blob_client(hex_obj_id)
+
+        client = self.get_async_blob_client(hex_obj_id)
         try:
-            client.get_blob_properties()
+            await client.get_blob_properties()
         except ResourceNotFoundError:
             raise ObjNotFoundError(obj_id)
         else:
@@ -500,27 +492,10 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
             self._async_container_client = AsyncContainerClient.from_container_url(
                 self.container_url
             )
+
         self._async_loop.run_until_complete(
             self._async_exit_stack.enter_async_context(self._async_container_client)
         )
-
-    def get_container_client(self, hex_obj_id):
-        if self._container_client is None:
-            if self.connection_string:
-                self._container_client = self._exit_stack.enter_context(
-                    ContainerClient.from_connection_string(
-                        self.connection_string, self.container_name
-                    )
-                )
-            else:
-                self._container_client = self._exit_stack.enter_context(
-                    ContainerClient.from_container_url(self.container_url)
-                )
-        return self._container_client
-
-    def get_all_container_clients(self):
-        """Get all active block_blob_services"""
-        yield self.get_container_client("")
 
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
         yield self._async_container_client
@@ -589,8 +564,6 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
                 DeprecationWarning,
             )
 
-        self._container_clients: Optional[Dict[str, ContainerClient]] = None
-
         # This is equivalent to:
         # client1 = AsyncContainerClient.from_container_url(url1)
         # ...
@@ -606,28 +579,9 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
                 self._async_exit_stack.enter_async_context(client)
             )
 
-    def get_container_client(self, hex_obj_id):
-        if self._container_clients is None:
-            clients = {
-                prefix: ContainerClient.from_container_url(url)
-                for (prefix, url) in self.container_urls.items()
-            }
-            for client in clients.values():
-                self._exit_stack.enter_context(client)
-            self._container_clients = clients
-
-        prefix = hex_obj_id[: self.prefix_len]
-        return self._container_clients[prefix]
-
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
         yield from self._async_container_clients.values()
 
     def get_async_blob_client(self, hex_obj_id) -> AsyncBlobClient:
         prefix = hex_obj_id[: self.prefix_len]
         return self._async_container_clients[prefix].get_blob_client(blob=hex_obj_id)
-
-    def get_all_container_clients(self):
-        # iterate on items() to sort blob services;
-        yield from (
-            self.get_container_client(prefix) for prefix in sorted(self.container_urls)
-        )
