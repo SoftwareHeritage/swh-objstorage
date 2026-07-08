@@ -1,11 +1,11 @@
 [project]
 name = "swh.objstorage"
 authors = [
-    {name="Software Heritage developers", email="swh-devel@inria.fr"},
+    { name = "Software Heritage developers", email = "swh-devel@inria.fr" },
 ]
 
 description = "Software Heritage object storage"
-readme = {file = "README.rst", content-type = "text/x-rst"}
+readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -22,18 +22,18 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 include = ["swh.*"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
+dependencies = { file = ["requirements.txt", "requirements-swh.txt"] }
 
 [tool.setuptools.dynamic.optional-dependencies]
-azure = {file = "requirements-azure.txt"}
-libcloud = {file = "requirements-libcloud.txt"}
-winery = {file = "requirements-winery.txt"}
-testing = {file = [
+azure = { file = "requirements-azure.txt" }
+libcloud = { file = "requirements-libcloud.txt" }
+winery = { file = "requirements-winery.txt" }
+testing = { file = [
     "requirements-test.txt",
     "requirements-azure.txt",
     "requirements-libcloud.txt",
     "requirements-winery.txt",
-    ]}
+] }
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.objstorage" = "swh.objstorage.cli"
@@ -70,7 +70,7 @@ build-backend = "setuptools.build_meta"
 fallback_version = "0.0.1"
 
 [tool.black]
-target-version = ['py39', 'py310', 'py311', 'py312']
+target-version = ['py311', 'py312', 'py313']
 
 [tool.isort]
 multi_line_output = 3
@@ -93,10 +93,7 @@ plugins = []
 
 # 3rd party libraries without stubs (yet)
 [[tool.mypy.overrides]]
-module = [
-    "requests_toolbelt.*",
-    "systemd.daemon.*",
-]
+module = ["requests_toolbelt.*", "systemd.daemon.*"]
 ignore_missing_imports = true
 
 
@@ -108,7 +105,7 @@ ignore = [
     "E501", # line too long, use B950 warning from flake8-bugbear instead
     "E701", # ellipsis gets collapsed to a single line by black
     "E704", # ellipsis gets collapsed to a single line by black
-    "W503"  # line break before binary operator <https://github.com/psf/black/issues/52>
+    "W503", # line break before binary operator <https://github.com/psf/black/issues/52>
 ]
 max-line-length = 88
 extend-exclude = ["build/"]
