@@ -18,6 +18,11 @@ def pool_names():
     return ["winery-pool-active-directory"]
 
 
+@pytest.fixture(params=[True, False], ids=["use-permissions", "skip-permissions"])
+def use_permissions(request):
+    return request.param
+
+
 class TestShardDirectoryWineryObjStorage(_TestWineryObjStorage):
     pass
 

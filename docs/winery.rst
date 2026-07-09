@@ -294,6 +294,8 @@ Here is typical configuration for a directory shards pool back-end::
       type: directory
       base_directory: /srv/winery/pool
       pool_name: directory_shards
+      # Set this to false if the filesystem does not support setting file permissions
+      use_permissions: true
 
     shards_active_pool: directory_shards
 

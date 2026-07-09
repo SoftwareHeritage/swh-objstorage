@@ -85,6 +85,7 @@ class DirectoryShardsPool(ShardsPool, TypedDict):
     """Settings for the File-based Shards pool"""
 
     base_directory: str
+    use_permissions: bool
 
 
 def directory_shards_pool_settings_with_defaults(
@@ -103,6 +104,7 @@ def directory_shards_pool_settings_with_defaults(
         "type": "directory",
         "pool_name": values.get("pool_name", "shards"),
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
+        "use_permissions": values.get("use_permissions", True),  # type: ignore[typeddict-item]
     }
 
 

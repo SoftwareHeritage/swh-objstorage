@@ -142,8 +142,18 @@ def ceph_pool_for_session():
 
 
 @pytest.fixture
+def use_permissions():
+    return True
+
+
+@pytest.fixture
 def image_pools(
-    tmp_path, shard_max_size, pool_names, needs_ceph, ceph_pool_for_session
+    tmp_path,
+    shard_max_size,
+    pool_names,
+    needs_ceph,
+    ceph_pool_for_session,
+    use_permissions,
 ):
     """Fixture that generates winery shards pools
 
@@ -170,12 +180,14 @@ def image_pools(
                 base_directory=tmp_path,
                 shard_max_size=shard_max_size,
                 pool_name=pool_name,
+                use_permissions=use_permissions,
             )
             pool.image_unmap_all()
             pool._settings_for_tests = {
                 "type": "directory",
                 "base_directory": str(tmp_path),
                 "pool_name": pool_name,
+                "use_permissions": use_permissions,
             }
         elif pool_name.endswith("-rbd"):
             pool = ceph_pool_for_session

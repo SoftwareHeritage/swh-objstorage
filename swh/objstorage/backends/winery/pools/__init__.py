@@ -54,7 +54,7 @@ class Pool(Protocol):
         """Check whether the named image exists (it does not have to be mapped)"""
         ...
 
-    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw"]]:
+    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
         """Check whether the image is already mapped, read-only or read-write"""
         imgpath = self.image_path(image)
         if os.access(imgpath, os.R_OK):
@@ -149,10 +149,12 @@ class FileBackedPool(Pool):
         base_directory: Path,
         pool_name: str,
         shard_max_size: int,
+        use_permissions: bool = True,
     ) -> None:
         self.base_directory = base_directory
         self.pool_name = pool_name
         self.image_size = shard_max_size
+        self.use_perms = use_permissions
 
         self.pool_dir = self.base_directory / self.pool_name
         self.pool_dir.mkdir(exist_ok=True)
@@ -166,39 +168,69 @@ class FileBackedPool(Pool):
     def image_path(self, image: str) -> str:
         return str(self.pool_dir / image)
 
+    def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
+        """Check whether the image is already mapped, read-only or read-write"""
+        mapped = super().image_mapped(image)
+        if self.use_perms:
+            return mapped
+        else:
+            if mapped is not None:
+                # if not using file perms, we at least check the file exists
+                # and is readable (which should be the case when 'mapped' is
+                # not None here)
+                return "any"
+            # the image file does not exists or is not readable
+            return None
+
     def image_create(self, image: str) -> None:
         path = self.image_path(image)
-        if os.path.exists(path):
-            if os.stat(path).st_mode == 0o100600:
-                # If the image exists but is -rw------- it is expected to be a
-                # dandling/stale shard file left by a crashed/aborted packing
-                # process
-                logger.warning("Stale image found. Reusing it")
-            else:
-                raise ValueError(f"Image {image} already exists")
+        if self.use_perms:
+            if os.path.exists(path):
+                if os.stat(path).st_mode == 0o100600:
+                    # If the image exists but is -rw------- it is expected to be a
+                    # dandling/stale shard file left by a crashed/aborted packing
+                    # process
+                    logger.warning("Stale image found. Reusing it")
+                else:
+                    raise ValueError(f"Image {image} already exists")
+        else:
+            if os.path.exists(path):
+                if os.access(path, os.W_OK):
+                    logger.warning("Stale image found. Reusing it")
+                else:
+                    raise ValueError(f"Image {image} already exists")
+
         open(path, "w").close()
         self.image_map(image, "rw")
 
     def image_map(self, image: str, options: str) -> None:
-        if "ro" in options:
-            os.chmod(self.image_path(image), 0o400)
+        if self.use_perms:
+            if "ro" in options:
+                os.chmod(self.image_path(image), 0o400)
+            else:
+                os.chmod(self.image_path(image), 0o600)
         else:
-            os.chmod(self.image_path(image), 0o600)
+            logger.info("Skipping image file permission adjustment")
 
     def image_unmap(self, image: str) -> None:
-        os.chmod(self.image_path(image), 0o000)
+        if self.use_perms:
+            os.chmod(self.image_path(image), 0o000)
+        else:
+            logger.info("Skipping image file permission adjustment")
 
     def image_unmap_all(self) -> None:
-        for entry in self.pool_dir.iterdir():
-            if entry.is_file():
-                entry.chmod(0o000)
+        if self.use_perms:
+            for entry in self.pool_dir.iterdir():
+                if entry.is_file():
+                    entry.chmod(0o000)
+        else:
+            logger.info("Skipping image file permission adjustment")
 
     def image_import(self, image: str) -> None:
         name = os.path.basename(image)
         dst = self.image_path(name)
         os.link(image, dst)
-        # ensure image_mapped()=="ro"
-        os.chmod(dst, 0o400)
+        self.image_map(name, "ro")
 
 
 def pool_from_settings(
@@ -231,6 +263,7 @@ def pool_from_settings(
             shard_max_size=shards_settings["max_size"],
             base_directory=Path(dir_settings["base_directory"]),
             pool_name=dir_settings["pool_name"],
+            use_permissions=shards_pool_settings["use_permissions"],  # type: ignore[typeddict-item]
         )
     else:
         raise ValueError(f"Unknown shards pool type: {pool_type}")

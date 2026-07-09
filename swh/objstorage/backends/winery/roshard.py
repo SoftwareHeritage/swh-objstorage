@@ -192,7 +192,7 @@ class ROShard:
         self.pool = pool
         image_status = self.pool.image_mapped(name)
 
-        if image_status != "ro":
+        if image_status not in ("ro", "any"):
             raise ShardNotMapped(
                 f"RBD image for {name} isn't mapped"
                 f"{' read-only' if image_status == 'rw' else ''}"
