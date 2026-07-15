@@ -439,6 +439,7 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
       container_name: (deprecated) the name of the container under which objects are
         stored
       compression: the compression algorithm used to compress objects in storage
+      connection_limit: maximum number of HTTP connections to Azure
       use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
         url to generate download URLs. To configure the secondary endpoint, use
         the BlobSecondaryEndpoint entry of the connection string.
@@ -518,6 +519,10 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
 
 class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
     """ObjStorage with azure capabilities, striped by prefix.
+
+    Args:
+      connection_limit: maximum number of HTTP connections to Azure,
+        shared across all containers
 
     accounts is a dict containing entries of the form:
         <prefix>: <container_url_for_prefix>
