@@ -96,7 +96,6 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         *,
         compression: CompressionFormat | None = None,
         use_secondary_endpoint_for_downloads=False,
-        connection_limit: int = 30,  # avg batch size + 20%
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -114,15 +113,6 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self._exit_stack = contextlib.ExitStack()
         self._async_loop = asyncio.new_event_loop()
         self._async_exit_stack = contextlib.AsyncExitStack()
-
-        async def create_connector() -> aiohttp.TCPConnector:
-            # aiohttp.TCPConnector is a sync function, but it needs to be initialized
-            # while an event loop is running
-            return aiohttp.TCPConnector(limit=connection_limit)
-
-        connector = self._async_loop.run_until_complete(create_connector())
-        session = aiohttp.ClientSession(connector=connector)
-        self._transport = AioHttpTransport(session=session)
 
     def __enter__(self) -> Self:
         if self._entered:
@@ -463,6 +453,7 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
         container_name: Optional[str] = None,
         connection_string: Optional[str] = None,
         compression: CompressionFormat | None = None,
+        connection_limit: int = 30,  # avg batch size + 20%
         **kwargs,
     ):
         if container_url is None and connection_string is None:
@@ -494,6 +485,15 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
         self.container_url = container_url
         self.connection_string = connection_string
 
+        async def create_connector() -> aiohttp.TCPConnector:
+            # aiohttp.TCPConnector is a sync function, but it needs to be initialized
+            # while an event loop is running
+            return aiohttp.TCPConnector(limit=connection_limit)
+
+        connector = self._async_loop.run_until_complete(create_connector())
+        session = aiohttp.ClientSession(connector=connector)
+        self._transport = AioHttpTransport(session=session)
+
         self._container_client: Optional[ContainerClient] = None
 
         if self.connection_string:
@@ -521,8 +521,8 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
     """ObjStorage with azure capabilities, striped by prefix.
 
     Args:
-      connection_limit: maximum number of HTTP connections to Azure,
-        shared across all containers
+      connection_limit_per_container: maximum number of HTTP connections
+        to each Azure container.
 
     accounts is a dict containing entries of the form:
         <prefix>: <container_url_for_prefix>
@@ -533,6 +533,10 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
         accounts: Mapping[str, Union[str, Dict[str, str]]],
         name: str = "azure-prefixed",
         compression: CompressionFormat | None = None,
+        # rationale: avg batch size is 25, and we have 16 containers in prod
+        # so it is unlikely for a batch to insert more than 6 objects in
+        # the same container.
+        connection_limit_per_container: int = 6,
         **kwargs,
     ):
         super().__init__(**kwargs, compression=compression)
@@ -581,22 +585,28 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
                 DeprecationWarning,
             )
 
-        # This is equivalent to:
-        # client1 = AsyncContainerClient.from_container_url(url1)
-        # ...
-        # client16 = AsyncContainerClient.from_container_url(url16)
-        # async with client1, ..., client16:
-        #     yield {prefix1: client1, ..., prefix16: client16}
-        self._async_container_clients = {
-            prefix: AsyncContainerClient.from_container_url(
-                url, transport=self._transport
+        self._async_container_clients: dict[str, AsyncContainerClient] = {}
+
+        async def create_container_client(prefix, url) -> None:
+            connector = aiohttp.TCPConnector(limit=connection_limit_per_container)
+            session = aiohttp.ClientSession(connector=connector)
+            transport = AioHttpTransport(session=session)
+
+            container_client = AsyncContainerClient.from_container_url(
+                url, transport=transport
             )
-            for (prefix, url) in self.container_urls.items()
-        }
-        for client in self._async_container_clients.values():
-            self._async_loop.run_until_complete(
-                self._async_exit_stack.enter_async_context(client)
+            await self._async_exit_stack.enter_async_context(container_client)
+            self._async_container_clients[prefix] = container_client
+
+        async def create_container_clients() -> None:
+            await asyncio.gather(
+                *[
+                    create_container_client(prefix, url)
+                    for (prefix, url) in self.container_urls.items()
+                ],
             )
+
+        self._async_loop.run_until_complete(create_container_clients())
 
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
         yield from self._async_container_clients.values()
