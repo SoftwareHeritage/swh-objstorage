@@ -13,7 +13,9 @@ from typing import Dict, Iterable, Iterator, Mapping, Optional, Self, Tuple, Uni
 from urllib.parse import parse_qs, urlparse
 import warnings
 
+import aiohttp
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
+from azure.core.pipeline.transport import AioHttpTransport
 from azure.storage.blob import (
     BlobSasPermissions,
     ContainerClient,
@@ -94,6 +96,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         *,
         compression: CompressionFormat | None = None,
         use_secondary_endpoint_for_downloads=False,
+        connection_limit: int = 30,  # avg batch size + 20%
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -111,6 +114,15 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self._exit_stack = contextlib.ExitStack()
         self._async_loop = asyncio.new_event_loop()
         self._async_exit_stack = contextlib.AsyncExitStack()
+
+        async def create_connector() -> aiohttp.TCPConnector:
+            # aiohttp.TCPConnector is a sync function, but it needs to be initialized
+            # while an event loop is running
+            return aiohttp.TCPConnector(limit=connection_limit)
+
+        connector = self._async_loop.run_until_complete(create_connector())
+        session = aiohttp.ClientSession(connector=connector)
+        self._transport = AioHttpTransport(session=session)
 
     def __enter__(self) -> Self:
         if self._entered:
@@ -427,6 +439,7 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
       container_name: (deprecated) the name of the container under which objects are
         stored
       compression: the compression algorithm used to compress objects in storage
+      connection_limit: maximum number of HTTP connections to Azure
       use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
         url to generate download URLs. To configure the secondary endpoint, use
         the BlobSecondaryEndpoint entry of the connection string.
@@ -485,12 +498,12 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
 
         if self.connection_string:
             self._async_container_client = AsyncContainerClient.from_connection_string(
-                self.connection_string, self.container_name
+                self.connection_string, self.container_name, transport=self._transport
             )
         else:
             assert self.container_url is not None
             self._async_container_client = AsyncContainerClient.from_container_url(
-                self.container_url
+                self.container_url, transport=self._transport
             )
 
         self._async_loop.run_until_complete(
@@ -506,6 +519,10 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
 
 class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
     """ObjStorage with azure capabilities, striped by prefix.
+
+    Args:
+      connection_limit: maximum number of HTTP connections to Azure,
+        shared across all containers
 
     accounts is a dict containing entries of the form:
         <prefix>: <container_url_for_prefix>
@@ -571,7 +588,9 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
         # async with client1, ..., client16:
         #     yield {prefix1: client1, ..., prefix16: client16}
         self._async_container_clients = {
-            prefix: AsyncContainerClient.from_container_url(url)
+            prefix: AsyncContainerClient.from_container_url(
+                url, transport=self._transport
+            )
             for (prefix, url) in self.container_urls.items()
         }
         for client in self._async_container_clients.values():

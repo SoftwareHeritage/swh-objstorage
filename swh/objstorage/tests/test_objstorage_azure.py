@@ -191,7 +191,7 @@ def get_MockAsyncContainerClient():
             return self.container_url
 
         @classmethod
-        def from_container_url(cls, container_url):
+        def from_container_url(cls, container_url, *, transport=None):
             return cls(container_url)
 
         def get_container_properties(self):
