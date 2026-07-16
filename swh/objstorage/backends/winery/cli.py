@@ -717,7 +717,7 @@ def winery_prepare_upgrade(ctx, pool_name, assume_yes):
     if swh_db_version(conninfo) == 3:
         click.echo(
             "Migration of the database may be required. It will set "
-            f"the pool name for all shards to {pool_name}. "
+            f"the pool name for all shards to '{pool_name}'. "
         )
         if assume_yes or click.confirm("Is it OK?"):
             with connect_to_conninfo(conninfo) as db:
@@ -725,7 +725,7 @@ def winery_prepare_upgrade(ctx, pool_name, assume_yes):
                     query = (
                         "ALTER TABLE shards "
                         "ADD COLUMN IF NOT EXISTS pool_name text NOT NULL "
-                        "DEFAULT %s"
+                        f"DEFAULT '{pool_name}'"
                     )
-                    c.execute(query, (pool_name,))
+                    c.execute(query)
                     db.commit()
