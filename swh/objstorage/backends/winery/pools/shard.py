@@ -5,11 +5,17 @@
 
 import logging
 
-from swh.shard import Shard, ShardCreator
+from swh.shard import Shard as Shard_
+from swh.shard import ShardCreator
 
 from . import FileBackedPool, ImageReader, ImageWriter
 
 logger = logging.getLogger(__name__)
+
+
+class Shard(Shard_):
+    def __len__(self):
+        return self.header.objects_count
 
 
 class ShardBackedPool(FileBackedPool):

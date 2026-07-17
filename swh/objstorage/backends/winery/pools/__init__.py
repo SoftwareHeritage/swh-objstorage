@@ -10,7 +10,7 @@ import shlex
 import stat
 import subprocess
 from types import TracebackType
-from typing import List, Literal, Optional, Protocol
+from typing import Iterator, List, Literal, Optional, Protocol
 
 from .. import settings
 
@@ -26,6 +26,19 @@ class ImageReader(Protocol):
     def lookup(self, key: bytes) -> bytes | None: ...
 
     def close(self) -> None: ...
+
+    def __len__(self) -> int: ...
+
+    def __iter__(self) -> Iterator[bytes]: ...
+
+    def __enter__(self) -> "ImageReader": ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[BaseException],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool: ...
 
 
 class ImageWriter(Protocol):
