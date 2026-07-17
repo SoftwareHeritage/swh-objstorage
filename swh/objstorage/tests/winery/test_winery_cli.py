@@ -191,7 +191,7 @@ def test_winery_release_stale_shards(
 def test_winery_import_shards_nothing(winery_settings, write_pool_name):
     result = invoke("winery", "import-shards", config=winery_settings)
     assert result.exit_code == 0
-    assert f"Pool {write_pool_name}: nothing to do" in result.stdout
+    assert f"Pool {write_pool_name}: nothing imported" in result.stdout
 
 
 def test_winery_import_shards_do_import(
@@ -206,3 +206,33 @@ def test_winery_import_shards_do_import(
     result = invoke("winery", "import-shards", config=winery_settings)
     assert result.exit_code == 0
     assert f"Pool {write_pool_name}: imported 72 objects from 6 shards" in result.stdout
+
+
+def test_winery_import_shards_interrupted(
+    storage, winery_settings, write_pool_name, shards, mocker
+):
+    pool = next(iter(storage.pools.values()))
+    pooldir = pool.base_directory / pool.pool_name
+    for shard in shards:
+        name = os.path.basename(shard)
+        os.link(shard, pooldir / name)
+
+    nobjs = 0
+
+    def grouper(iterable, batch_size):
+        nonlocal nobjs
+        for elt in iterable:
+            yield [elt]
+            nobjs += 1
+            if nobjs == 50:
+                raise KeyboardInterrupt()
+
+    mocker.patch("swh.objstorage.backends.winery.housekeeping.grouper", grouper)
+
+    result = invoke("winery", "import-shards", config=winery_settings)
+    assert result.exit_code == 1
+    # we expect 4 shards to have been imported (12 object per shard x 4 = 48
+    # which is below the 50 threshold before the mocked 'grouper' fails)
+    # Especially, the fifth one should not be in the 'shards' table (the entry
+    # is expected to be deleted on error)
+    assert len(list(storage.writer.base.list_shards())) == 4

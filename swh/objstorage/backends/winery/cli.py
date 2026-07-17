@@ -643,12 +643,34 @@ def winery_release_stale_shards(ctx, shard_ids, lockers, duration, dry_run):
         "image files in all configured pools. Can be specified several times."
     ),
 )
+@click.option(
+    "--progress/--no-progress",
+    "-P",
+    is_flag=True,
+    default=True,
+    help="Show a progress bar",
+)
 @click.pass_context
-def winery_import_shards(ctx, poolnames):
+def winery_import_shards(ctx, poolnames, progress):
     """Populate the winery database from existing shard files"""
-    from swh.objstorage.backends.winery.housekeeping import import_ro_shards
+    import signal
+
+    from swh.objstorage.backends.winery.housekeeping import import_ro_image
     from swh.objstorage.backends.winery.pools import pool_from_settings
     from swh.objstorage.backends.winery.sharedbase import SharedBase
+
+    stop_on_next_iteration = False
+
+    def stop_running() -> bool:
+        """Stop running when a signal is received, or when there's nothing to do."""
+        return stop_on_next_iteration
+
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
+        nonlocal stop_on_next_iteration
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        stop_on_next_iteration = True
+
+    install_signal_handlers(set_signal_received)
 
     settings = ctx.obj["winery_settings"]
     pool_cfgs = settings["shards_pools"]
@@ -659,23 +681,49 @@ def winery_import_shards(ctx, poolnames):
         )
 
     for pool_cfg in pool_cfgs:
-        if poolnames and pool_cfg["pool_name"] not in poolnames:
+        if stop_running():
+            break
+        pool_name = pool_cfg["pool_name"]
+        if poolnames and pool_name not in poolnames:
             continue
         base = SharedBase(
-            base_dsn=settings["database"]["db"], active_pool_name=pool_cfg["pool_name"]
+            base_dsn=settings["database"]["db"], active_pool_name=pool_name
         )
         pool = pool_from_settings(
             shards_settings=settings["shards"],
             shards_pool_settings=pool_cfg,
         )
-        n_obj, n_shard = import_ro_shards(base, pool)
-        if n_obj:
+        images = pool.image_list()
+        click.echo(f"Pool {pool_name}: {len(images)} images")
+        n_obj_total = 0
+        n_img_total = 0
+        for n_shard, imgname in enumerate(images):
+            if stop_running():
+                break
+            if base.get_shard_state(name=imgname) is not None:
+                click.echo(f"Shard {imgname} already exists, skipping!")
+                continue
+            with pool.image_open(imgname) as img:
+                n_objects = len(img)
+            click.echo(f"Importing {pool_name}/{imgname} ({n_shard+1}/{len(images)})")
+            n_obj = 0
+            with click.progressbar(
+                length=n_objects, hidden=not progress, label=imgname
+            ) as pb:
+                for n_obj in import_ro_image(base, pool, imgname):
+                    if stop_running():
+                        break
+                    pb.update(n_obj)
+            if not stop_running():
+                n_obj_total += n_obj
+                n_img_total += 1
+        if n_obj_total:
             click.echo(
                 "Pool %s: imported %s objects from %s shards"
-                % (pool.pool_name, n_obj, n_shard)
+                % (pool.pool_name, n_obj_total, n_shard + 1)
             )
         else:
-            click.echo("Pool %s: nothing to do" % (pool.pool_name,))
+            click.echo("Pool %s: nothing imported" % (pool.pool_name,))
 
 
 @winery.command("prepare-upgrade")

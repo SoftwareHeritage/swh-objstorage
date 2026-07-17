@@ -5,7 +5,8 @@ CREATE TYPE shard_state AS ENUM (
     'packing',
     'packed',
     'cleaning',
-    'readonly'
+    'readonly',
+    'importing'
 );
 
 CREATE TABLE shards (

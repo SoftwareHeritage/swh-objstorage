@@ -59,6 +59,9 @@ def test_import_ro_shards_w_existing_objects(storage, shards):
         storage.add(shard[objid["sha256"]], objid)
         existing_objs.append(objid)
 
+    # needed to be able to reuse storage.writer.base import shards
+    storage.writer.release_shard()
+
     base = storage.writer.base
     n_objs, n_shards = import_ro_shards(base, pool)
     assert n_shards == 6

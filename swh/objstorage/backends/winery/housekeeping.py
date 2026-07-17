@@ -5,13 +5,12 @@
 
 import logging
 from time import monotonic
-from typing import Callable, Iterable, Optional, Tuple
+from typing import Callable, Iterable, Iterator, Optional, Tuple
 
 from psycopg.errors import UniqueViolation
 
 from swh.core.statsd import statsd
 from swh.core.utils import grouper
-from swh.shard import Shard
 from swh.shard.cli import NULLKEY
 
 from . import roshard, settings
@@ -289,33 +288,19 @@ def deleted_objects_cleaner(
     logger.info("Cleaned %d deleted objects", count)
 
 
-def import_ro_shards(
-    base: SharedBase, pool: Pool, shards: Iterable[str] | None = None
-) -> Tuple[int, int]:
-    """Import existing shard files in the winery database."""
+def import_ro_image(
+    base: SharedBase,
+    pool: Pool,
+    image: str,
+) -> Iterator[int]:
+    """Import an existing shard file in the winery database."""
     n_obj = 0
-    n_shard = 0
-    if not shards:
-        shards = pool.image_list()
-    for imgname in shards:
-        with Shard(pool.image_path(imgname)) as s:
-            if base.get_shard_state(name=imgname) is not None:
-                logger.info(f"Shard {imgname} already exists, skipping")
-                continue
-            try:
-                base._locked_shard = base.create_shard(
-                    ShardState.PACKING,
-                    name=imgname,
-                    pool_name=pool.pool_name,
-                )
-            except UniqueViolation:
-                # Should not happen, but sh*t happen, so better safe than sorry
-                # The shard already exists in the winery DB, skip it
-                logger.info(f"Shard {imgname} already exists, skipping")
-                # TODO: check stored entries match?
-                continue
-            with base.pool.connection() as db, db.transaction():
-                for keys in grouper(s, 10000):
+    t0 = monotonic()
+
+    try:
+        with pool.image_open(image) as img:
+            with base.create_shard_for_import(image, pool.pool_name) as db:
+                for keys in grouper(img, 10000):
                     keys = [key for key in keys if key != NULLKEY]
                     known = [key for key in keys if base.contains(key)]
                     if known:
@@ -326,10 +311,30 @@ def import_ro_shards(
                     base.record_new_obj_ids(
                         db, [key for key in keys if key not in known]
                     )
-                    n_obj += len(keys) - len(known)
+                    n_added = len(keys) - len(known)
+                    n_obj += n_added
+                    yield n_added
+    except UniqueViolation:
+        # Should not happen, but sh*t happen, so better safe than sorry
+        # The shard already exists in the winery DB, skip it
+        logger.info(f"Shard {image} already exists, skipping")
+    else:
+        logger.info(
+            f"{image} from {pool.pool_name} imported {n_obj} objects in {monotonic()-t0:.1f}s"
+        )
 
-            base.shard_packing_ends(imgname)
+
+def import_ro_shards(
+    base: SharedBase, pool: Pool, images: Iterable[str] | None = None
+) -> Tuple[int, int]:
+    """Import existing shard files in the winery database."""
+    n_obj = 0
+    n_shard = 0
+    if not images:
+        images = pool.image_list()
+    for imgname in images:
+        n = sum(import_ro_image(base, pool, imgname))
+        if n > 0:
             n_shard += 1
-            base.set_shard_state(name=imgname, new_state=ShardState.READONLY)
-
+            n_obj += n
     return n_obj, n_shard

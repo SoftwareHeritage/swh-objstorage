@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 import logging
@@ -40,6 +40,8 @@ class ShardState(Enum):
     """The write shard has been locked for cleanup."""
     READONLY = "readonly"
     """Only the read-only shard remains."""
+    IMPORTING = "importing"
+    """An existing shard image is being imported in the winery database."""
 
     @property
     def locked(self):
@@ -134,7 +136,7 @@ class SharedBase(Database):
 
     """
 
-    current_version: int = 4
+    current_version: int = 5
 
     def __init__(
         self,
@@ -430,6 +432,33 @@ class SharedBase(Database):
             )
             return res
 
+    @contextmanager
+    def create_shard_for_import(self, name, pool_name):
+        if self._locked_shard is not None:
+            raise RuntimeError(f"A shard is already locked ({self._locked_shard[0]})")
+        self._locked_shard = self.create_shard(
+            ShardState.IMPORTING, name=name, pool_name=pool_name
+        )
+        if self._locked_shard is None:
+            raise RuntimeError(f"Cannot create shard {pool_name}/{name} for import")
+        try:
+            with self.pool.connection() as db, db.transaction():
+                yield db
+        except BaseException as exc:
+            logger.warning(f"Cancelling import of {name} from {pool_name}")
+            logger.debug(f"Exception was: {exc}")
+            with self.pool.connection() as db, db.cursor() as c:
+                c.execute(
+                    "DELETE FROM shards WHERE name = %s and pool_name=%s",
+                    (name, pool_name),
+                )
+            raise
+        else:
+            self.shard_packing_ends(name)
+            self.set_shard_state(name=name, new_state=ShardState.READONLY)
+        finally:
+            self._locked_shard = None
+
     def shard_packing_starts(self, name: str):
         """Record the named shard as being packed now."""
         with self.pool.connection() as db, db.transaction():
@@ -471,10 +500,10 @@ class SharedBase(Database):
                 if not returned:
                     raise ValueError("Could not get shard state for %s" % name)
                 state = ShardState(returned[0])
-                if state != ShardState.PACKING:
+                if state not in (ShardState.PACKING, ShardState.IMPORTING):
                     raise ValueError(
                         "Cannot finalize packing for shard in state %s,"
-                        " expected ShardState.PACKING" % state
+                        " expected ShardState.PACKING or ShardState.IMPORTING" % state
                     )
 
                 logger.debug("SharedBase %s: shard %s done packing", WRITER_UUID, name)
