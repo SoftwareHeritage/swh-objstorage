@@ -703,8 +703,15 @@ def winery_import_shards(ctx, poolnames, progress):
             if base.get_shard_state(name=imgname) is not None:
                 click.echo(f"Shard {imgname} already exists, skipping!")
                 continue
-            with pool.image_open(imgname) as img:
-                n_objects = len(img)
+            try:
+                with pool.image_open(imgname) as img:
+                    n_objects = len(img)
+            except Exception as exc:
+                click.echo(
+                    f"Failed to open '{imgname}' as a shard image file, skipping"
+                )
+                logger.info(f"Exception was: {exc}")
+                continue
             click.echo(f"Importing {pool_name}/{imgname} ({n_shard+1}/{len(images)})")
             n_obj = 0
             with click.progressbar(
