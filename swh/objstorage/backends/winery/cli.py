@@ -712,7 +712,7 @@ def winery_import_shards(ctx, poolnames, progress):
                 )
                 logger.info(f"Exception was: {exc}")
                 continue
-            click.echo(f"Importing {pool_name}/{imgname} ({n_shard+1}/{len(images)})")
+            click.echo(f"Importing {pool_name}/{imgname} ({n_shard + 1}/{len(images)})")
             n_obj = 0
             with click.progressbar(
                 length=n_objects, hidden=not progress, label=imgname

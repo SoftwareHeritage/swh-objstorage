@@ -320,7 +320,7 @@ def import_ro_image(
         logger.info(f"Shard {image} already exists, skipping")
     else:
         logger.info(
-            f"{image} from {pool.pool_name} imported {n_obj} objects in {monotonic()-t0:.1f}s"
+            f"{image} from {pool.pool_name} imported {n_obj} objects in {monotonic() - t0:.1f}s"
         )
 
 
