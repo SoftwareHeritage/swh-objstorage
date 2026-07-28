@@ -14,7 +14,6 @@ from swh.shard import Shard, ShardCreator
 
 from . import ImageReader, ImageWriter, Pool
 from .. import settings
-from ..sleep import sleep_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -151,24 +150,8 @@ class RBDPool(Pool):
     def delete_object(self, shard_name: str, obj_id: bytes) -> None:
         Shard.delete(self.image_path(shard_name), obj_id)
 
-    def open_writer(
-        self, shard_name: str, nb_objects: int, create_image: bool
-    ) -> ImageWriter:
+    def open_writer(self, shard_name: str, nb_objects: int) -> ImageWriter:
         path = self.image_path(shard_name)
-        if create_image:
-            self.image_create(shard_name)
-        else:
-            rbd_wait_for_image = sleep_exponential(
-                min_duration=5,
-                factor=2,
-                max_duration=60,
-                message="Waiting for RBD image mapping",
-            )
-            attempt = 0
-            while not os.path.exists(path):
-                rbd_wait_for_image(attempt)
-                attempt += 1
-
         return ShardCreator(path, nb_objects)
 
     def image_import(self, image: str) -> None:

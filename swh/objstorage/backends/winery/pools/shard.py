@@ -29,10 +29,6 @@ class ShardBackedPool(FileBackedPool):
     def delete_object(self, shard_name: str, obj_id: bytes) -> None:
         Shard.delete(self.image_path(shard_name), obj_id)
 
-    def open_writer(
-        self, shard_name: str, nb_objects: int, create_image: bool
-    ) -> ImageWriter:
+    def open_writer(self, shard_name: str, nb_objects: int) -> ImageWriter:
         path = self.image_path(shard_name)
-        self.image_create(shard_name)
-
         return ShardCreator(path, nb_objects)

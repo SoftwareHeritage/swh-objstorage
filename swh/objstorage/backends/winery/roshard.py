@@ -279,9 +279,7 @@ class ROShardCreator:
 
         self.zero_image_if_needed()
 
-        self.shard = self.pool.open_writer(
-            self.name, self.count, self.rbd_create_images
-        )
+        self.shard = self.pool.open_writer(self.name, self.count)
         logger.debug("ROShard %s: created", self.name)
         self.shard.__enter__()
         return self

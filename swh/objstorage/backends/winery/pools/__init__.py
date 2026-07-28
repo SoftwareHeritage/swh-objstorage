@@ -106,9 +106,7 @@ class Pool(Protocol):
 
     def delete_object(self, shard_name: str, obj_id: bytes) -> None: ...
 
-    def open_writer(
-        self, shard_name: str, nb_objects: int, xcreate_image: bool
-    ) -> ImageWriter:
+    def open_writer(self, shard_name: str, nb_objects: int) -> ImageWriter:
         "Instantiate the correct `ImageWriter` object for the given shard"
         ...
 

@@ -33,9 +33,7 @@ class MosaicBackedPool(FileBackedPool):
         with MosaicUpdater(path) as updater:
             updater.delete([index_entry])
 
-    def open_writer(
-        self, shard_name: str, nb_objects: int, create_image: bool
-    ) -> ImageWriter:
+    def open_writer(self, shard_name: str, nb_objects: int) -> ImageWriter:
         path = Path(self.image_path(shard_name))
         # ROShardCreator calls image_create *before* open_writer, but image_create
         # creates an empty file and MosaicCreator requires target file does not exists.
