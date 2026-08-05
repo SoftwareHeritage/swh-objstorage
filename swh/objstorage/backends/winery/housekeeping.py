@@ -288,6 +288,71 @@ def deleted_objects_cleaner(
     logger.info("Cleaned %d deleted objects", count)
 
 
+def discard_packer(
+    database: settings.Database,
+    shards_active_pool: str | None,
+    stop_packing: Callable[[int], bool] = never_stop,
+    wait_for_shard: Callable[[int], None] = sleep_exponential(
+        min_duration=5,
+        factor=2,
+        max_duration=60,
+        message="No shards to pack",
+    ),
+    **kwargs,
+):
+    """Discards shards from database until the `stop_packing` function returns True.
+
+    When no shards are available for discarding, call the `wait_for_shard` function.
+
+    This is intended as a replacement of both `shard_packer` and `rw_shard_cleaner` for
+    testing purposes that discards shards as they come into FULL state, for systems
+    implementing only the database part of winery without a storage backend.
+
+    Arguments:
+      database: database settings (e.g. db connection string)
+      shards_active_pool: the pool for which packing is to be done; if None, pack
+        for all pools
+      stop_packing: callback to determine whether the packer should exit
+      wait_for_shard: sleep function called when no shards are available to be packed
+    """
+    application_name = database["application_name"] or "Winery Shard Discard-Packer"
+    base = SharedBase(
+        base_dsn=database["db"],
+        application_name=application_name,
+        active_pool_name=shards_active_pool,
+    )
+
+    shards_packed = 0
+    waited_for_shards = 0
+    while not stop_packing(shards_packed):
+        locked = base.maybe_lock_one_shard(
+            current_state=ShardState.FULL,
+            new_state=ShardState.CLEANING,
+            from_pool=shards_active_pool,
+        )
+
+        if not locked:
+            wait_for_shard(waited_for_shards)
+            waited_for_shards += 1
+            continue
+        waited_for_shards = 0
+
+        with locked:
+            if locked.name is None:
+                raise RuntimeError("No shard has been locked?")
+            print(f"Pruning shard {locked.name}")
+            base.set_shard_state(new_state=ShardState.READONLY, name=locked.name)
+
+            rw = RWShard(
+                locked.name,
+                shard_max_size=int(1e12),
+                base_dsn=database["db"],
+            )
+            rw.drop()
+            shards_packed += 1
+    return shards_packed
+
+
 def import_ro_image(
     base: SharedBase,
     pool: Pool,

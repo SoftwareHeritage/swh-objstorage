@@ -163,6 +163,56 @@ def winery_packer(
         logger.warning("Packing aborted, exiting")
 
 
+@winery.command("discard-packer")
+@click.option(
+    "--yes-i-am-certain",
+    help=(
+        "This flag must be passed to confirm that you really want to discard shards "
+        "as they become ready"
+    ),
+    is_flag=True,
+)
+@click.option(
+    "--pool-name",
+    "-n",
+    default=None,
+    help=(
+        "Pool name to discard shards for (overriding the config entry "
+        "'shards_active_pool'). If set to 'all', do pack for all configured pools"
+    ),
+)
+@click.pass_context
+def winery_discard_packer(
+    ctx, yes_i_am_certain: bool = False, pool_name: str | None = None
+):
+    """Run the winery discard-packer process
+
+    This process is meant for testing only, and will discard RW shards as they become
+    full, doing the job of both the packer and the cleaner. This is useful when you do
+    not want to instantiate a shard storage backend, but expect to write large amounts
+    of data to Winery.
+    """
+    from swh.objstorage.backends.winery.housekeeping import discard_packer
+
+    settings = ctx.obj["winery_settings"]
+
+    if not yes_i_am_certain:
+        raise click.UsageError(
+            "If you really want to run a discard packer, which will DISCARD shards' "
+            "data as they become ready for packing, please pass the --yes-i-am-certain "
+            "CLI flag."
+        )
+
+    logger.info("Image discard packer starting")
+    if not pool_name or pool_name == "all":
+        settings["shards_active_pool"] = None
+    else:
+        settings["shards_active_pool"] = pool_name
+
+    ret = discard_packer(**settings)
+    logger.info("Packed %s shards", ret)
+
+
 @winery.command("rbd")
 @click.option("--stop-instead-of-waiting", is_flag=True)
 @click.option("--manage-rw-images", is_flag=True)
