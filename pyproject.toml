@@ -18,22 +18,6 @@ classifiers = [
 ]
 dynamic = ["version", "dependencies", "optional-dependencies"]
 
-[tool.setuptools.packages.find]
-include = ["swh.*"]
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt", "requirements-swh.txt"] }
-
-[tool.setuptools.dynamic.optional-dependencies]
-azure = { file = "requirements-azure.txt" }
-libcloud = { file = "requirements-libcloud.txt" }
-winery = { file = "requirements-winery.txt" }
-testing = { file = [
-    "requirements-test.txt",
-    "requirements-azure.txt",
-    "requirements-libcloud.txt",
-    "requirements-winery.txt",
-] }
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.objstorage" = "swh.objstorage.cli"
@@ -55,6 +39,7 @@ testing = { file = [
 "multiplexer" = "swh.objstorage.multiplexer:MultiplexerObjStorage"
 "read-only" = "swh.objstorage.proxies.readonly:ReadOnlyProxyObjStorage"
 
+
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage"
 "Bug Reports" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage/-/issues"
@@ -63,11 +48,29 @@ testing = { file = [
 "Source" = "https://gitlab.softwareheritage.org/swh/devel/swh-objstorage.git"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-requirements-txt", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools_scm]
-fallback_version = "0.0.1"
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt", "requirements-swh.txt"]
+
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+azure = ["requirements-azure.txt"]
+libcloud = ["requirements-libcloud.txt"]
+winery = ["requirements-winery.txt"]
+testing = [
+    "requirements-test.txt",
+    "requirements-azure.txt",
+    "requirements-libcloud.txt",
+    "requirements-winery.txt",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["swh"]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.1"
 
 [tool.black]
 target-version = ['py311', 'py312', 'py313']
