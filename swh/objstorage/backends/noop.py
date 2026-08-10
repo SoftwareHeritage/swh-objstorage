@@ -33,7 +33,10 @@ class NoopObjStorage(ObjStorage):
 
     @timed
     def add_batch(self, contents, check_presence=True):
-        pass
+        return {
+            "object:add": 0,
+            "object:add:bytes": 0,
+        }
 
     @timed
     def get(self, obj_id, *args, **kwargs):
