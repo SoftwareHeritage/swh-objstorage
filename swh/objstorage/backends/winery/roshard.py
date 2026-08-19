@@ -324,7 +324,7 @@ class ROShardCreator:
         try:
             subprocess.run(command, check=True, capture_output=True)
         except subprocess.CalledProcessError:
-            logger.warning("%s failed:", shlex.join(command), self.path, exc_info=True)
+            logger.warning("%s failed:", shlex.join(command), exc_info=True)
 
     def add(self, content, obj_id):
         return self.shard.write(obj_id, content)
