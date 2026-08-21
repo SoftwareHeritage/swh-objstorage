@@ -130,7 +130,9 @@ Winery currently support 3 types of pool to store read-only shard files:
 
 - MOSAIC files (``mosaic``): works like ``directory``, but writes
   :py:mod:`swh.mosaic` files.
-
+  It supports an additional setting: ``compression_level``. When provided, it enables
+  MOSAIC's per-object compression at given Zstd level. Note that `0` is a valid
+  compression level, if you want to disable compression explicitly write `none`.
 
 The configuration allows to declare several shards pools, but only one of them
 will be declared as the active one, i.e. the one in which new content will be

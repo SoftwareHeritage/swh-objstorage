@@ -203,6 +203,21 @@ def image_pools(
                 "type": "mosaic",
                 "base_directory": str(tmp_path),
                 "pool_name": pool_name,
+                "compression_level": None,
+            }
+        elif pool_name.endswith("-mosaic-compressed"):
+            pool = MosaicBackedPool(
+                base_directory=tmp_path,
+                shard_max_size=shard_max_size,
+                pool_name=pool_name,
+                compression_level=3,
+            )
+            pool.image_unmap_all()
+            pool._settings_for_tests = {
+                "type": "mosaic",
+                "base_directory": str(tmp_path),
+                "pool_name": pool_name,
+                "compression_level": 3,
             }
         else:
             raise ValueError(f"Unsupported pool name: {pool_name}")

@@ -5,6 +5,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 from swh.mosaic import IdxDescription, MosaicCreator, MosaicReader, MosaicUpdater
 
@@ -22,6 +23,17 @@ class MosaicBackedPool(FileBackedPool):
     """
     swh-mosaic files-backed pool for Winery, mimicking a Ceph RBD pool.
     """
+
+    def __init__(
+        self,
+        base_directory: Path,
+        pool_name: str,
+        shard_max_size: int,
+        use_permissions: bool = True,
+        compression_level: Optional[int] = None,
+    ) -> None:
+        super().__init__(base_directory, pool_name, shard_max_size, use_permissions)
+        self.compression_level = compression_level
 
     def image_open(self, image: str) -> ImageReader:
         reader = MosaicReader(Path(self.image_path(image)), IdxDescription.SHA256FMPHGO)
@@ -42,4 +54,8 @@ class MosaicBackedPool(FileBackedPool):
             # and test_winery_packer_clean_up_interrupted_shard really wants warnings
             logger.warning("cleaning %s", str(path))
             path.unlink()
-        return MosaicWriterWrapper(path, [IdxDescription.SHA256FMPHGO])  # type: ignore[return-value]
+        return MosaicWriterWrapper(
+            path,
+            [IdxDescription.SHA256FMPHGO],
+            compression_level=self.compression_level,
+        )  # type: ignore[return-value]

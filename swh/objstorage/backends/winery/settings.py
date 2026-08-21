@@ -112,6 +112,7 @@ class MosaicShardsPool(ShardsPool, TypedDict):
     """Settings for the MOSAIC-based Shards pool"""
 
     base_directory: str
+    compression_level: Optional[int]
 
 
 def mosaic_pool_settings_with_defaults(
@@ -124,10 +125,16 @@ def mosaic_pool_settings_with_defaults(
         )
     if "base_directory" not in values:
         raise ValueError("Missing base_directory setting for MOSAIC-based pool")
+    provided_level = values.get("compression_level", "none")
+    if provided_level is None or provided_level == "none":
+        compression_level = None
+    else:
+        compression_level = int(provided_level)  # type: ignore[call-overload]
     return {
         "type": "mosaic",
         "pool_name": values.get("pool_name", "mosaics"),
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
+        "compression_level": compression_level,
     }
 
 

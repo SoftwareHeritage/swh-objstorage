@@ -248,6 +248,7 @@ def pool_from_settings(
             base_directory=Path(mosaic_settings["base_directory"]),
             pool_name=mosaic_settings["pool_name"],
             shard_max_size=shards_settings["max_size"],
+            compression_level=mosaic_settings["compression_level"],
         )
 
     else:
