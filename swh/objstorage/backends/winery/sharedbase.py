@@ -432,6 +432,46 @@ class SharedBase(Database):
             )
             return res
 
+    def move_shard(
+        self,
+        name: str,
+        from_pool: str,
+        to_pool: str,
+    ):
+        """Set the pool name of given image to 'to_pool'
+
+        Check that the image was indeed in the 'from_pool' before updating its 'pool_name'.
+
+        Notes: this does not move/migrate the actual image file nor check the
+        image file exists in the destination pool; it's the responsibility of
+        the caller to ensure the consistency of the pools.
+
+        Raises:
+          ValueError: if 'from_pool' is not the current 'pool_name' of the image.
+
+        """
+
+        current_pool = self.get_shard_pool(name)
+        if current_pool != from_pool:
+            raise ValueError(f"Image {name} is in {current_pool}, not in {from_pool}")
+
+        with self.pool.connection() as db, db.cursor() as c:
+            c.execute(
+                """UPDATE shards
+                SET pool_name = %s
+                WHERE state = 'readonly'
+                AND name = %s
+                AND pool_name = %s
+                """,
+                (to_pool, name, from_pool),
+            )
+            affected = c.rowcount
+            if affected != 1:
+                raise ValueError(
+                    "move_shard(%s) from %s to %s affected %s rows, expected 1"
+                    % (name, from_pool, to_pool, affected)
+                )
+
     @contextmanager
     def create_shard_for_import(self, name, pool_name):
         if self._locked_shard is not None:

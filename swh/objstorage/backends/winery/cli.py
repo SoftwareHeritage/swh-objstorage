@@ -784,3 +784,198 @@ def winery_prepare_upgrade(ctx, pool_name, assume_yes):
                     )
                     c.execute(query)
                     db.commit()
+
+
+@winery.command("migrate-pool")
+@click.argument(
+    "from-pool",
+    required=True,
+)
+@click.argument(
+    "to-pool",
+    required=True,
+)
+@click.option(
+    "--progress/--no-progress",
+    "-P",
+    is_flag=True,
+    default=True,
+    help="Show a progress bar",
+)
+@click.option(
+    "--image",
+    "-i",
+    "images",
+    multiple=True,
+    help=(
+        "Name of the image to migrate. If none is given, migrate all images "
+        "found in 'from_pool'."
+    ),
+)
+@click.option(
+    "--limit",
+    "-n",
+    type=int,
+    default=None,
+    help=(
+        "Limit migration to at most 'n' images; only concerns the number of "
+        "migrated image files (not db updates)"
+    ),
+)
+@click.option(
+    "--transfer-images/--no-transfer-images",
+    is_flag=True,
+    default=True,
+    help=(
+        "Do (default)/do not transfer images between 'from_pool' and 'to_pool'. "
+        "This can be useful to only update the image pool declared in the database."
+    ),
+)
+@click.option(
+    "--db-update/--no-db-update",
+    is_flag=True,
+    default=True,
+    help=("Do/do not perform the database update."),
+)
+@click.pass_context
+def winery_migrate_pool(
+    ctx, from_pool, to_pool, progress, images, limit, transfer_images, db_update
+):
+    """Migrate shards from `from_pool` to `to_pool`
+
+    This only supports winery pools using sha256 as primary key.
+    """
+    import signal
+
+    from swh.objstorage.backends.winery.pools import pool_from_settings
+    from swh.objstorage.backends.winery.sharedbase import SharedBase
+
+    stop_on_next_iteration = False
+
+    def stop_running() -> bool:
+        """Stop running when a signal is received, or when there's nothing to do."""
+        return stop_on_next_iteration
+
+    def set_signal_received(signum: int, _stack_frame: FrameType | None) -> None:
+        nonlocal stop_on_next_iteration
+        logger.warning("Received signal %s, exiting", signal.strsignal(signum))
+        stop_on_next_iteration = True
+
+    install_signal_handlers(set_signal_received)
+
+    settings = ctx.obj["winery_settings"]
+
+    base = SharedBase(base_dsn=settings["database"]["db"], active_pool_name=to_pool)
+
+    pools = {
+        pool_cfg["pool_name"]: pool_from_settings(
+            shards_settings=settings["shards"],
+            shards_pool_settings=pool_cfg,
+        )
+        for pool_cfg in settings["shards_pools"]
+    }
+    if from_pool not in pools:
+        raise click.ClickException(
+            f"pool {from_pool} does not exists in the configuration"
+        )
+    if to_pool not in pools:
+        raise click.ClickException(
+            f"pool {to_pool} does not exists in the configuration"
+        )
+    if from_pool == to_pool:
+        raise click.ClickException("to_pool cannot be the same as from_pool")
+
+    src_pool = pools[from_pool]
+    dst_pool = pools[to_pool]
+
+    NULLKEY = b"\x00" * 32
+
+    if not images:
+        images = src_pool.image_list()
+        click.echo(f"Pool '{from_pool}': {len(images)} images")
+    n_obj_total = 0
+    n_img_total = 0
+
+    for n_img, imgname in enumerate(images):
+        if stop_running():
+            break
+        if transfer_images:
+            if dst_pool.image_exists(imgname):
+                click.echo(
+                    f"{imgname} file already exists in the destination "
+                    f"pool '{to_pool}', skipping transfer"
+                )
+            else:
+                try:
+                    with src_pool.image_open(imgname) as img:
+                        n_objects = len(img)
+                except Exception as exc:
+                    click.echo(f"Failed to open '{imgname}', skipping")
+                    logger.info(f"Exception was: {exc}")
+                    continue
+
+                if not progress:
+                    click.echo(
+                        f"Converting {imgname} from '{from_pool}' to '{to_pool}'"
+                    )
+                with click.progressbar(
+                    length=n_objects, hidden=not progress, label=imgname
+                ) as pb:
+                    if stop_running():
+                        break
+                    n_obj = 0
+                    with src_pool.image_open(imgname) as srcimg:
+                        with dst_pool.open_writer(imgname, n_objects) as dstimg:
+                            # This could benefit from using an optimizes .items() method
+                            for key in srcimg:
+                                if stop_running():
+                                    # TODO: remove the partial image file
+                                    break
+                                # This test is probably unnecessary (both
+                                # swh-shard and swh-mosaic should not generate
+                                # null keys for deleted objects or so)
+                                if key != NULLKEY:
+                                    dstimg.write(key, srcimg.lookup(key))
+                                pb.update(1)
+                                n_obj += 1
+                            else:
+                                n_obj_total += n_obj
+                                n_img_total += 1
+
+        if db_update:
+            if dst_pool.image_exists(imgname):
+                if base.get_shard_pool(imgname) == to_pool:
+                    click.echo(
+                        f"{imgname} is already listed in the destination "
+                        f"pool '{to_pool}', skipping db update"
+                    )
+                else:
+                    base.move_shard(imgname, from_pool, to_pool)
+            else:
+                click.echo(
+                    f"{imgname} file is not in the destination "
+                    f"pool '{to_pool}', skipping db update"
+                )
+
+        if limit and n_img_total >= limit:
+            break
+
+    if n_obj_total:
+        click.echo(
+            "Converted %s image%s (%s objects) from '%s' to '%s'"
+            % (
+                n_img_total,
+                "s" if n_img_total > 1 else "",
+                n_obj_total,
+                from_pool,
+                to_pool,
+            )
+        )
+    else:
+        click.echo(
+            "nothing converted from '%s' to '%s'"
+            % (
+                from_pool,
+                to_pool,
+            )
+        )
