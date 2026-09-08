@@ -127,6 +127,44 @@ def mosaic_pool_settings_with_defaults(
     }
 
 
+class MosaicS3ShardsPool(ShardsPool, TypedDict):
+    """Settings for the MOSAIC-S3-based Shards pool"""
+
+    base_url: str
+    compression_level: Optional[int]
+    anonymous: bool
+    image_extension: str | None
+
+
+def mosaic_s3_pool_settings_with_defaults(
+    values: ShardsPool,
+) -> MosaicS3ShardsPool:
+    """Hydrate MOSAIC settings with default values"""
+    if values["type"] != "mosaic-s3":
+        raise ValueError(
+            f"Instantiating a mosaic pool with the wrong type: {values['type']}"
+        )
+    if "base_url" not in values:
+        raise ValueError("Missing base_url setting for MOSAIC-s3-based pool")
+    provided_level = values.get("compression_level", "none")
+    if provided_level is None or provided_level == "none":
+        compression_level = None
+    else:
+        compression_level = int(provided_level)
+    return {
+        "type": "mosaic-s3",
+        "pool_name": values.get("pool_name", "mosaics"),
+        "base_url": values["base_url"],
+        "compression_level": compression_level,
+        "anonymous": values.get("anonymous", False),
+        "image_extension": values.get("image_extension", ""),
+        "shard_max_size": values["shard_max_size"],
+        "tmp_dir": values.get("tmp_dir"),
+        "read_only": values.get("read_only", False),
+        "boto3_config": values.get("boto3_config"),
+    }
+
+
 class Database(TypedDict):
     """Settings for the winery database"""
 
@@ -191,6 +229,8 @@ def populate_default_settings(
             pools.append(directory_shards_pool_settings_with_defaults(shards_pool))
         elif shards_pool["type"] == "mosaic":
             pools.append(mosaic_pool_settings_with_defaults(shards_pool))
+        elif shards_pool["type"] == "mosaic-s3":
+            pools.append(mosaic_s3_pool_settings_with_defaults(shards_pool))
         else:
             raise ValueError(f"Unknown shards pool type: {shards_pool['type']}")
     if not pools:

@@ -1,2 +1,3 @@
+boto3
 psycopg[c,pool] >= 3.3
 systemd-python

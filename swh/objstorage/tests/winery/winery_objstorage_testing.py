@@ -149,18 +149,14 @@ class TestWinery:
         with pytest.raises(ObjNotFoundError):
             storage.reader.get(sha256)
 
-        # Make sure all images are released
+        # Make sure all images are released/packed
         storage.reader.on_shutdown()
 
         # The content is still present in the roshard image at this point
-        for pool in storage.pools.values():
-            if pool.image_exists(shard):
-                image_path = pool.image_path(shard)
-                with open(image_path, "rb") as image:
-                    assert b"SOMETHING" in image.read()
-                break
-        else:
-            assert False, "No image file found!"
+        poolname = storage.writer.base.get_shard_pool(shard)
+        pool = storage.pools[poolname]
+        reader = pool.image_open(shard)
+        assert reader.lookup(sha256) == b"SOMETHING"
 
         # Perform cleanup
         pool.image_unmap(shard)
@@ -168,8 +164,12 @@ class TestWinery:
 
         deleted_objects_cleaner(storage.reader.base, pool, stop_running=lambda: False)
         assert len(list(storage.reader.base.deleted_objects())) == 0
-        with open(image_path, "rb") as image:
-            assert b"SOMETHING" not in image.read()
+
+        pool.image_map(shard, "ro")
+
+        reader = pool.image_open(shard)
+        with pytest.raises(KeyError):
+            reader.lookup(sha256)
 
     def test_winery_deleted_objects_cleaner_handles_exception(self, storage, mocker):
         from swh.objstorage.backends.winery import objstorage as winery_objstorage
@@ -192,7 +192,9 @@ class TestWinery:
         assert len(list(storage.writer.base.deleted_objects())) == 2
 
         # The content is still present in the roshard image at this point
-        image_path = write_pool.image_path(shard)
+        reader = write_pool.image_open(shard)
+        assert reader.lookup(sha256_1) is not None
+        assert reader.lookup(sha256_2) is not None
 
         # Setup so we get an exception on the second object
         already_called = False
@@ -226,10 +228,10 @@ class TestWinery:
         assert len(list(storage.writer.base.deleted_objects())) == 1
 
         # We should have only the content of one of the objects still in the roshard
-        with open(image_path, "rb") as image:
-            image_content = image.read()
-            presences = [content1 in image_content, content2 in image_content]
-            assert sorted(presences) == [False, True]
+        reader = write_pool.image_open(shard)
+        assert reader.lookup(sha256_2) is not None
+        with pytest.raises(KeyError):
+            reader.lookup(sha256_1)
 
     def test_winery_get_shard_info(self, winery_reader):
         assert winery_reader.base.get_shard_info(1234) is None

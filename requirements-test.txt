@@ -1,11 +1,13 @@
+boto3
+boto3-stubs
 moto[server, s3]
+msgpack-types
 pytest >= 8.1
 pytest-aioresponses
 pytest-mock
+pytest-postgresql > 5
 requests_mock[fixture] >= 1.9
 requests_toolbelt
 swh.core[testing] >= 3.0.0
 types-pyyaml
 types-requests
-pytest-postgresql > 5
-msgpack-types

@@ -255,5 +255,23 @@ def pool_from_settings(
             shard_max_size=shards_pool_settings["shard_max_size"],
             compression_level=mosaic_settings["compression_level"],
         )
+    elif pool_type == "mosaic-s3":
+        from .mosaic import MosaicS3BackedPool
+
+        mosaic_settings = settings.mosaic_s3_pool_settings_with_defaults(
+            shards_pool_settings
+        )
+        return MosaicS3BackedPool(
+            base_url=mosaic_settings["base_url"],
+            pool_name=mosaic_settings["pool_name"],
+            shard_max_size=shards_pool_settings["shard_max_size"],
+            compression_level=mosaic_settings["compression_level"],
+            anonymous=mosaic_settings["anonymous"],
+            image_extension=mosaic_settings["image_extension"],
+            tmp_dir=mosaic_settings.get("tmp_dir"),
+            read_only=mosaic_settings.get("read_only", False),
+            boto3_config=mosaic_settings.get("boto3_config"),
+        )
+
     else:
         raise ValueError(f"Unknown shards pool type: {pool_type}")
