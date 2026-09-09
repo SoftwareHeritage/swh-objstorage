@@ -190,6 +190,7 @@ class LRUDict(OrderedDict):
         self.move_to_end(key)
         if len(self) > self.capacity:
             self.popitem(last=False)
+        logger.info(f"LRU: {len(self)}")
 
 
 class WineryReader:
