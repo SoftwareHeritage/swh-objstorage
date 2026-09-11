@@ -112,17 +112,21 @@ def shard_packer(
                     break
             else:
                 raise ValueError("Missing or unknown active pool")
-            ret = pack(
-                shard=locked.name,
-                base_dsn=all_settings["database"]["db"],
-                packer_settings=all_settings["packer"],
-                shards_settings=all_settings["shards"],
-                shards_pool_settings=pool_cfg,
-                shared_base=base,
-                abort_packing=abort_packing,
-            )
-            if not ret:
-                raise ValueError("Packing shard %s failed" % locked.name)
+            try:
+                pack(
+                    shard=locked.name,
+                    base_dsn=all_settings["database"]["db"],
+                    packer_settings=all_settings["packer"],
+                    shards_settings=all_settings["shards"],
+                    shards_pool_settings=pool_cfg,
+                    shared_base=base,
+                    abort_packing=abort_packing,
+                )
+            except AbortOperation:
+                raise
+            except Exception as exc:
+                logger.exception("Packing shard %s failed", locked.name)
+                raise ValueError(f"Packing shard {locked.name} failed; error: {exc}")
             shards_packed += 1
 
     return shards_packed
@@ -136,7 +140,7 @@ def pack(
     shards_pool_settings: settings.ShardsPool,
     shared_base: Optional[SharedBase] = None,
     abort_packing: Callable[[int], bool] = never_stop,
-) -> bool:
+):
     rw = RWShard(shard, shard_max_size=shards_settings["max_size"], base_dsn=base_dsn)
     if not shared_base:
         shared_base = SharedBase(base_dsn=base_dsn)
@@ -188,7 +192,6 @@ def pack(
             "'swh objstorage winery rw-shard-cleaner' service instead. "
             "Cleaning will NOT be executed now."
         )
-    return True
 
 
 def rw_shard_cleaner(

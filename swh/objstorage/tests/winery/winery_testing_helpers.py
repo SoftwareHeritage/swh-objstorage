@@ -43,7 +43,7 @@ def make_packed_shard(objstorage, contents):
         hashes.append(sha256)
     # enforce shard full
     winery_writer.base.set_shard_state(ShardState.FULL)
-    assert objstorage.writer.pack(shard)
+    objstorage.writer.pack(shard)
     cleanup_rw_shard(shard, base_dsn=base_dsn)
     return shard, hashes
 

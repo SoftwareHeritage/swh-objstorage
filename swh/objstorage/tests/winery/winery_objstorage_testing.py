@@ -268,7 +268,7 @@ class TestWinery:
         else:
             assert False, "missing active pool configuration"
 
-        assert pack(
+        pack(
             shard=shard,
             base_dsn=winery_settings["database"]["db"],
             packer_settings=winery_settings["packer"],
@@ -803,15 +803,13 @@ class TestWinery:
                 break
         else:
             assert False, "Missing active pool config"
-        assert (
-            pack(
-                shard,
-                base_dsn=winery_settings["database"]["db"],
-                packer_settings=winery_settings["packer"],
-                shards_settings=winery_settings["shards"],
-                shards_pool_settings=pool_cfg,
-            )
-            is True
+
+        pack(
+            shard,
+            base_dsn=winery_settings["database"]["db"],
+            packer_settings=winery_settings["packer"],
+            shards_settings=winery_settings["shards"],
+            shards_pool_settings=pool_cfg,
         )
         assert winery_reader.get(sha256) == content
 
