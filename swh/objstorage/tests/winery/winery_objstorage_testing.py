@@ -176,7 +176,6 @@ class TestWinery:
         from swh.objstorage.backends.winery.roshard import ROShard
 
         write_pool = pool_from_settings(
-            shards_settings={"max_size": 1000},  # required but unused here
             shards_pool_settings=storage.writer.shards_pool_settings,
         )
         # Add two objects
@@ -272,7 +271,6 @@ class TestWinery:
             shard=shard,
             base_dsn=winery_settings["database"]["db"],
             packer_settings=winery_settings["packer"],
-            shards_settings=winery_settings["shards"],
             shards_pool_settings=pool_cfg,
         )
         assert winery_writer.base.get_shard_state(shard) == ShardState.PACKED
@@ -466,7 +464,6 @@ class TestWinery:
             # Pack a single shard
             ret = shard_packer(
                 database=winery_settings["database"],
-                shards=winery_settings["shards"],
                 shards_pools=winery_settings["shards_pools"],
                 shards_active_pool=winery_settings["shards_active_pool"],
                 packer={**winery_settings.get("packer"), "create_images": False},
@@ -507,7 +504,6 @@ class TestWinery:
             # Pack a single shard
             shard_packer(
                 database=winery_settings["database"],
-                shards=winery_settings["shards"],
                 shards_pools=winery_settings["shards_pools"],
                 shards_active_pool=winery_settings["shards_active_pool"],
                 packer={**winery_settings.get("packer"), "create_images": True},
@@ -808,7 +804,6 @@ class TestWinery:
             shard,
             base_dsn=winery_settings["database"]["db"],
             packer_settings=winery_settings["packer"],
-            shards_settings=winery_settings["shards"],
             shards_pool_settings=pool_cfg,
         )
         assert winery_reader.get(sha256) == content

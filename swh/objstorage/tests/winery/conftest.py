@@ -184,7 +184,7 @@ def image_pools(
                 use_permissions=use_permissions,
             )
             pool.image_unmap_all()
-            pool._settings_for_tests = {
+            pool._settings_for_tests: settings.DirectoryShardsPool = {
                 "type": "directory",
                 "base_directory": str(tmp_path),
                 "pool_name": pool_name,
@@ -199,7 +199,7 @@ def image_pools(
                 pool_name=pool_name,
             )
             pool.image_unmap_all()
-            pool._settings_for_tests = {
+            pool._settings_for_tests: settings.MosaicShardsPool = {
                 "type": "mosaic",
                 "base_directory": str(tmp_path),
                 "pool_name": pool_name,
@@ -213,7 +213,7 @@ def image_pools(
                 compression_level=3,
             )
             pool.image_unmap_all()
-            pool._settings_for_tests = {
+            pool._settings_for_tests: settings.MosaicShardsPool = {
                 "type": "mosaic",
                 "base_directory": str(tmp_path),
                 "pool_name": pool_name,
@@ -306,12 +306,14 @@ def winery_settings(
     write_pool_name,
 ) -> settings.Winery:
     return dict(
-        shards={"max_size": shard_max_size},
         database={"db": postgresql_dsn},
         packer={
             "create_images": True,
         },
-        shards_pools=[pool._settings_for_tests for pool in image_pools],
+        shards_pools=[
+            {**pool._settings_for_tests, "shard_max_size": shard_max_size}  # type: ignore
+            for pool in image_pools
+        ],
         shards_active_pool=write_pool_name,
         readers_cache_size=3,
     )
@@ -382,7 +384,6 @@ def readonly_storage(
         database={"db": readonly_postgresql_dsn},
         shards_pools=winery_settings["shards_pools"],
         shards_active_pool=None,
-        shards=winery_settings["shards"],
     )
     yield storage
     storage.on_shutdown()

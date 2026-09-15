@@ -57,6 +57,30 @@ def winery(ctx):
         populate_default_settings,
     )
 
+    if "shards" in config:
+        click.echo(
+            "The 'shards' configuration section has been deprecated. The "
+            "'max_size' configuration entry should now be defined in each pool of "
+            "the 'shards_pools' section under the name 'shard_max_size'; the current "
+            "value will be set as default value for these later."
+        )
+        cfg = config.pop("shards")
+        default_max_size = cfg["max_size"]
+
+        for pool_cfg in config["shards_pools"]:
+            if "shard_max_size" not in pool_cfg:
+                click.echo(
+                    f"Patching 'shard_max_size' in '{pool_cfg['pool_name']}' pool"
+                )
+                pool_cfg["shard_max_size"] = default_max_size
+
+        if "rw_idle_timeout" in cfg and "rw_idle_timeout" not in config:
+            click.echo(
+                "Using 'rw_idle_timeout' from the deprecated 'shards' section; "
+                "you should move this configuration entry up to the main objstorage section"
+            )
+            config["rw_idle_timeout"] = cfg["rw_idle_timeout"]
+
     ctx.obj["winery_settings"] = populate_default_settings(
         **{k: v for k, v in config.items() if k in SETTINGS}
     )
@@ -234,7 +258,6 @@ def winery_rbd(
     for pool_cfg in settings["shards_pools"]:
         if pool_cfg["pool_name"] == active_pool:
             pool = pool_from_settings(
-                shards_settings=settings["shards"],
                 shards_pool_settings=pool_cfg,
             )
             break
@@ -354,7 +377,6 @@ def winery_clean_deleted_objects(ctx):
 
     pools = [
         pool_from_settings(
-            shards_settings=settings["shards"],
             shards_pool_settings=shards_pool,
         )
         for shards_pool in settings["shards_pools"]
@@ -474,8 +496,8 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
 
     settings = ctx.obj["winery_settings"]
     base = SharedBase(base_dsn=settings["database"]["db"])
-    max_size = settings["shards"]["max_size"]
 
+    pools = {cfg["pool_name"]: cfg for cfg in settings["shards_pools"]}
     shardstate = ShardState(state) if state is not None else None
 
     shards = list(base.list_open_shards(state=shardstate))
@@ -489,6 +511,8 @@ def winery_list_open_shards(ctx, state, long, humanize_results):
                     since = f" since {naturaldelta(datetime.now(UTC) - locker_ts)}"
                 extra = ""
                 if long:
+                    poolname = base.get_shard_pool(name)
+                    max_size = pools[poolname]["shard_max_size"]
                     try:
                         rwshard = RWShard(
                             name=name,
@@ -690,7 +714,6 @@ def winery_import_shards(ctx, poolnames, progress):
             base_dsn=settings["database"]["db"], active_pool_name=pool_name
         )
         pool = pool_from_settings(
-            shards_settings=settings["shards"],
             shards_pool_settings=pool_cfg,
         )
         images = pool.image_list()
@@ -869,7 +892,6 @@ def winery_migrate_pool(
 
     pools = {
         pool_cfg["pool_name"]: pool_from_settings(
-            shards_settings=settings["shards"],
             shards_pool_settings=pool_cfg,
         )
         for pool_cfg in settings["shards_pools"]

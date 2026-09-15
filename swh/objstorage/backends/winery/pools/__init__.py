@@ -213,7 +213,6 @@ class FileBackedPool(Pool):
 
 
 def pool_from_settings(
-    shards_settings: settings.Shards,
     shards_pool_settings: settings.ShardsPool,
 ) -> Pool:
     """Return a Pool from the settings"""
@@ -225,7 +224,7 @@ def pool_from_settings(
             shards_pool_settings
         )
         return RBDPool(
-            shard_max_size=shards_settings["max_size"],
+            shard_max_size=shards_pool_settings["shard_max_size"],
             rbd_use_sudo=rbd_settings["use_sudo"],
             rbd_pool_name=rbd_settings["pool_name"],
             rbd_data_pool_name=rbd_settings["data_pool_name"],
@@ -239,7 +238,7 @@ def pool_from_settings(
             shards_pool_settings
         )
         return ShardBackedPool(
-            shard_max_size=shards_settings["max_size"],
+            shard_max_size=shards_pool_settings["shard_max_size"],
             base_directory=Path(dir_settings["base_directory"]),
             pool_name=dir_settings["pool_name"],
             use_permissions=shards_pool_settings["use_permissions"],  # type: ignore[typeddict-item]
@@ -253,9 +252,8 @@ def pool_from_settings(
         return MosaicBackedPool(
             base_directory=Path(mosaic_settings["base_directory"]),
             pool_name=mosaic_settings["pool_name"],
-            shard_max_size=shards_settings["max_size"],
+            shard_max_size=shards_pool_settings["shard_max_size"],
             compression_level=mosaic_settings["compression_level"],
         )
-
     else:
         raise ValueError(f"Unknown shards pool type: {pool_type}")

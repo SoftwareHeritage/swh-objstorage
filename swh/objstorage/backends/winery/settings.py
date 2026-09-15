@@ -36,25 +36,12 @@ def packer_settings_with_defaults(values: Packer) -> Packer:
     }
 
 
-class Shards(TypedDict):
-    """Settings for shard management"""
-
-    max_size: int
-    """Maximum cumulative size of objects in a shard"""
-    rw_idle_timeout: NotRequired[float]
-    """Timeout (seconds) after which write shards get released when idle"""
-
-
-def shards_settings_with_defaults(values: Shards) -> Shards:
-    """Hydrate Shards settings with default values"""
-    return {"rw_idle_timeout": 300, **values}
-
-
 class ShardsPool(TypedDict):
     """Settings for the Shards pool"""
 
     type: Literal["rbd", "directory", "mosaic"]
     pool_name: NotRequired[str]
+    shard_max_size: int
 
 
 class RbdShardsPool(ShardsPool, TypedDict):
@@ -103,6 +90,7 @@ def directory_shards_pool_settings_with_defaults(
     return {
         "type": "directory",
         "pool_name": values.get("pool_name", "shards"),
+        "shard_max_size": values["shard_max_size"],
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
         "use_permissions": values.get("use_permissions", True),  # type: ignore[typeddict-item]
     }
@@ -133,6 +121,7 @@ def mosaic_pool_settings_with_defaults(
     return {
         "type": "mosaic",
         "pool_name": values.get("pool_name", "mosaics"),
+        "shard_max_size": values["shard_max_size"],
         "base_directory": values["base_directory"],  # type: ignore[typeddict-item]
         "compression_level": compression_level,
     }
@@ -156,7 +145,6 @@ class Winery(TypedDict, total=False):
     """A representation of all available winery settings"""
 
     database: Database
-    shards: Shards
     shards_pools: Iterable[ShardsPool]
     shards_active_pool: str | None
     packer: Packer
@@ -166,7 +154,6 @@ class Winery(TypedDict, total=False):
 SETTINGS = frozenset(
     {
         "database",
-        "shards",
         "shards_pools",
         "shards_active_pool",
         "packer",
@@ -177,7 +164,6 @@ SETTINGS = frozenset(
 
 def populate_default_settings(
     database: Optional[Database] = None,
-    shards: Optional[Shards] = None,
     shards_pools: Iterable[ShardsPool] = (),
     shards_active_pool: str | None = None,
     packer: Optional[Packer] = None,
@@ -196,10 +182,6 @@ def populate_default_settings(
     if database is not None:
         database = database_settings_with_defaults(database)
         settings["database"] = database
-
-    if shards is not None:
-        shards = shards_settings_with_defaults(shards)
-        settings["shards"] = shards
 
     pools: List[ShardsPool] = []
     for shards_pool in shards_pools:

@@ -75,15 +75,18 @@ gunicorn, thus towards one of the open rw shards. The data of the object is
 inserted in the dedicated shard table, and an entry mapping the id of the
 object to the id of the shard is added to the ``signature2shard`` index table.
 
-When a rw-shard is considered full (that is, when the cumulated volume of objects stored
-in the rw-shard goes over the ``shards:max_size`` limit -- typically 100GiB), the
-shard is marked as ``full`` and does not accept new objects.
+When a rw-shard is considered full (that is, when the cumulated volume of
+objects stored in the rw-shard goes over the ``shard_max_size`` limit --
+typically 100GiB -- of the pool the shard will be packed in), the shard is
+marked as ``full`` and does not accept new objects.
 
-When a shard is marked ``full``, the packing process dumps all the object data from the rw-shard database
-table into a :ref:`swh-shard` file stored on the shard back-end storage -- typically a Ceph
-cluster, either using RBD volumes directly, of saving shard files onto a shared filesystem.
-The shard entry in the shards table is then marked as ``packed``, noting that the dedicated
-table can then be destroyed, which in turn allows the shard to be marked as ``readonly``.
+When a shard is marked ``full``, the packing process dumps all the object data
+from the rw-shard database table into a :ref:`swh-shard` file stored on the
+shard back-end storage -- typically a Ceph cluster, either using RBD volumes
+directly, of saving shard files onto a shared filesystem. The shard entry in
+the shards table is then marked as ``packed``, noting that the dedicated table
+can then be destroyed, which in turn allows the shard to be marked as
+``readonly``.
 
 Reader storage
 ~~~~~~~~~~~~~~
@@ -240,6 +243,10 @@ Here is a typical configuration for a RBD shards pool back-end::
       # Ceph pool name for RBD metadata (default: shards)
       pool_name: ceph_shards
 
+      # integer: threshold in bytes above which shards get packed. Can be
+      # overflowed by the max allowed object size.
+      shard_max_size: 100_000_000_000
+
       # Ceph pool name for RBD data (default: constructed as
       # `{pool_name}-data`). This is the pool where erasure-coding should be set,
       # if required.
@@ -273,16 +280,6 @@ Here is typical configuration for a directory shards pool back-end::
     # boolean (false (default): allow writes, true: only allow reads)
     readonly: false
 
-    # Shards-related settings
-    shards:
-      # integer: threshold in bytes above which shards get packed. Can be
-      # overflowed by the max allowed object size.
-      max_size: 100_000_000_000
-
-      # float: timeout in seconds after which idle read-write shards get
-      # released by the winery writer process
-      rw_idle_timeout: 300
-
     # Shared database settings
     database:
       # string: PostgreSQL connection string for the object index and read-write
@@ -299,6 +296,9 @@ Here is typical configuration for a directory shards pool back-end::
       type: directory
       base_directory: /srv/winery/pool
       pool_name: directory_shards
+      # integer: threshold in bytes above which shards get packed. Can be
+      # overflowed by the max allowed object size.
+      shard_max_size: 100_000_000_000
       # Set this to false if the filesystem does not support setting file permissions
       use_permissions: true
 
@@ -335,6 +335,7 @@ A multi-pool configuration could look like (partial config)::
       type: directory
       base_directory: /srv/winery/pool
       pool_name: directory_shards
+      shard_max_size: 10_000_000_000
     - ## Settings for an RBD shards pool
       type: rbd
       pool_name: ceph_shards

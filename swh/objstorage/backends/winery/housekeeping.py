@@ -39,7 +39,6 @@ def stop_after_shards(max_shards_packed: int) -> Callable[[int], bool]:
 
 def shard_packer(
     database: settings.Database,
-    shards: settings.Shards,
     shards_pools: Iterable[settings.ShardsPool],
     shards_active_pool: str | None,
     packer: Optional[settings.Packer] = None,
@@ -59,7 +58,6 @@ def shard_packer(
 
     Arguments:
       database: database settings (e.g. db connection string)
-      shards: shards settings (e.g. max_size)
       shards_pool: shards pool settings (e.g. Ceph RBD settings)
       shards_active_pool: the pool for which packing is to be done; if None, pack
         for all pools
@@ -71,7 +69,6 @@ def shard_packer(
 
     all_settings = settings.populate_default_settings(
         database=database,
-        shards=shards,
         shards_pools=shards_pools,
         shards_active_pool=shards_active_pool,
         packer=(packer or {}),
@@ -117,7 +114,6 @@ def shard_packer(
                     shard=locked.name,
                     base_dsn=all_settings["database"]["db"],
                     packer_settings=all_settings["packer"],
-                    shards_settings=all_settings["shards"],
                     shards_pool_settings=pool_cfg,
                     shared_base=base,
                     abort_packing=abort_packing,
@@ -136,23 +132,24 @@ def pack(
     shard: str,
     base_dsn: str,
     packer_settings: settings.Packer,
-    shards_settings: settings.Shards,
     shards_pool_settings: settings.ShardsPool,
     shared_base: Optional[SharedBase] = None,
     abort_packing: Callable[[int], bool] = never_stop,
 ):
-    rw = RWShard(shard, shard_max_size=shards_settings["max_size"], base_dsn=base_dsn)
+    rw = RWShard(
+        shard, shard_max_size=shards_pool_settings["shard_max_size"], base_dsn=base_dsn
+    )
     if not shared_base:
         shared_base = SharedBase(base_dsn=base_dsn)
 
     count = rw.count()
     logger.info("Creating RO shard %s for %s objects", shard, count)
     pool = pool_from_settings(
-        shards_settings=shards_settings,
         shards_pool_settings=shards_pool_settings,
     )
     statsd.gauge(
-        "swh_objstorage_winery_packer_shard_max_size_bytes", shards_settings["max_size"]
+        "swh_objstorage_winery_packer_shard_max_size_bytes",
+        shards_pool_settings["shard_max_size"],
     )
     tags = {"pool_name": pool.pool_name}
     t0 = monotonic()

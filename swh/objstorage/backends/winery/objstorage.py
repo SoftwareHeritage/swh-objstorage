@@ -41,7 +41,6 @@ class WineryObjStorage(ObjStorage):
     def __init__(
         self,
         database: settings.Database,
-        shards: settings.Shards,
         shards_pools: Iterable[settings.ShardsPool],
         shards_active_pool: str | None = None,
         packer: Optional[settings.Packer] = None,
@@ -49,6 +48,7 @@ class WineryObjStorage(ObjStorage):
         allow_delete: bool = False,
         name: str = "winery",
         readers_cache_size: int = settings.SHARD_CACHE_DEFAULT_SIZE,
+        rw_idle_timeout: int = 300,
     ) -> None:
         super().__init__(allow_delete=allow_delete, name=name)
         if self.primary_hash != "sha256":
@@ -56,7 +56,6 @@ class WineryObjStorage(ObjStorage):
 
         self.settings = settings.populate_default_settings(
             database=database,
-            shards=shards,
             shards_pools=shards_pools,
             shards_active_pool=shards_active_pool,
             packer=(packer or {}),
@@ -69,7 +68,6 @@ class WineryObjStorage(ObjStorage):
             if pool_name in self.pools:
                 raise ValueError("shards pool names must be unique")
             self.pools[pool_name] = pool_from_settings(
-                shards_settings=self.settings["shards"],
                 shards_pool_settings=shards_pool_cfg,
             )
             if shards_active_pool == pool_name:
@@ -100,9 +98,9 @@ class WineryObjStorage(ObjStorage):
 
             self.writer = WineryWriter(
                 packer_settings=self.settings["packer"],
-                shards_settings=self.settings["shards"],
                 shards_pool_settings=active_pool_settings,
                 database_settings=self.settings["database"],
+                idle_timeout=rw_idle_timeout,
             )
 
     @timed
@@ -308,12 +306,11 @@ class WineryWriter:
     def __init__(
         self,
         packer_settings: settings.Packer,
-        shards_settings: settings.Shards,
         shards_pool_settings: settings.ShardsPool,
         database_settings: settings.Database,
+        idle_timeout: int = 300,
     ):
         self.packer_settings = packer_settings
-        self.shards_settings = shards_settings
         self.shards_pool_settings = shards_pool_settings
         self.base = SharedBase(
             base_dsn=database_settings["db"],
@@ -322,7 +319,7 @@ class WineryWriter:
         )
         self.shards_filled: List[str] = []
         self._shard: Optional[RWShard] = None
-        self.idle_timeout = shards_settings.get("rw_idle_timeout", 300)
+        self.idle_timeout = idle_timeout
 
     def release_shard(
         self,
@@ -352,7 +349,7 @@ class WineryWriter:
             self._shard = RWShard(
                 name=self.base.locked_shard,
                 base_dsn=self.base.dsn,
-                shard_max_size=self.shards_settings["max_size"],
+                shard_max_size=self.shards_pool_settings["shard_max_size"],
                 idle_timeout_cb=partial(self.release_shard, from_idle_handler=True),
                 idle_timeout=self.idle_timeout,
             )
@@ -427,7 +424,6 @@ class WineryWriter:
             shard=shard_name,
             base_dsn=self.base.dsn,
             packer_settings=self.packer_settings,
-            shards_settings=self.shards_settings,
             shards_pool_settings=self.shards_pool_settings,
         )
 
