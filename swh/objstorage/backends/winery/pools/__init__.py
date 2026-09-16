@@ -98,8 +98,14 @@ class Pool(Protocol):
         self.image_unmap(image)
         self.image_map(image, "ro")
 
-    def image_import(self, image: str) -> None:
-        """Import an existing image file in the current pool"""
+    def image_import(self, image_path: str) -> None:
+        """Import an existing image file in the current pool
+
+        The image file must be an existing file of the correct file format for
+        the current pool (on a local filesystem).
+
+        Note: the file format is not verified!
+        """
         ...
 
     def image_open(self, image: str) -> ImageReader: ...
@@ -199,10 +205,10 @@ class FileBackedPool(Pool):
         else:
             logger.info("Skipping image file permission adjustment")
 
-    def image_import(self, image: str) -> None:
-        name = os.path.basename(image)
+    def image_import(self, image_path: str) -> None:
+        name = os.path.basename(image_path)
         dst = self.image_path(name)
-        os.link(image, dst)
+        os.link(image_path, dst)
         self.image_map(name, "ro")
 
 

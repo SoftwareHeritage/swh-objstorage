@@ -154,11 +154,11 @@ class RBDPool(Pool):
         path = self.image_path(shard_name)
         return ShardCreator(path, nb_objects)
 
-    def image_import(self, image: str) -> None:
-        name = os.path.basename(image)
+    def image_import(self, image_path: str) -> None:
+        name = os.path.basename(image_path)
         dst = self.image_path(name)
         self.image_create(name)
-        with open(image, "rb") as s:
+        with open(image_path, "rb") as s:
             with open(dst, "wb") as d:
                 shutil.copyfileobj(s, d)
         self.image_remap_ro(name)
