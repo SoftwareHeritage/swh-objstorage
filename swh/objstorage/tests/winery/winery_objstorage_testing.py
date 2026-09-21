@@ -159,9 +159,6 @@ class TestWinery:
         assert reader.lookup(sha256) == b"SOMETHING"
 
         # Perform cleanup
-        pool.image_unmap(shard)
-        pool.image_map(shard, "rw")
-
         deleted_objects_cleaner(storage.reader.base, pool, stop_running=lambda: False)
         assert len(list(storage.reader.base.deleted_objects())) == 0
 
@@ -172,9 +169,6 @@ class TestWinery:
             reader.lookup(sha256)
 
     def test_winery_deleted_objects_cleaner_handles_exception(self, storage, mocker):
-        from swh.objstorage.backends.winery import objstorage as winery_objstorage
-        from swh.objstorage.backends.winery.roshard import ROShard
-
         write_pool = pool_from_settings(
             shards_pool_settings=storage.writer.shards_pool_settings,
         )
@@ -198,26 +192,22 @@ class TestWinery:
 
         # Setup so we get an exception on the second object
         already_called = False
-        orig_roshard_delete = ROShard.delete
+        orig_pool_delete = write_pool.delete_object
 
-        def roshard_delete_side_effect(pool, shard_name, obj_id):
+        def pool_delete_side_effect(shard_name, obj_id):
             nonlocal already_called
             print(already_called)
             if already_called:
                 raise OSError("Unable to write to pool")
-            orig_roshard_delete(pool, shard_name, obj_id)
+            orig_pool_delete(shard_name, obj_id)
             already_called = True
             return None
 
         mocker.patch.object(
-            winery_objstorage.ROShard,
-            "delete",
-            side_effect=roshard_delete_side_effect,
+            write_pool,
+            "delete_object",
+            side_effect=pool_delete_side_effect,
         )
-
-        # Let’s run the cleaner
-        write_pool.image_unmap(shard)
-        write_pool.image_map(shard, "rw")
 
         with pytest.raises(OSError):
             deleted_objects_cleaner(

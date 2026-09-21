@@ -814,7 +814,8 @@ class SharedBase(Database):
         shard in which the object is stored.
 
         Returns:
-          an iterator over ``object_id``, shard name, :py:class:`ShardState` tuples
+          an iterator over ``object_id``, shard name, :py:class:`ShardState` tuples,
+          pool name sorted by pool and shard names.
         """
         with self.pool.connection() as db:
             sqlreq = """SELECT signature, shards.name, shards.state, shards.pool_name
@@ -826,6 +827,7 @@ class SharedBase(Database):
             if pool_name:
                 sqlreq += " AND shards.pool_name = %s"
                 args.append(pool_name)
+            sqlreq += " ORDER BY shards.pool_name, shards.name"
             cur = db.execute(sqlreq, args)
             for signature, name, state, pool_name in cur.fetchall():
                 yield bytes(signature), name, ShardState(state), pool_name

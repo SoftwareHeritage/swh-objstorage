@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from itertools import groupby
 import logging
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Optional, Tuple
@@ -275,15 +276,16 @@ def deleted_objects_cleaner(
       stop_running: callback that returns True when the manager should stop running
     """
     count = 0
-    for obj_id, shard_name, shard_state, _ in base.deleted_objects(
-        pool_name=pool.pool_name
-    ):
-        if stop_running():
-            break
-        if shard_state.readonly:
-            roshard.ROShard.delete(pool, shard_name, obj_id)
-        base.clean_deleted_object(obj_id)
-        count += 1
+    deleted_objs = base.deleted_objects(pool_name=pool.pool_name)
+    for shard_name, rows in groupby(deleted_objs, key=lambda row: row[1]):
+        with pool.image_object_deleter(shard_name) as delete_object:
+            for obj_id, _, shard_state, _ in rows:
+                if stop_running():
+                    break
+                if shard_state.readonly:
+                    delete_object(obj_id)
+                base.clean_deleted_object(obj_id)
+                count += 1
 
     logger.info("Cleaned %d deleted objects", count)
 

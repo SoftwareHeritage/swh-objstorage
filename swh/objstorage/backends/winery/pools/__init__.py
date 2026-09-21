@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import contextmanager
 import logging
 import os
 from pathlib import Path
@@ -115,6 +116,15 @@ class Pool(Protocol):
     def open_writer(self, shard_name: str, nb_objects: int) -> ImageWriter:
         "Instantiate the correct `ImageWriter` object for the given shard"
         ...
+
+    @contextmanager
+    def image_object_deleter(self, shard_name: str):
+        self.image_unmap(shard_name)
+        self.image_map(shard_name, options="rw")
+        try:
+            yield lambda obj_id: self.delete_object(shard_name, obj_id)
+        finally:
+            self.image_map(shard_name, options="ro")
 
 
 class FileBackedPool(Pool):

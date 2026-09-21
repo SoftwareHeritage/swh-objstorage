@@ -222,17 +222,6 @@ class ROShard:
     def __del__(self):
         self.close()
 
-    @staticmethod
-    def delete(pool: Pool, shard_name: str, obj_id: bytes):
-        image_status = pool.image_mapped(shard_name)
-        if image_status == "ro":
-            raise PermissionError(
-                f"Cannot delete object from {shard_name}, mapped read-only"
-            )
-        if not image_status:
-            pool.image_map(shard_name, options="rw")
-        pool.delete_object(shard_name, obj_id)
-
 
 class ROShardCreator:
     """Helper for Read-Only shard creation.
