@@ -117,7 +117,7 @@ used to create, read and manipulate these files.
 In order to support the creation, storage and replication of 10k+ shard files,
 a clustered and safe storage solution must be used as back-end.
 
-Winery currently support 3 types of pool to store read-only shard files:
+Winery currently support 4 types of pool to store read-only shard files:
 
 - Ceph RBD (``rbd``): this is the original design; it directly uses Ceph block
   devices (RBD) to pack all content objects in, using the :ref:`swh-shard` file
@@ -136,6 +136,34 @@ Winery currently support 3 types of pool to store read-only shard files:
   It supports an additional setting: ``compression_level``. When provided, it enables
   MOSAIC's per-object compression at given Zstd level. Note that `0` is a valid
   compression level, if you want to disable compression explicitly write `none`.
+
+- MOSAIC files (``mosaic-s3``) hosted on an S3 compatible storage: uses the
+  mosaic file format to store the shard content, but mosaic files are hosted on
+  an S3 compatible storage. Provides the same features as the mosaic files
+  backend, but requires specific configuration entries.
+
+  When reading objects from an s3-backed mosaic, read-only access is enough,
+  and is handled directly by the ``swh-mosaic`` module. The base configuration
+  is the ``base_url`` which is expected to be something like
+  ``s3://bucket/path``. To configure authentication or to allow unauthenticated
+  access, you need to define environment variables. The support for S3 being
+  handled by Rust's library `object_store <https://docs.rs/object_store>`_, the
+  list of supported environment variables is `described here
+  <https://docs.rs/object_store/latest/object_store/aws/struct.AmazonS3Builder.html#method.from_env>`_
+
+  For a RW pool, the packing process will happen in a local file which will
+  then be uploaded on the S3 backend. `boto3
+  <https://docs.aws.amazon.com/boto3/latest/>`_ is used to perform these RW
+  interactions with S3, so the configuration for this RW access to a bucket's
+  path need to be specified via any boto3 compatible method. The pool
+  configuration can include a ``boto3_config`` section (which is passed as it
+  to the `boto3.client()
+  <https://docs.aws.amazon.com/boto3/latest/reference/services/s3.html>`_
+  function).
+
+  Note that this pool also support object deletion from image files, but this
+  involve downloading the image in the temporary directory, altering it, then
+  reuploading the file.
 
 The configuration allows to declare several shards pools, but only one of them
 will be declared as the active one, i.e. the one in which new content will be
