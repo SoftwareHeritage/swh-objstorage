@@ -86,7 +86,7 @@ class MosaicS3BackedPool(Pool):
         anonymous: bool = False,
         read_only: bool = False,
         image_extension: str = "",
-        tmp_dir: str | None = None,
+        tmp_directory: Path | None = None,
         boto3_config=None,
     ) -> None:
         self.pool_name = pool_name
@@ -110,9 +110,9 @@ class MosaicS3BackedPool(Pool):
         if read_only:
             self.tmp_dir = None
         else:
-            if tmp_dir is None:
-                tmp_dir = tempfile.mkdtemp(prefix="mosaic-pool-")
-            self.tmp_dir = Path(tmp_dir)
+            if tmp_directory is None:
+                tmp_directory = Path(tempfile.mkdtemp(prefix="mosaic-pool-"))
+            self.tmp_dir = tmp_directory
             if not self.tmp_dir.is_dir() or not os.access(
                 self.tmp_dir, os.R_OK | os.W_OK | os.X_OK
             ):

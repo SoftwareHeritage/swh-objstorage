@@ -268,7 +268,7 @@ def pool_from_settings(
             compression_level=mosaic_settings["compression_level"],
             anonymous=mosaic_settings["anonymous"],
             image_extension=mosaic_settings["image_extension"],
-            tmp_dir=mosaic_settings.get("tmp_dir"),
+            tmp_directory=Path(mosaic_settings.get("tmp_directory")),
             read_only=mosaic_settings.get("read_only", False),
             boto3_config=mosaic_settings.get("boto3_config"),
         )

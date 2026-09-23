@@ -79,7 +79,7 @@ def image_pools(
         if pool_name.endswith("-mosaic-s3"):
             pool = MosaicS3BackedPool(
                 base_url=s3_uri,
-                tmp_dir=tmp_path,
+                tmp_directory=tmp_path,
                 shard_max_size=shard_max_size,
                 pool_name=pool_name,
                 compression_level=3,
@@ -89,7 +89,7 @@ def image_pools(
             pool._settings_for_tests = {
                 "type": "mosaic-s3",
                 "base_url": s3_uri,
-                "tmp_dir": str(tmp_path),
+                "tmp_directory": str(tmp_path),
                 "pool_name": pool_name,
                 "compression_level": 3,
                 "shard_max_size": shard_max_size,
