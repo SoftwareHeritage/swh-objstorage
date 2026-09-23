@@ -236,70 +236,6 @@ Configuration
 
 `Winery` uses a structured configuration schema.
 
-Here is a typical configuration for a RBD shards pool back-end::
-
-  objstorage:
-    cls: winery
-
-    # boolean (false (default): allow writes, true: only allow reads)
-    readonly: false
-
-    # Shards-related settings
-    shards:
-      # integer: threshold in bytes above which shards get packed. Can be
-      # overflowed by the max allowed object size.
-      max_size: 100_000_000_000
-
-      # float: timeout in seconds after which idle read-write shards get
-      # released by the winery writer process
-      rw_idle_timeout: 300
-
-    # Shared database settings
-    database:
-      # string: PostgreSQL connection string for the object index and read-write
-      # shards
-      db: winery
-
-      # string: PostgreSQL application name for connections (unset by default)
-      application_name: null
-
-    # Shards pool settings
-    shards_pools:
-    - ## Settings for the RBD shards pool
-      type: rbd
-
-      # Ceph pool name for RBD metadata (default: shards)
-      pool_name: ceph_shards
-
-      # integer: threshold in bytes above which shards get packed. Can be
-      # overflowed by the max allowed object size.
-      shard_max_size: 100_000_000_000
-
-      # Ceph pool name for RBD data (default: constructed as
-      # `{pool_name}-data`). This is the pool where erasure-coding should be set,
-      # if required.
-      data_pool_name: null
-
-      # Use sudo to perform image management (default: true. Can be set to false
-      # if packer.create_images is false and the rbd image manager is deployed
-      # as root)
-      use_sudo: true
-
-      # Options passed to `rbd image map` (default: empty string)
-      map_options: ""
-
-      # Image features unsupported by the RBD kernel module. E.g.
-      # exclusive-lock, object-map and fast-diff, for Linux kernels older than 5.3
-      image_features_unsupported: []
-
-    shards_active_pool: ceph_shards
-
-    # Packer-related settings
-    packer:
-      # Whether the packer should create shards in the shard pool, or defer to
-      # the pool manager (default: true, the packer creates images)
-      create_images: false
-
 Here is typical configuration for a directory shards pool back-end::
 
   objstorage:
@@ -362,19 +298,23 @@ A multi-pool configuration could look like (partial config)::
       # Shards are stored in `{base_directory}/{pool_name}`
       type: directory
       base_directory: /srv/winery/pool
-      pool_name: directory_shards
+      pool_name: shards
       shard_max_size: 10_000_000_000
-    - ## Settings for an RBD shards pool
-      type: rbd
-      pool_name: ceph_shards
-      # [...]
-    - ## Settings for a second directory shards pool
-      type: directory
+    - ## Settings for a second (mosaic in a directory) pool
+      type: mosaic
       base_directory: /srv/winery/pool
-      pool_name: second_directory_shards
+      pool_name: mosaics
+      shard_max_size: 10_000_000_000
+    - ## Settings for a third (mosaic on s3) pool
+      type: mosaic-s3
+      base_url: s3://softwareheritage/winery
+      tmp_directory: /tmp/winery/mosaics
+      pool_name: s3_mosaics
+      compression_level: 5
+      shard_max_size: 10_000_000_000
 
     # only this pool will be used for ingestion
-    shards_active_pool: directory_shards
+    shards_active_pool: s3_mosaics
 
 
 Migration notes
