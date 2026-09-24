@@ -25,8 +25,7 @@ def mosaic_file(request, tmpdir):
         for content in contents:
             obj_id = objid_for_content(content)
             obj_ids.append(obj_id)
-            # key = obj_id[primary_hash].rjust(mosaic.key_len, b"\0")
-            key = obj_id[primary_hash].rjust(20, b"\0")
+            key = obj_id[primary_hash]
             mosaic.add([key], content)
     return mosaic_path, primary_hash, obj_ids
 
