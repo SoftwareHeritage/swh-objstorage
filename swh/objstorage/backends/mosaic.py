@@ -15,7 +15,7 @@ from swh.mosaic import IdxDescription, MosaicReader
 from swh.objstorage.constants import ID_HEXDIGEST_LENGTH_BY_ALGO, LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import ObjId
-from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
+from swh.objstorage.objstorage import ObjStorage, timed
 
 
 class MosaicObjStorage(ObjStorage):
@@ -24,7 +24,7 @@ class MosaicObjStorage(ObjStorage):
     primary_hash: LiteralPrimaryHash = "sha1_git"
     name: str = "mosaic"
 
-    def __init__(self, path: str, compression: CompressionFormat, **kwargs):
+    def __init__(self, path: str, **kwargs):
         super().__init__(**kwargs)
         self.mosaic_path = path
         self.mosaic = MosaicReader(path, IdxDescription.SHA1GITFMPHGO)
