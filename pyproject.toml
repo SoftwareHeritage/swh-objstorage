@@ -35,6 +35,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 "s3" = "swh.objstorage.backends.libcloud:AwsCloudObjStorage"
 "swift" = "swh.objstorage.backends.libcloud:OpenStackCloudObjStorage"
 "winery" = "swh.objstorage.backends.winery.objstorage:WineryObjStorage"
+"mosaic" = "swh.objstorage.backends.mosaic:MosaicObjStorage"
 # filters and proxies
 "multiplexer" = "swh.objstorage.multiplexer:MultiplexerObjStorage"
 "read-only" = "swh.objstorage.proxies.readonly:ReadOnlyProxyObjStorage"

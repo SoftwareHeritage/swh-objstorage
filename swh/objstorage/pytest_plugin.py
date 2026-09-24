@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -22,7 +22,7 @@ def swh_objstorage_config():
     return {"cls": "memory"}
 
 
-@pytest.fixture(params=["sha1", "sha256"])
+@pytest.fixture(params=["sha1", "sha1_git", "sha256"])
 def swh_objstorage(request, swh_objstorage_config):
     """Fixture that instantiates an object storage based on the configuration
     returned by the ``swh_objstorage_config`` fixture.

@@ -157,7 +157,7 @@ class ObjStorageTestFixture:
         content_p, obj_id_p = self.hash_content(b"contains_present")
         self.storage.add(content_p, obj_id=obj_id_p)
         assert obj_id_p in self.storage
-        for hashalgo in ["sha1", "sha256"]:
+        for hashalgo in ["sha1", "sha1_git", "sha256"]:
             if hashalgo == self.storage.primary_hash:
                 assert {hashalgo: obj_id_p[hashalgo]} in self.storage
             else:
