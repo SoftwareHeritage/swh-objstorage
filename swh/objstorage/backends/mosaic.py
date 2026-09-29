@@ -11,6 +11,9 @@ can benefit from the efficiency of :ref:`swh-mosaic` without setting up a comple
 :ref:`swh-objstorage-winery`.
 """
 
+from typing import Iterable, Iterator
+
+from swh.model.hashutil import HashDict
 from swh.mosaic import IdxDescription, MosaicReader
 from swh.objstorage.constants import ID_HEXDIGEST_LENGTH_BY_ALGO, LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
@@ -59,6 +62,10 @@ class MosaicObjStorage(ObjStorage):
             return self.mosaic.lookup(key)
         except KeyError:
             raise ObjNotFoundError(obj_id)
+
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[bytes | None]:
+        keys = [obj_id[self.primary_hash] for obj_id in obj_ids]
+        return iter(self.mosaic.get_batch(keys))
 
     def delete(self, obj_id: ObjId):
         raise ReadOnlyObjStorageError("delete")
