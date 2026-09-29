@@ -15,25 +15,30 @@ from typing import Iterable, Iterator
 
 from swh.model.hashutil import HashDict
 from swh.mosaic import IdxDescription, MosaicReader
-from swh.objstorage.constants import ID_HEXDIGEST_LENGTH_BY_ALGO, LiteralPrimaryHash
+from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError, ReadOnlyObjStorageError
 from swh.objstorage.interface import ObjId
 from swh.objstorage.objstorage import ObjStorage, timed
+
+HashToIDX: dict[LiteralPrimaryHash, IdxDescription] = {
+    "sha1": IdxDescription.SHA1FMPHGO,
+    "sha1_git": IdxDescription.SHA1GITFMPHGO,
+    "sha256": IdxDescription.SHA256FMPHGO,
+}
 
 
 class MosaicObjStorage(ObjStorage):
     """Readonly objstorage backed by a single MOSAIC file."""
 
-    primary_hash: LiteralPrimaryHash = "sha1_git"
     name: str = "mosaic"
 
-    def __init__(self, path: str, **kwargs):
+    def __init__(
+        self, path: str, primary_hash: LiteralPrimaryHash = "sha1_git", **kwargs
+    ):
         super().__init__(**kwargs)
         self.mosaic_path = path
-        self.mosaic = MosaicReader(path, IdxDescription.SHA1GITFMPHGO)
-        self.key_len = 20
-        hash_len = ID_HEXDIGEST_LENGTH_BY_ALGO[self.primary_hash] // 2
-        assert self.key_len >= hash_len
+        self.primary_hash: LiteralPrimaryHash = primary_hash
+        self.mosaic = MosaicReader(path, HashToIDX[primary_hash])
 
     def __del__(self):
         self.mosaic.close()
