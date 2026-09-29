@@ -5,23 +5,22 @@
 
 import pytest
 
-from swh.mosaic import IdxDescription, MosaicCreator
+from swh.mosaic import MosaicCreator
+from swh.objstorage.backends.mosaic import HashToIDX
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import ObjNotFoundError, objid_for_content
 
 
-# @pytest.fixture(params=("sha1", "sha1_git", "sha256"))
-@pytest.fixture
+@pytest.fixture(params=("sha1", "sha1_git", "sha256"))
 def mosaic_file(request, tmpdir):
-    """Fills a temporary shard file with 100 objects."""
+    """Fills a temporary MOSAIC file with 100 objects."""
 
-    # primary_hash = request.param
-    primary_hash = "sha1_git"
+    primary_hash = request.param
     mosaic_path = tmpdir / f"test_{primary_hash}.mosaic"
     nb_objects = 100
     contents = [f"some content {i}".encode() for i in range(nb_objects)]
     obj_ids = []
-    with MosaicCreator(str(mosaic_path), [IdxDescription.SHA1GITFMPHGO]) as mosaic:
+    with MosaicCreator(str(mosaic_path), [HashToIDX[primary_hash]]) as mosaic:
         for content in contents:
             obj_id = objid_for_content(content)
             obj_ids.append(obj_id)
