@@ -236,7 +236,9 @@ Configuration
 
 `Winery` uses a structured configuration schema.
 
-Here is typical configuration for a directory shards pool back-end::
+Here is typical configuration for a directory shards pool back-end:
+
+.. code-block:: yaml
 
   objstorage:
     cls: winery
@@ -285,7 +287,9 @@ Here is typical configuration for a directory shards pool back-end::
       clean_immediately: true
 
 
-A multi-pool configuration could look like (partial config)::
+A multi-pool configuration could look like (partial config):
+
+.. code-block:: yaml
 
   objstorage:
     cls: winery
