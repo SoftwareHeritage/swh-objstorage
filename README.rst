@@ -85,15 +85,7 @@ And set it in a configuration file we'll call `localwinery.yml`:
 
     # boolean (false (default): allow writes, true: only allow reads)
     readonly: false
-
-    shards:
-      # integer: threshold in bytes above which shards get packed. Can be
-      # overflowed by the max allowed object size.
-      max_size: 100_000_000  # 100MB
-
-      # float: timeout in seconds after which idle read-write shards get
-      # released by the winery writer process
-      rw_idle_timeout: 300
+    rw_idle_timeout: 300
 
     database:
       # string: PostgreSQL connection string for the object index and read-write shards
@@ -108,6 +100,9 @@ And set it in a configuration file we'll call `localwinery.yml`:
         type: directory
         base_directory: /home/martin/objstores/winery
         pool_name: the-shards
+        # integer: threshold in bytes above which shards get packed. Can be
+        # overflowed by the max allowed object size.
+        shard_max_size: 100_000_000  # 100MB
     shard_active_pool: the-shards
 
     packer:
