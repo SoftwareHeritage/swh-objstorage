@@ -51,6 +51,7 @@ class RbdShardsPool(ShardsPool, TypedDict):
     map_options: NotRequired[str]
     data_pool_name: NotRequired[Optional[str]]
     image_features_unsupported: NotRequired[Tuple[str, ...]]
+    map_unix_group: str
 
 
 def rbd_shards_pool_settings_with_defaults(
@@ -64,6 +65,7 @@ def rbd_shards_pool_settings_with_defaults(
         "data_pool_name": None,
         "image_features_unsupported": DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
         "map_options": "",
+        "map_unix_group": "winery-packer",
         **values,
     }
 

@@ -18,6 +18,10 @@ from .. import settings
 logger = logging.getLogger(__name__)
 
 
+class RBDException(Exception):
+    pass
+
+
 class RBDPool(Pool):
     """Manage a Ceph RBD pool for Winery shards.
 
@@ -31,6 +35,7 @@ class RBDPool(Pool):
       rbd_map_options: options to pass to ``rbd device map``, e.g.
         ``ms_mode=prefer-secure`` to connect to a ceph cluster with encryption
         enabled
+      rbd_map_unix_group: unix group that will own newly mapped rbd devices
     """
 
     def __init__(
@@ -43,6 +48,7 @@ class RBDPool(Pool):
             str, ...
         ] = settings.DEFAULT_IMAGE_FEATURES_UNSUPPORTED,
         rbd_map_options: str = "",
+        rbd_map_unix_group: str = "winery-packer",
     ) -> None:
         self.use_sudo = rbd_use_sudo
         self.pool_name = rbd_pool_name
@@ -50,6 +56,15 @@ class RBDPool(Pool):
         self.features_unsupported = rbd_image_features_unsupported
         self.map_options = rbd_map_options
         self.image_size = math.ceil((shard_max_size * 2) / (1024 * 1024))
+        self.rbd_map_unix_group = rbd_map_unix_group
+
+        if self.map_options:
+            logger.warning(
+                "Map options are no longer supported with rbd-nbd: %s", self.map_options
+            )
+
+        image_base = self.image_path("")
+        os.makedirs(image_base, exist_ok=True)
 
     POOL_CONFIG: Tuple[str, ...] = (
         "shard_max_size",
@@ -85,6 +100,11 @@ class RBDPool(Pool):
         """Run rbd with the given arguments"""
 
         return self.run("rbd", f"--pool={self.pool_name}", *arguments)
+
+    def rbd_nbd(self, *arguments: str) -> Iterable[str]:
+        """Run rbd-nbd with the given arguments"""
+
+        return self.run("rbd-nbd", *arguments)
 
     def image_exists(self, image: str):
         try:
@@ -124,18 +144,31 @@ class RBDPool(Pool):
         self.image_map(image, "rw")
 
     def image_map(self, image: str, options: str):
-        self.rbd(
-            "device",
+        nbd_opts = []
+        dev_mode = 0o664
+        if options == "ro":
+            dev_mode = 0o444
+            nbd_opts.append("--read-only")
+        stdout = self.rbd_nbd(
             "map",
-            "-o",
-            f"{options},{self.map_options}" if self.map_options else options,
-            image,
+            *nbd_opts,
+            f"{self.pool_name}/{image}",
         )
+        for line in stdout:
+            if line.startswith("/dev/nbd"):
+                mapped_device = line.strip()
+                break
+        else:
+            raise RBDException(f"Could not map image for {self.pool_name}/{image}")
+
+        shutil.chown(mapped_device, "root", self.rbd_map_unix_group)
+        os.chmod(mapped_device, dev_mode)
+        os.symlink(mapped_device, self.image_path(image))
 
     def image_unmap(self, image: str):
         if os.path.exists(self.image_path(image)):
             try:
-                self.rbd("device", "unmap", self.image_path(image))
+                self.rbd_nbd("unmap", f"{self.pool_name}/{image}")
             except subprocess.CalledProcessError as exc:
                 if exc.returncode == 22 and "Invalid argument" in exc.stderr:
                     logger.warning(
@@ -143,6 +176,8 @@ class RBDPool(Pool):
                     )
                 else:
                     raise
+        if os.path.islink(self.image_path(image)):
+            os.remove(self.image_path(image))
 
     def image_open(self, image: str) -> ImageReader:
         return Shard(self.image_path(image))

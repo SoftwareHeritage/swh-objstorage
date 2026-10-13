@@ -245,6 +245,7 @@ def pool_from_settings(
             rbd_data_pool_name=rbd_settings["data_pool_name"],
             rbd_image_features_unsupported=rbd_settings["image_features_unsupported"],
             rbd_map_options=rbd_settings["map_options"],
+            rbd_map_unix_group=rbd_settings["map_unix_group"],
         )
     elif pool_type == "directory":
         from .shard import ShardBackedPool
