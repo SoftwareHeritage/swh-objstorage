@@ -68,11 +68,16 @@ class Pool(Protocol):
     def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
         """Check whether the image is already mapped, read-only or read-write"""
         imgpath = self.image_path(image)
-        if os.access(imgpath, os.R_OK):
-            if os.access(imgpath, os.W_OK):
-                return "rw"
-            return "ro"
-        return None
+        try:
+            image_stat = os.stat(imgpath)
+        except FileNotFoundError:
+            return None
+
+        # Both checks are needed: os.access always returns True as root; the file mode
+        # may allow writing for a file within a read-only filesystem
+        if (image_stat.st_mode & 0o222) != 0 and os.access(imgpath, os.W_OK):
+            return "rw"
+        return "ro"
 
     def image_list(self) -> List[str]:
         """List all known images, mapped or not"""
