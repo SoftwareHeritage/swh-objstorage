@@ -210,10 +210,7 @@ class MosaicS3BackedPool(Pool):
 
     def image_open(self, image: str) -> ImageReader:
         imgpath = self.image_path(image)
-        if self.image_mapped(image) == "ro":
-            config = {"backend": "s3"}
-        else:
-            config = {"backend": "mmap"}
+        config = {"backend": "s3" if self.image_mapped(image) == "ro" else "mmap"}
         reader = MosaicReader(imgpath, IdxDescription.SHA256FMPHGO, config)
         return reader
 
