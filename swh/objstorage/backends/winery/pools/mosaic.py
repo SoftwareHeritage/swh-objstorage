@@ -12,13 +12,7 @@ from typing import List, Literal, Optional
 import boto3
 from botocore.exceptions import ClientError
 
-from swh.mosaic import (
-    Backend,
-    IdxDescription,
-    MosaicCreator,
-    MosaicReader,
-    MosaicUpdater,
-)
+from swh.mosaic import IdxDescription, MosaicCreator, MosaicReader, MosaicUpdater
 
 from . import FileBackedPool, ImageReader, ImageWriter, Pool
 
@@ -217,10 +211,10 @@ class MosaicS3BackedPool(Pool):
     def image_open(self, image: str) -> ImageReader:
         imgpath = self.image_path(image)
         if self.image_mapped(image) == "ro":
-            backend = Backend.S3
+            config = {"backend": "s3"}
         else:
-            backend = Backend.MMAP
-        reader = MosaicReader(imgpath, IdxDescription.SHA256FMPHGO, backend)
+            config = {"backend": "mmap"}
+        reader = MosaicReader(imgpath, IdxDescription.SHA256FMPHGO, config)
         return reader
 
     def delete_object(self, image: str, obj_id: bytes) -> None:
