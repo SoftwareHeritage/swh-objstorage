@@ -94,6 +94,10 @@ class RBDPool(Pool):
         else:
             return True
 
+    def image_ready_for_reads(self, image: str) -> bool:
+        # Serving reads from a rw image may prevent remounting the image ro
+        return self.image_mapped(image) == "ro"
+
     def image_list(self):
         try:
             images = self.rbd("ls")

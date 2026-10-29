@@ -79,6 +79,10 @@ class Pool(Protocol):
             return "rw"
         return "ro"
 
+    def image_ready_for_reads(self, image: str) -> bool:
+        """Check whether read requests can be served from the image"""
+        return self.image_mapped(image) is not None
+
     def image_list(self) -> List[str]:
         """List all known images, mapped or not"""
         ...

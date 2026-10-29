@@ -221,6 +221,8 @@ class WineryReader:
             if pool_name is None:
                 return None
             pool = self.pools[pool_name]
+            if not pool.image_ready_for_reads(name):
+                return None
             try:
                 with statsd.timed(
                     SHARD_OPEN_DURATION_METRIC,
