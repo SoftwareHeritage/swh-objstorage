@@ -41,7 +41,7 @@ class MosaicBackedPool(FileBackedPool):
         self.compression_level = compression_level
 
     def image_open(self, image: str) -> ImageReader:
-        reader = MosaicReader(Path(self.image_path(image)), IdxDescription.SHA256FMPHGO)
+        reader = MosaicReader(self.image_path(image), IdxDescription.SHA256FMPHGO)
         return reader
 
     def delete_object(self, shard_name, obj_id) -> None:
