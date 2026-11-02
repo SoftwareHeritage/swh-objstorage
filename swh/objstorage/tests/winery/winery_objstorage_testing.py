@@ -61,6 +61,18 @@ class TestWinery:
         assert shard1 == shard2, "Locked a different shard?"
         assert base.get_shard_state(shard1) == ShardState.WRITING
 
+    def test_winery_get_falls_back_to_rwshard(self, storage):
+        """Get an object in a packed shard that is not yet available as a roshard"""
+        content = b"SOMETHING"
+        obj_id = objid_for_content(content)
+        storage.add(content, obj_id)
+
+        shard = storage.writer.base.locked_shard
+        storage.writer.release_shard()
+        storage.writer.base.set_shard_state(ShardState.PACKED, name=shard)
+
+        assert storage.get(obj_id) == content
+
     def test_winery_add_get(self, winery_writer, winery_reader):
         shard = winery_writer.base.locked_shard
         content = b"SOMETHING"
