@@ -555,18 +555,13 @@ class SharedBase(Database):
                     db=db,
                 )
 
-    def get_shard_info(self, id: int) -> Optional[Tuple[str, ShardState]]:
-        """Get the name and :py:class:`ShardState` of the shard with the given ``id``.
-
-        Returns:
-          :py:const:`None` if the shard with the given ``id`` doesn't exist.
+    def get_shard_info(self, ids: List[int]) -> Dict[int, Tuple[str, ShardState]]:
+        """Get the name and :py:class:`ShardState` of the shard with each of
+        the given ``ids``.
         """
         with self.pool.connection() as db, db.cursor() as c:
-            c.execute("SELECT name, state FROM shards WHERE id = %s", (id,))
-            row = c.fetchone()
-            if not row:
-                return None
-            return (row[0], ShardState(row[1]))
+            c.execute("SELECT id, name, state FROM shards WHERE id = ANY(%s)", (ids,))
+            return {id: (name, ShardState(state)) for (id, name, state) in c}
 
     def get_shard_state(self, name: str) -> Optional[ShardState]:
         """Get the :py:class:`ShardState` of the named shard.
@@ -705,27 +700,33 @@ class SharedBase(Database):
                     )
                 return hosts
 
-    def contains(self, obj_id: bytes) -> Optional[int]:
-        """Return the id of the shard which contains ``obj_id``, or :py:const`None`
+    def contains(self, obj_id: bytes) -> bool:
+        """Return True if any shard contains ``obj_id``, or :py:const:`False`
         if the object is not known (or deleted)."""
+        return obj_id in self.get_obj_shard_batch([obj_id])
+
+    def get_obj_shard(self, obj_id: bytes) -> Optional[int]:
+        """Return the id of the shard which contains ``obj_id``, or :py:const:`None`
+        if the object is not known (or deleted)."""
+        return self.get_obj_shard_batch([obj_id]).get(obj_id)
+
+    def get_obj_shard_batch(self, obj_ids: List[bytes]) -> Dict[bytes, int]:
+        """Return the id of the shard which contains each ``obj_id``"""
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(
-                "SELECT shard FROM signature2shard WHERE "
-                "signature = %s AND state = 'present'",
-                (obj_id,),
+                "SELECT signature, shard FROM signature2shard WHERE "
+                "signature = ANY(%s) AND state = 'present'",
+                (obj_ids,),
             )
-            row = c.fetchone()
-            if not row:
-                return None
-            return row[0]
+            return dict(c)
 
     def get(self, obj_id) -> Optional[Tuple[str, ShardState]]:
         """Return the name and :py:class:`ShardState` of the shard containing ``obj_id``,
         or :py:const:`None` if the object is not known (or deleted)."""
-        id = self.contains(obj_id)
+        id = self.get_obj_shard(obj_id)
         if id is None:
             return None
-        return self.get_shard_info(id)
+        return self.get_shard_info([id]).get(id)
 
     def record_new_obj_ids(
         self, db: psycopg.Connection, obj_ids: List[bytes]

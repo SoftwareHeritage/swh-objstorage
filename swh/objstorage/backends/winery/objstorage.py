@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import partial
 import logging
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
@@ -110,6 +110,10 @@ class WineryObjStorage(ObjStorage):
         except ObjNotFoundError as exc:
             # re-raise exception with the passed obj_id instead of the internal winery obj_id.
             raise ObjNotFoundError(obj_id) from exc
+
+    @timed
+    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+        return self.reader.get_batch(map(self._hash, obj_ids))
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
@@ -294,6 +298,27 @@ class WineryReader:
         if content is None:
             raise ObjNotFoundError(obj_id)
         return content
+
+    def get_batch(self, obj_ids: Iterable[bytes]) -> Iterator[Optional[bytes]]:
+        obj_ids = list(obj_ids)
+        obj_ids_by_shard_id: Dict[int, List[bytes]] = defaultdict(list)
+        objects_by_id: Dict[bytes, Optional[bytes]] = {}
+
+        for obj_id, shard_id in self.base.get_obj_shard_batch(obj_ids).items():
+            obj_ids_by_shard_id[shard_id].append(obj_id)
+
+        shard_ids = list(obj_ids_by_shard_id)
+        for shard_id, (name, state) in self.base.get_shard_info(shard_ids).items():
+            shard: Optional[Union[ROShard, RWShard]] = None
+            if state.image_available:
+                shard = self.roshard(name)
+            if shard is None:
+                shard = self.rwshard(name)
+            if shard is not None:
+                for obj_id in obj_ids_by_shard_id[shard_id]:
+                    objects_by_id[obj_id] = shard.get(obj_id)
+
+        return iter([objects_by_id.get(obj_id) for obj_id in obj_ids])
 
     def on_shutdown(self):
         for shard in self.ro_shards.values():

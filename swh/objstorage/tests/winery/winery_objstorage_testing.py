@@ -72,6 +72,7 @@ class TestWinery:
         storage.writer.base.set_shard_state(ShardState.PACKED, name=shard)
 
         assert storage.get(obj_id) == content
+        assert list(storage.get_batch([obj_id])) == [content]
 
     def test_winery_add_get(self, winery_writer, winery_reader):
         shard = winery_writer.base.locked_shard
@@ -88,6 +89,21 @@ class TestWinery:
         with pytest.raises(ObjNotFoundError):
             winery_reader.get(b"unknown")
         winery_writer.shard.drop()
+
+    def test_winery_get_batch(self, prefilled_storage, shards):
+        ro_obj_id = next(iter(shards.values()))[0]["sha256"]
+        ro_content = prefilled_storage.get({"sha256": ro_obj_id})
+
+        rw_content = b"read-write content"
+        rw_obj_id = objid_for_content(rw_content)["sha256"]
+        prefilled_storage.add(rw_content, {"sha256": rw_obj_id})
+
+        missing_obj_id = objid_for_content(b"missing content")["sha256"]
+
+        obj_ids = [ro_obj_id, rw_obj_id, missing_obj_id, ro_obj_id]
+        assert list(
+            prefilled_storage.get_batch([{"sha256": obj_id} for obj_id in obj_ids])
+        ) == [ro_content, rw_content, None, ro_content]
 
     def test_winery_add_concurrent(self, winery_settings, mocker):
         num_threads = 4
@@ -236,7 +252,7 @@ class TestWinery:
             reader.lookup(sha256_1)
 
     def test_winery_get_shard_info(self, winery_reader):
-        assert winery_reader.base.get_shard_info(1234) is None
+        assert winery_reader.base.get_shard_info([1234]) == {}
         assert winery_reader.base.get_shard_state("nothing") is None
 
     def test_winery_base_record_shard_mapped(self, winery_writer):
