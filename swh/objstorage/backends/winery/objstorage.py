@@ -283,18 +283,7 @@ class WineryReader:
         return self.rw_shards[name]
 
     def get(self, obj_id: bytes) -> bytes:
-        shard_info = self.base.get(obj_id)
-        if shard_info is None:
-            raise ObjNotFoundError(obj_id)
-        name, state = shard_info
-        content: Optional[bytes] = None
-
-        shard: Optional[Union[ROShard, RWShard]] = None
-        if state.image_available:
-            shard = self.roshard(name)
-        if shard is None:
-            shard = self.rwshard(name)
-        content = shard.get(obj_id)
+        content = next(self.get_batch([obj_id]))
         if content is None:
             raise ObjNotFoundError(obj_id)
         return content
@@ -417,7 +406,10 @@ class WineryWriter:
         return stats
 
     def delete(self, obj_id: bytes):
-        shard_info = self.base.get(obj_id)
+        shard_id = self.base.get_obj_shards([obj_id]).get(obj_id)
+        if shard_id is None:
+            raise ObjNotFoundError(obj_id)
+        shard_info = self.base.get_shard_info([shard_id]).get(shard_id)
         if shard_info is None:
             raise ObjNotFoundError(obj_id)
         name, state = shard_info

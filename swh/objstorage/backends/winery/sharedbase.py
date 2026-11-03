@@ -715,14 +715,6 @@ class SharedBase(Database):
             )
             return dict(c)
 
-    def get(self, obj_id) -> Optional[Tuple[str, ShardState]]:
-        """Return the name and :py:class:`ShardState` of the shard containing ``obj_id``,
-        or :py:const:`None` if the object is not known (or deleted)."""
-        id = self.get_obj_shards([obj_id]).get(obj_id)
-        if id is None:
-            return None
-        return self.get_shard_info([id]).get(id)
-
     def record_new_obj_ids(
         self, db: psycopg.Connection, obj_ids: List[bytes]
     ) -> Dict[bytes, Optional[int]]:
