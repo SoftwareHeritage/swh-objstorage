@@ -1,12 +1,13 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import asyncio
+import contextlib
 from datetime import timedelta
 import logging
-from typing import Dict, Iterable, Iterator, List, Optional
+from typing import AsyncIterator, Dict, Iterable, Iterator, List, Optional
 from urllib.parse import urljoin
 
 import aiohttp
@@ -104,6 +105,10 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return resp.status_code == 200
 
     @timed
+    def missing(self, obj_ids: Iterable[HashDict]) -> Iterator[HashDict]:
+        return iter(asyncio.run(self._missing(list(obj_ids))))
+
+    @timed
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
@@ -144,13 +149,23 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def _path(self, obj_id):
         return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))
 
+    @contextlib.asynccontextmanager
+    async def _session(self) -> AsyncIterator[aiohttp.ClientSession]:
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=self.batch_max_connections,
+                limit_per_host=self.batch_max_connections_per_host,
+            )
+        ) as session:
+            yield session
+
     async def _content_get(
         self,
         obj_id: HashDict,
         session: aiohttp.ClientSession,
     ) -> Optional[bytes]:
+        url = self._path(obj_id)
         try:
-            url = self._path(obj_id)
             async with session.get(url) as response:
                 response.raise_for_status()
                 content = await response.read()
@@ -164,12 +179,35 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return None
 
     async def _contents_get(self, obj_ids: List[HashDict]) -> List[Optional[bytes]]:
-        async with aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(
-                limit=self.batch_max_connections,
-                limit_per_host=self.batch_max_connections_per_host,
-            )
-        ) as session:
+        async with self._session() as session:
             return await asyncio.gather(
                 *(self._content_get(obj_id, session) for obj_id in obj_ids)
             )
+
+    async def _contains(
+        self,
+        obj_id: HashDict,
+        session: aiohttp.ClientSession,
+    ) -> bool:
+        url = self._path(obj_id)
+        try:
+            async with session.head(url) as response:
+                if response.status == 404:
+                    return False
+                else:
+                    response.raise_for_status()
+                    return True
+        except Exception as e:
+            LOGGER.debug(
+                "Unable to fetch or process content from URL %s due to %s.", url, str(e)
+            )
+            return False
+
+    async def _missing(self, obj_ids: List[HashDict]) -> List[HashDict]:
+        async with self._session() as session:
+            contained = await asyncio.gather(
+                *(self._contains(obj_id, session) for obj_id in obj_ids)
+            )
+            return [
+                obj_id for (obj_id, contains) in zip(obj_ids, contained) if not contains
+            ]
