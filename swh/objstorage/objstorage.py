@@ -168,7 +168,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             self.map_contents = self.executor.map
 
     @deprecated(
-        version="6.0.2",
+        version="v8.1.0",
         reason="Use `objstorage.contains(x)` instead of `x in objstorage`",
     )
     def __contains__(self, obj_id: HashDict) -> bool:
