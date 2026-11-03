@@ -703,14 +703,9 @@ class SharedBase(Database):
     def contains(self, obj_id: bytes) -> bool:
         """Return True if any shard contains ``obj_id``, or :py:const:`False`
         if the object is not known (or deleted)."""
-        return obj_id in self.get_obj_shard_batch([obj_id])
+        return obj_id in self.get_obj_shards([obj_id])
 
-    def get_obj_shard(self, obj_id: bytes) -> Optional[int]:
-        """Return the id of the shard which contains ``obj_id``, or :py:const:`None`
-        if the object is not known (or deleted)."""
-        return self.get_obj_shard_batch([obj_id]).get(obj_id)
-
-    def get_obj_shard_batch(self, obj_ids: List[bytes]) -> Dict[bytes, int]:
+    def get_obj_shards(self, obj_ids: List[bytes]) -> Dict[bytes, int]:
         """Return the id of the shard which contains each ``obj_id``"""
         with self.pool.connection() as db, db.cursor() as c:
             c.execute(
@@ -723,7 +718,7 @@ class SharedBase(Database):
     def get(self, obj_id) -> Optional[Tuple[str, ShardState]]:
         """Return the name and :py:class:`ShardState` of the shard containing ``obj_id``,
         or :py:const:`None` if the object is not known (or deleted)."""
-        id = self.get_obj_shard(obj_id)
+        id = self.get_obj_shards([obj_id]).get(obj_id)
         if id is None:
             return None
         return self.get_shard_info([id]).get(id)

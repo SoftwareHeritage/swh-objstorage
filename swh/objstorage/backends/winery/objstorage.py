@@ -304,7 +304,7 @@ class WineryReader:
         obj_ids_by_shard_id: Dict[int, List[bytes]] = defaultdict(list)
         objects_by_id: Dict[bytes, Optional[bytes]] = {}
 
-        for obj_id, shard_id in self.base.get_obj_shard_batch(obj_ids).items():
+        for obj_id, shard_id in self.base.get_obj_shards(obj_ids).items():
             obj_ids_by_shard_id[shard_id].append(obj_id)
 
         shard_ids = list(obj_ids_by_shard_id)

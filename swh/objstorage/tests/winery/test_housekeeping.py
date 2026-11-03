@@ -71,6 +71,6 @@ def test_import_ro_shards_w_existing_objects(storage, shards):
         for objid in objids:
             assert objid in storage
     for objid in existing_objs:
-        shard_id = base.get_obj_shard(objid["sha256"])
+        shard_id = base.get_obj_shards([objid["sha256"]])[objid["sha256"]]
         shardname, state = base.get_shard_info([shard_id])[shard_id]
         assert shardname != os.path.basename(shardpath)
