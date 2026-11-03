@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
 import string
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Self, Tuple, Union
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Self, Tuple, Union
 from urllib.parse import parse_qs, urlparse
 import warnings
 
@@ -239,6 +239,18 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             return False
         else:
             return True
+
+    @timed
+    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+        return self._async_loop.run_until_complete(self._missing_async(list(obj_ids)))
+
+    async def _missing_async(self, obj_ids: List[HashDict]) -> List[HashDict]:
+        contained = await asyncio.gather(
+            *[self._contains_async(obj_id) for obj_id in obj_ids]
+        )
+        return [
+            obj_id for (obj_id, contains) in zip(obj_ids, contained) if not contains
+        ]
 
     @timed
     def add(

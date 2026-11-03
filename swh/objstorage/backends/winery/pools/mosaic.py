@@ -119,7 +119,7 @@ class MosaicS3BackedPool(Pool):
                 self.tmp_dir / self.pool_name, os.R_OK | os.W_OK | os.X_OK
             ):
                 raise EnvironmentError(
-                    f"Temporary directory {self.tmp_dir/self.pool_name} "
+                    f"Temporary directory {self.tmp_dir / self.pool_name} "
                     "is not accessible"
                 )
 

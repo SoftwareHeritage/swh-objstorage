@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    List,
     Literal,
     Optional,
     Protocol,
@@ -164,6 +165,13 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
         if batch_with_threads:
             self.executor = ThreadPoolExecutor(max_workers=max_batch_workers)
             self.map_contents = self.executor.map
+
+    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+        missing_obj_ids = []
+        for obj_id in obj_ids:
+            if obj_id not in self:
+                missing_obj_ids.append(obj_id)
+        return missing_obj_ids
 
     def _add(
         self, content: Tuple[HashDict, bytes], check_presence: bool
