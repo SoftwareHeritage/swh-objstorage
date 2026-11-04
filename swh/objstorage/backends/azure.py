@@ -9,7 +9,17 @@ from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
 import string
-from typing import Dict, Iterable, Iterator, Mapping, Optional, Self, Tuple, Union
+from typing import (
+    AsyncIterator,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Self,
+    Tuple,
+    Union,
+)
 from urllib.parse import parse_qs, urlparse
 import warnings
 
@@ -30,6 +40,7 @@ from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
+from swh.objstorage.utils import iter_asynciterator
 
 logger = logging.getLogger(__name__)
 
@@ -344,23 +355,28 @@ class _BaseAzureCloudObjStorage(ObjStorage):
 
         return self.decompress(data, hex_obj_id)
 
-    async def _get_async_or_none(self, obj_id):
-        """Like ``get_async(obj_id)``, but returns None instead of raising
-        ResourceNotFoundError. Used by ``get_batch`` so other blobs can be returned
-        even if one is missing."""
+    async def _get_async_or_none(self, obj_id) -> Optional[Tuple[HashDict, bytes]]:
+        """Like ``get_async(obj_id)``, but returns tuples with the hash dict, and
+        returns None instead of raising ResourceNotFoundError.
+        Used by ``get_batch`` so other blobs can be returned even if one is missing."""
         try:
-            return await self._get_async(obj_id)
+            return (obj_id, await self._get_async(obj_id))
         except ObjNotFoundError:
             return None
 
-    async def _get_batch_async(self, obj_ids):
-        return await asyncio.gather(
-            *[self._get_async_or_none(obj_id) for obj_id in obj_ids]
-        )
+    async def _get_batch_async(self, obj_ids) -> AsyncIterator[Tuple[HashDict, bytes]]:
+        for fut in asyncio.as_completed(
+            [self._get_async_or_none(obj_id) for obj_id in obj_ids]
+        ):
+            item = await fut
+            if item is not None:
+                yield item
 
-    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+    def get_batch(
+        self, obj_ids: Iterable[HashDict]
+    ) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
-        return self._async_loop.run_until_complete(self._get_batch_async(obj_ids))
+        return iter_asynciterator(self._get_batch_async(obj_ids), self._async_loop)
 
     def delete(self, obj_id: HashDict):
         """Delete an object."""

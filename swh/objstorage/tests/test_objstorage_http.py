@@ -178,7 +178,12 @@ def test_http_objstorage_get_batch(objstorages, contents, obj_ids):
     sto_front, sto_back = objstorages
     contents_front = list(sto_front.get_batch(obj_ids))
     contents_back = list(sto_back.get_batch(obj_ids))
-    assert contents_front == contents_back == contents
+    expected = list(zip(obj_ids, contents))
+
+    contents_front.sort(key=lambda pair: pair[0]["sha1"])
+    contents_back.sort(key=lambda pair: pair[0]["sha1"])
+    expected.sort(key=lambda pair: pair[0]["sha1"])
+    assert contents_front == contents_back == expected
 
 
 def test_http_objstorage_get_batch_exception(
@@ -191,8 +196,11 @@ def test_http_objstorage_get_batch_exception(
     mock_http_responses(sto_back, aioresponses=aioresponses)
 
     contents_front = list(sto_front.get_batch(obj_ids))
-    assert contents_front[idx] is None
-    assert all(contents_front[i] is not None for i in range(len(obj_ids)) if i != idx)
+    expected = list(zip(obj_ids, contents))
+    del expected[idx]
+    contents_front.sort(key=lambda pair: pair[0]["sha1"])
+    expected.sort(key=lambda pair: pair[0]["sha1"])
+    assert contents_front == expected
 
 
 def test_http_objstorage_get_batch_unknown_contents(objstorages):
@@ -202,4 +210,4 @@ def test_http_objstorage_get_batch_unknown_contents(objstorages):
 
     contents_front = list(sto_front.get_batch(unknown_objids))
     contents_back = list(sto_back.get_batch(unknown_objids))
-    assert contents_front == contents_back == [None] * len(unknown_objids)
+    assert contents_front == contents_back == []

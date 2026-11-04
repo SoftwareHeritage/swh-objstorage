@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2025  The Software Heritage developers
+# Copyright (C) 2021-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,7 +6,7 @@
 import asyncio
 from datetime import timedelta
 import logging
-from typing import Dict, Iterable, Iterator, List, Optional
+from typing import AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import aiohttp
@@ -24,6 +24,7 @@ from swh.objstorage.objstorage import (
     objid_to_default_hex,
     timed,
 )
+from swh.objstorage.utils import iter_asynciterator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -127,8 +128,19 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         )
 
     @timed
-    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
-        return iter(asyncio.run(self._contents_get(list(obj_ids))))
+    def get_batch(
+        self, obj_ids: Iterable[HashDict]
+    ) -> Iterator[Tuple[HashDict, bytes]]:
+        async_loop = asyncio.new_event_loop()
+
+        try:
+            yield from iter_asynciterator(
+                self._contents_get(list(obj_ids)),
+                async_loop,
+            )
+        finally:
+            async_loop.run_until_complete(async_loop.shutdown_asyncgens())
+            async_loop.close()
 
     def download_url(
         self,
@@ -148,14 +160,17 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         self,
         obj_id: HashDict,
         session: aiohttp.ClientSession,
-    ) -> Optional[bytes]:
+    ) -> Optional[Tuple[HashDict, bytes]]:
         try:
             url = self._path(obj_id)
             async with session.get(url) as response:
                 response.raise_for_status()
                 content = await response.read()
-                return self.decompress(
-                    content, objid_to_default_hex(obj_id, self.primary_hash)
+                return (
+                    obj_id,
+                    self.decompress(
+                        content, objid_to_default_hex(obj_id, self.primary_hash)
+                    ),
                 )
         except Exception as e:
             LOGGER.debug(
@@ -163,13 +178,18 @@ class HTTPReadOnlyObjStorage(ObjStorage):
             )
         return None
 
-    async def _contents_get(self, obj_ids: List[HashDict]) -> List[Optional[bytes]]:
+    async def _contents_get(
+        self, obj_ids: List[HashDict]
+    ) -> AsyncIterator[Tuple[HashDict, bytes]]:
         async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(
                 limit=self.batch_max_connections,
                 limit_per_host=self.batch_max_connections_per_host,
             )
         ) as session:
-            return await asyncio.gather(
-                *(self._content_get(obj_id, session) for obj_id in obj_ids)
-            )
+            for fut in asyncio.as_completed(
+                [self._content_get(obj_id, session) for obj_id in obj_ids]
+            ):
+                item = await fut
+                if item is not None:
+                    yield item
