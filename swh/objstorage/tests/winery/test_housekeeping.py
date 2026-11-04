@@ -37,7 +37,7 @@ def test_import_ro_shards(storage, shards):
 
     for shard, objids in shards.items():
         for objid in objids:
-            assert storage.contains(objids)
+            assert storage.contains(objid)
     # ensure newly imported shards are registered in the right pool
     for shard in shards:
         name = os.path.basename(shard)
