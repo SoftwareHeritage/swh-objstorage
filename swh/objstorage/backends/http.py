@@ -187,7 +187,7 @@ class HTTPReadOnlyObjStorage(ObjStorage):
                 limit_per_host=self.batch_max_connections_per_host,
             )
         ) as session:
-            async for fut in asyncio.as_completed(
+            for fut in asyncio.as_completed(
                 [self._content_get(obj_id, session) for obj_id in obj_ids]
             ):
                 item = await fut

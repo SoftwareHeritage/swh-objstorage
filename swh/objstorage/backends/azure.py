@@ -365,7 +365,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             return None
 
     async def _get_batch_async(self, obj_ids) -> AsyncIterator[Tuple[HashDict, bytes]]:
-        async for fut in asyncio.as_completed(
+        for fut in asyncio.as_completed(
             [self._get_async_or_none(obj_id) for obj_id in obj_ids]
         ):
             item = await fut
