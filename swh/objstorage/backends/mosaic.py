@@ -72,11 +72,9 @@ class MosaicObjStorage(ObjStorage):
         self, obj_ids: Iterable[HashDict]
     ) -> Iterator[Tuple[HashDict, bytes]]:
         keys = [obj_id[self.primary_hash] for obj_id in obj_ids]
-        return (
-            (obj_id, content)
-            for (obj_id, content) in zip(obj_ids, self.mosaic.get_batch(keys))
-            if content is not None
-        )
+        for obj_id, content in zip(obj_ids, self.mosaic.get_batch(keys)):
+            if content is not None:
+                yield (obj_id, content)
 
     def delete(self, obj_id: ObjId):
         raise ReadOnlyObjStorageError("delete")

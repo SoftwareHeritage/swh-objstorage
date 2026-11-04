@@ -356,7 +356,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         return self.decompress(data, hex_obj_id)
 
     async def _get_async_or_none(self, obj_id) -> Optional[Tuple[HashDict, bytes]]:
-        """Like ``get_async(obj_id)``, but returns tuples with the hash key, and
+        """Like ``get_async(obj_id)``, but returns tuples with the hash dict, and
         returns None instead of raising ResourceNotFoundError.
         Used by ``get_batch`` so other blobs can be returned even if one is missing."""
         try:
