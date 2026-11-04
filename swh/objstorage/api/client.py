@@ -18,7 +18,9 @@ from swh.objstorage.interface import HashDict, ObjStorageInterface
 from swh.objstorage.objstorage import timed
 
 
-# parent of the actual `RemoteObjStorage` so it can use super() in its overridden method.
+# parent of the actual `RemoteObjStorage` so it can use super().get_batch in its overridden
+# method; otherwise RemoteObjStorage.__new__ would just not add the 'get_batch' method
+# to the class.
 class _RemoteObjStorage(RPCClient):
     """Proxy to a remote object storage.
 
