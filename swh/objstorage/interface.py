@@ -187,7 +187,9 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get/batch")
-    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+    def get_batch(
+        self, obj_ids: Iterable[HashDict]
+    ) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage.
 
         Note: This function does have a default implementation in

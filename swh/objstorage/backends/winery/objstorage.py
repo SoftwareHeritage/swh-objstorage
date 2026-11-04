@@ -6,7 +6,7 @@
 from collections import OrderedDict
 from functools import partial
 import logging
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from swh.core.statsd import statsd
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -284,13 +284,13 @@ class WineryReader:
             raise ObjNotFoundError(obj_id)
         name, state = shard_info
         content: Optional[bytes] = None
+
+        shard: Optional[Union[ROShard, RWShard]] = None
         if state.image_available:
-            roshard = self.roshard(name)
-            if roshard:
-                content = roshard.get(obj_id)
-        if content is None:
-            rwshard = self.rwshard(name)
-            content = rwshard.get(obj_id)
+            shard = self.roshard(name)
+        if shard is None:
+            shard = self.rwshard(name)
+        content = shard.get(obj_id)
         if content is None:
             raise ObjNotFoundError(obj_id)
         return content

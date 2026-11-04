@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import timedelta
-from typing import Dict, Iterable, Iterator, Optional, Union
+from typing import Dict, Iterable, Iterator, Optional, Tuple, Union
 
 from swh.model.hashutil import HashDict
 from swh.objstorage.exc import ReadOnlyObjStorageError
@@ -36,7 +36,9 @@ class ReadOnlyProxyObjStorage(ObjStorage):
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)
 
-    def get_batch(self, obj_ids: Iterable[HashDict]) -> Iterator[Optional[bytes]]:
+    def get_batch(
+        self, obj_ids: Iterable[HashDict]
+    ) -> Iterator[Tuple[HashDict, bytes]]:
         return self.storage.get_batch(obj_ids)
 
     def download_url(

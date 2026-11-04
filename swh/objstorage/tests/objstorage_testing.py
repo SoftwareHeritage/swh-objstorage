@@ -207,15 +207,18 @@ class ObjStorageTestFixture:
         content2, obj_id2 = self.hash_content(b"add_get_batch_2")
         self.storage.add(content1, obj_id1)
         self.storage.add(content2, obj_id2)
-        cr1, cr2 = self.storage.get_batch([obj_id1, obj_id2])
-        assert cr1 == content1
-        assert cr2 == content2
+        res = list(self.storage.get_batch([obj_id1, obj_id2]))
+        expected = [(obj_id1, content1), (obj_id2, content2)]
+        res.sort(key=lambda pair: pair[0]["sha1"])
+        expected.sort(key=lambda pair: pair[0]["sha1"])
+        import pprint
+
+        assert res == expected, pprint.pformat((res, expected))
 
     def test_get_batch_unexisting_content(self):
         content, obj_id = self.hash_content(b"get_batch_unexisting_content")
-        result = list(self.storage.get_batch([obj_id]))
-        assert len(result) == 1
-        assert result[0] is None
+        res = list(self.storage.get_batch([obj_id]))
+        assert res == [], res
 
     def check_statsd(self, statsd, endpoint):
         while True:

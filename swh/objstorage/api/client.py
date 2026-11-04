@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional
+from typing import Iterable, Iterator, Optional, Tuple
 
 from swh.core.api import RPCClient
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -18,7 +18,10 @@ from swh.objstorage.interface import HashDict, ObjStorageInterface
 from swh.objstorage.objstorage import timed
 
 
-class RemoteObjStorage(RPCClient):
+# parent of the actual `RemoteObjStorage` so it can use super().get_batch in its overridden
+# method; otherwise RemoteObjStorage.__new__ would just not add the 'get_batch' method
+# to the class.
+class _RemoteObjStorage(RPCClient):
     """Proxy to a remote object storage.
 
     This class allows to connect to an object storage server via
@@ -43,6 +46,15 @@ class RemoteObjStorage(RPCClient):
     ]
     backend_class = ObjStorageInterface
     name: str = "remote"
+
+
+class RemoteObjStorage(_RemoteObjStorage):
+    @timed
+    def get_batch(
+        self, obj_ids: Iterable[HashDict]
+    ) -> Iterator[Tuple[HashDict, bytes]]:
+        # return 2-tuples instead of 2-lists
+        return map(tuple, super().get_batch(obj_ids))  # type: ignore[misc]
 
     def restore(self: ObjStorageInterface, content: bytes, obj_id: HashDict) -> None:
         return self.add(content, obj_id, check_presence=False)
