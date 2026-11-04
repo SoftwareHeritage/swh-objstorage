@@ -48,13 +48,7 @@ class MosaicObjStorage(ObjStorage):
 
     @timed
     def __contains__(self, obj_id: ObjId) -> bool:
-        key = obj_id[self.primary_hash]
-        res = True
-        try:
-            self.mosaic.lookup(key)
-        except KeyError:
-            res = False
-        return res
+        return obj_id[self.primary_hash] in self.mosaic
 
     @timed
     def add(self, content: bytes, obj_id: ObjId, check_presence: bool = True) -> None:
