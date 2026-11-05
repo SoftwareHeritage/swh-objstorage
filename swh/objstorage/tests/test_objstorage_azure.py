@@ -173,6 +173,25 @@ class TestAzuriteCloudObjStorage(ObjStorageTestFixture):
             assert storage2.download_url(obj_id_p).startswith("http://localhost:")
 
 
+@pytest.mark.skipif(not AZURITE_EXE, reason="azurite not found in AZURITE_PATH or PATH")
+class TestSinglethreadedAzuriteCloudObjStorage(TestAzuriteCloudObjStorage):
+    compression = "none"
+
+    @pytest.fixture
+    def swh_objstorage_config(self, azurite_connection_string):
+        self._container_name = secrets.token_hex(10)
+        client = BlobServiceClient.from_connection_string(azurite_connection_string)
+        client.create_container(self._container_name)
+
+        return {
+            "cls": "azure",
+            "connection_string": azurite_connection_string,
+            "container_name": self._container_name,
+            "compression": self.compression,
+            "threaded": False,
+        }
+
+
 class TestAzuriteCloudObjStorageGzip(TestAzuriteCloudObjStorage):
     compression = "gzip"
 
@@ -279,6 +298,23 @@ class TestMockedAzureCloudObjStorage(ObjStorageTestFixture):
     @pytest.mark.skip("makes no sense to test this for the mocked azure")
     def test_download_url(self):
         pass
+
+
+class TestSinglethreadedMockedAzureCloudObjStorage(TestMockedAzureCloudObjStorage):
+    @pytest.fixture
+    def swh_objstorage_config(self, mocker):
+        AsyncContainerClient = get_MockAsyncContainerClient()
+
+        mocker.patch(
+            "swh.objstorage.backends.azure.AsyncContainerClient", AsyncContainerClient
+        )
+
+        return {
+            "cls": "azure",
+            "container_url": "https://bogus-container-url.example",
+            "compression": self.compression,
+            "threaded": False,
+        }
 
 
 class TestMockedAzureCloudObjStorageGzip(TestMockedAzureCloudObjStorage):

@@ -39,7 +39,7 @@ from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
-from swh.objstorage.utils import AsyncLoop
+from swh.objstorage.utils import AbstractAsyncLoop, AsyncLoop, AsyncLoopThread
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         *,
         compression: CompressionFormat | None = None,
         use_secondary_endpoint_for_downloads=False,
+        threaded: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -119,7 +120,12 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self.use_secondary = use_secondary_endpoint_for_downloads
 
         self._entered = False
-        self._async_loop = AsyncLoop()
+        self._async_loop: AbstractAsyncLoop
+        if threaded:
+            self._async_loop = AsyncLoopThread(name="swh-objstorage-azure")
+            self._async_loop.start()
+        else:
+            self._async_loop = AsyncLoop()
 
     def __enter__(self) -> Self:
         if self._entered:
@@ -135,7 +141,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
     def __del__(self):
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         if self._async_loop.is_alive():
             self._async_loop.terminate()
             assert not self._async_loop.is_alive()
@@ -429,6 +435,9 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
       use_secondary_endpoint_for_downloads: if True, use the secondary endpoint
         url to generate download URLs. To configure the secondary endpoint, use
         the BlobSecondaryEndpoint entry of the connection string.
+      threaded: If True (the default), makes the class usable from multiple threads
+        instead of only the one it is created from, at the expense of creating
+        and extra thread and synchronization overhead
 
     Notes:
       The container url should contain the credentials via a "Shared Access
