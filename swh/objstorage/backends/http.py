@@ -24,7 +24,7 @@ from swh.objstorage.objstorage import (
     objid_to_default_hex,
     timed,
 )
-from swh.objstorage.utils import iter_asynciterator
+from swh.objstorage.utils import AsyncLoop
 
 LOGGER = logging.getLogger(__name__)
 
@@ -131,16 +131,10 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def get_batch(
         self, obj_ids: Iterable[HashDict]
     ) -> Iterator[Tuple[HashDict, bytes]]:
-        async_loop = asyncio.new_event_loop()
-
-        try:
-            yield from iter_asynciterator(
+        with AsyncLoop() as async_loop:
+            yield from async_loop.iter_asynciterator(
                 self._contents_get(list(obj_ids)),
-                async_loop,
             )
-        finally:
-            async_loop.run_until_complete(async_loop.shutdown_asyncgens())
-            async_loop.close()
 
     def download_url(
         self,

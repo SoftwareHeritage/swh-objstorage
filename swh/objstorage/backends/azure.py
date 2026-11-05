@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import asyncio
-import contextlib
 from datetime import datetime, timedelta, timezone
 from itertools import product
 import logging
@@ -40,7 +39,7 @@ from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
-from swh.objstorage.utils import iter_asynciterator
+from swh.objstorage.utils import AsyncLoop
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +119,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self.use_secondary = use_secondary_endpoint_for_downloads
 
         self._entered = False
-
-        self._exit_stack = contextlib.ExitStack()
-        self._async_loop = asyncio.new_event_loop()
-        self._async_exit_stack = contextlib.AsyncExitStack()
+        self._async_loop = AsyncLoop()
 
     def __enter__(self) -> Self:
         if self._entered:
@@ -140,25 +136,9 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self.close()
 
     def close(self):
-        try:
-            async_loop = self._async_loop
-        except AttributeError:
-            # We can't clean up resources. The interpreter is probably shutting down anyway,
-            # so it's not a big deal.
-            pass
-        else:
-            if not async_loop.is_closed():
-                async_loop.run_until_complete(self._async_exit_stack.aclose())
-                async_loop.run_until_complete(self._async_loop.shutdown_asyncgens())
-                async_loop.close()
-
-        try:
-            exit_stack = self._exit_stack
-        except AttributeError:
-            # ditto
-            pass
-        else:
-            exit_stack.close()
+        if self._async_loop.is_alive():
+            self._async_loop.terminate()
+            assert not self._async_loop.is_alive()
 
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
         """Returns a collection of container clients, to be passed to
@@ -376,7 +356,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         self, obj_ids: Iterable[HashDict]
     ) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
-        return iter_asynciterator(self._get_batch_async(obj_ids), self._async_loop)
+        return self._async_loop.iter_asynciterator(self._get_batch_async(obj_ids))
 
     def delete(self, obj_id: HashDict):
         """Delete an object."""
@@ -523,7 +503,7 @@ class AzureCloudObjStorage(_BaseAzureCloudObjStorage):
             )
 
         self._async_loop.run_until_complete(
-            self._async_exit_stack.enter_async_context(self._async_container_client)
+            self._async_loop.enter_async_context(self._async_container_client)
         )
 
     def get_async_container_clients(self) -> Iterable[AsyncContainerClient]:
@@ -611,7 +591,7 @@ class PrefixedAzureCloudObjStorage(_BaseAzureCloudObjStorage):
             container_client = AsyncContainerClient.from_container_url(
                 url, transport=transport
             )
-            await self._async_exit_stack.enter_async_context(container_client)
+            await self._async_loop.enter_async_context(container_client)
             self._async_container_clients[prefix] = container_client
 
         async def create_container_clients() -> None:
