@@ -3,7 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import AsyncIterator, Iterator, TypeVar
+import asyncio
+import contextlib
+from typing import (
+    AsyncContextManager,
+    AsyncIterator,
+    Awaitable,
+    Coroutine,
+    Iterator,
+    Self,
+    TypeVar,
+)
 
 from swh.objstorage.interface import COMPOSITE_OBJID_KEYS, HashDict
 
@@ -21,10 +31,45 @@ def format_obj_id(obj_id: HashDict) -> str:
 T = TypeVar("T")
 
 
-def iter_asynciterator(it: AsyncIterator[T], loop) -> Iterator[T]:
-    while True:
-        try:
-            res = loop.run_until_complete(it.__anext__())
-        except StopAsyncIteration:
-            return
-        yield res
+class AsyncLoop:
+    def __init__(self, *args, **kwargs):
+        self._async_loop = asyncio.new_event_loop()
+        self._async_exit_stack = contextlib.AsyncExitStack()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc_details):
+        self.terminate()
+
+    def is_alive(self) -> bool:
+        return not self._async_loop.is_closed()
+
+    def terminate(self, timeout=None):
+        """Asks the thread to finish, and blocks until it does."""
+        self._async_loop.run_until_complete(self._async_exit_stack.aclose())
+        self._async_loop.run_until_complete(self._async_loop.shutdown_asyncgens())
+        self._async_loop.close()
+
+    def __del__(self):
+        if not self._async_loop.is_closed():
+            self.terminate()
+
+    def run_until_complete(self, aw: Awaitable[T], *, timeout=None) -> T:
+        """Runs the given awaitable in the thread, blocks until completes,
+        and returns its results"""
+
+        return self._async_loop.run_until_complete(aw)
+
+    def enter_async_context(
+        self, cm: AsyncContextManager[T]
+    ) -> Coroutine[None, None, T]:
+        return self._async_exit_stack.enter_async_context(cm)
+
+    def iter_asynciterator(self, it: AsyncIterator[T]) -> Iterator[T]:
+        while True:
+            try:
+                res = self._async_loop.run_until_complete(it.__anext__())
+            except StopAsyncIteration:
+                return
+            yield res
