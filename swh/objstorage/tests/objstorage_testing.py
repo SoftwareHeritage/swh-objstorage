@@ -157,12 +157,18 @@ class ObjStorageTestFixture:
         content_p, obj_id_p = self.hash_content(b"contains_present")
         self.storage.add(content_p, obj_id=obj_id_p)
         assert obj_id_p in self.storage
+        assert self.storage.missing([obj_id_p]) == []
         for hashalgo in ["sha1", "sha1_git", "sha256"]:
             if hashalgo == self.storage.primary_hash:
                 assert {hashalgo: obj_id_p[hashalgo]} in self.storage
+                assert self.storage.missing([{hashalgo: obj_id_p[hashalgo]}]) == []
             else:
                 with pytest.raises(KeyError):
                     assert {hashalgo: obj_id_p[hashalgo]} not in self.storage
+                with pytest.raises(KeyError):
+                    assert self.storage.missing([{hashalgo: obj_id_p[hashalgo]}]) == [
+                        {hashalgo: obj_id_p[hashalgo]}
+                    ]
 
     def test_contains(self):
         content_p, obj_id_p = self.hash_content(b"contains_present")
@@ -170,6 +176,9 @@ class ObjStorageTestFixture:
         self.storage.add(content_p, obj_id=obj_id_p)
         assert obj_id_p in self.storage
         assert obj_id_m not in self.storage
+
+        assert self.storage.missing([obj_id_p, obj_id_m]) == [obj_id_m]
+        assert self.storage.missing([obj_id_m, obj_id_p]) == [obj_id_m]
 
     def test_add_get_w_id(self):
         content, obj_id = self.hash_content(b"add_get_w_id")
@@ -337,6 +346,7 @@ class ObjStorageTestFixture:
 
         for obj_id, content in contents:
             assert obj_id in self.storage
+        assert self.storage.missing([obj_id for (obj_id, _) in contents]) == []
 
     def test_download_url(self):
         content = b"foo"

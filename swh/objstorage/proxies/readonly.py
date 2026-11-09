@@ -30,6 +30,9 @@ class ReadOnlyProxyObjStorage(ObjStorage):
     def __contains__(self, *args, **kwargs):
         return self.storage.__contains__(*args, **kwargs)
 
+    def missing(self, *args, **kwargs):
+        return self.storage.missing(*args, **kwargs)
+
     def get(self, obj_id, *args, **kwargs):
         return self.storage.get(obj_id, *args, **kwargs)
 

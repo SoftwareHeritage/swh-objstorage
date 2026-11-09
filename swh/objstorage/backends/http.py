@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import asyncio
+import contextlib
 from datetime import timedelta
 import logging
 from typing import AsyncIterator, Dict, Iterable, Iterator, List, Optional, Tuple
@@ -105,6 +106,10 @@ class HTTPReadOnlyObjStorage(ObjStorage):
         return resp.status_code == 200
 
     @timed
+    def missing(self, obj_ids: Iterable[HashDict]) -> Iterator[HashDict]:
+        return iter(asyncio.run(self._missing(list(obj_ids))))
+
+    @timed
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
@@ -156,13 +161,23 @@ class HTTPReadOnlyObjStorage(ObjStorage):
     def _path(self, obj_id):
         return urljoin(self.root_path, hashutil.hash_to_hex(self._hash(obj_id)))
 
+    @contextlib.asynccontextmanager
+    async def _session(self) -> AsyncIterator[aiohttp.ClientSession]:
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=self.batch_max_connections,
+                limit_per_host=self.batch_max_connections_per_host,
+            )
+        ) as session:
+            yield session
+
     async def _content_get(
         self,
         obj_id: HashDict,
         session: aiohttp.ClientSession,
     ) -> Optional[Tuple[HashDict, bytes]]:
+        url = self._path(obj_id)
         try:
-            url = self._path(obj_id)
             async with session.get(url) as response:
                 response.raise_for_status()
                 content = await response.read()
@@ -193,3 +208,31 @@ class HTTPReadOnlyObjStorage(ObjStorage):
                 item = await fut
                 if item is not None:
                     yield item
+
+    async def _contains(
+        self,
+        obj_id: HashDict,
+        session: aiohttp.ClientSession,
+    ) -> bool:
+        url = self._path(obj_id)
+        try:
+            async with session.head(url) as response:
+                if response.status == 404:
+                    return False
+                else:
+                    response.raise_for_status()
+                    return True
+        except Exception as e:
+            LOGGER.debug(
+                "Unable to fetch or process content from URL %s due to %s.", url, str(e)
+            )
+            return False
+
+    async def _missing(self, obj_ids: List[HashDict]) -> List[HashDict]:
+        async with self._session() as session:
+            contained = await asyncio.gather(
+                *(self._contains(obj_id, session) for obj_id in obj_ids)
+            )
+            return [
+                obj_id for (obj_id, contains) in zip(obj_ids, contained) if not contains
+            ]

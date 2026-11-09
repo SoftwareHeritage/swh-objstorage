@@ -10,6 +10,7 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    List,
     Optional,
     Protocol,
     Tuple,
@@ -112,6 +113,11 @@ class ObjStorageInterface(Protocol):
             storage.
 
         """
+        ...
+
+    @remote_api_endpoint("content/missing")
+    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+        """Returns the subset of objects that are not already in the object storage"""
         ...
 
     @remote_api_endpoint("content/add")
