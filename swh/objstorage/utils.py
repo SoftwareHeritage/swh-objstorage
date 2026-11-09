@@ -43,6 +43,7 @@ class AsyncLoop:
         self.terminate()
 
     def is_alive(self) -> bool:
+        """Returns whether the async loop is not closed"""
         return not self._async_loop.is_closed()
 
     def terminate(self, timeout=None):
@@ -57,16 +58,20 @@ class AsyncLoop:
 
     def run_until_complete(self, aw: Awaitable[T], *, timeout=None) -> T:
         """Runs the given awaitable in the thread, blocks until completes,
-        and returns its results"""
+        and returns its results, like :meth:`asyncio.BaseEventLoop.run_until_complete`.
+        """
 
         return self._async_loop.run_until_complete(aw)
 
     def enter_async_context(
         self, cm: AsyncContextManager[T]
     ) -> Coroutine[None, None, T]:
+        """Creates a task to enter asynchronously an asynchronous iterator, like
+        :meth:`contextlib.AsyncExitStack.enter_async_context`."""
         return self._async_exit_stack.enter_async_context(cm)
 
     def iter_asynciterator(self, it: AsyncIterator[T]) -> Iterator[T]:
+        """Turns an async iterator into a synchronous iterator."""
         while True:
             try:
                 res = self._async_loop.run_until_complete(it.__anext__())
