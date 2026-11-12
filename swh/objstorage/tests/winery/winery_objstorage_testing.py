@@ -190,7 +190,7 @@ class TestWinery:
         shard, [sha256_1, sha256_2] = make_packed_shard(storage, [content1, content2])
 
         # We should only have one roshard
-        assert len(write_pool.image_list()) == 1
+        assert len(list(write_pool.image_list())) == 1
 
         # This will only mark as deleted in SharedBase for the time being
         storage.writer.delete(sha256_1)

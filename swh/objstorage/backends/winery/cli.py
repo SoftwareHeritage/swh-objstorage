@@ -716,7 +716,7 @@ def winery_import_shards(ctx, poolnames, progress):
         pool = pool_from_settings(
             shards_pool_settings=pool_cfg,
         )
-        images = pool.image_list()
+        images = list(pool.image_list())
         click.echo(f"Pool {pool_name}: {len(images)} images")
         n_obj_total = 0
         n_img_total = 0
@@ -913,7 +913,7 @@ def winery_migrate_pool(
     NULLKEY = b"\x00" * 32
 
     if not images:
-        images = src_pool.image_list()
+        images = list(src_pool.image_list())
         click.echo(f"Pool '{from_pool}': {len(images)} images")
     n_obj_total = 0
     n_img_total = 0

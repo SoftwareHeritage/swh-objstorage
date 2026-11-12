@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 import tempfile
-from typing import List, Literal, Optional
+from typing import Iterator, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -141,9 +141,9 @@ class MosaicS3BackedPool(Pool):
             assert self.tmp_dir is not None
             return f"{self.tmp_dir / self.pool_name / (image + self.extension)}"
 
-    def image_list(self) -> List[str]:
+    def image_list(self) -> Iterator[str]:
         # TODO: boto3 client.list_objects will only return up to 1000 entries, need to loop
-        return [
+        yield from (
             entry["Key"]
             .removesuffix(self.extension)
             .removeprefix(self.prefix)
@@ -151,7 +151,7 @@ class MosaicS3BackedPool(Pool):
             for entry in self.client.list_objects(
                 Bucket=self.bucket, Prefix=self.prefix
             )["Contents"]
-        ]
+        )
 
     def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
         if (

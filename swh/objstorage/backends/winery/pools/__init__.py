@@ -8,7 +8,7 @@ import logging
 import os
 from pathlib import Path
 from types import TracebackType
-from typing import Iterator, List, Literal, Optional, Protocol
+from typing import Iterator, Literal, Optional, Protocol
 
 from .. import settings
 
@@ -79,7 +79,7 @@ class Pool(Protocol):
             return "rw"
         return "ro"
 
-    def image_list(self) -> List[str]:
+    def image_list(self) -> Iterator[str]:
         """List all known images, mapped or not"""
         ...
 
@@ -156,8 +156,8 @@ class FileBackedPool(Pool):
     def image_exists(self, image: str) -> bool:
         return (self.pool_dir / image).is_file()
 
-    def image_list(self) -> List[str]:
-        return [entry.name for entry in self.pool_dir.iterdir() if entry.is_file()]
+    def image_list(self) -> Iterator[str]:
+        yield from (entry.name for entry in self.pool_dir.iterdir() if entry.is_file())
 
     def image_path(self, image: str) -> str:
         return str(self.pool_dir / image)

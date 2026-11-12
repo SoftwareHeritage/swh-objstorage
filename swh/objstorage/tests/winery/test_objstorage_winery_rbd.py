@@ -52,7 +52,7 @@ class TestCephWinery(_TestWinery):
             f.write(something)
         with open(p) as f:
             assert f.read(len(something)) == something
-        assert pool.image_list() == [name]
+        assert list(pool.image_list()) == [name]
         pool.image_remap_ro(name)
         if pool.image_mapped(name) == "rw":
             raise ValueError(
@@ -61,10 +61,10 @@ class TestCephWinery(_TestWinery):
             )
         assert pool.image_mapped(name) == "ro"
         pool.images_remove()
-        assert pool.image_list() == []
+        assert list(pool.image_list()) == []
         assert pool.image_mapped(name) is None
         pool.remove()
-        assert pool.image_list() == []
+        assert list(pool.image_list()) == []
 
     @pytest.mark.shard_max_size(1024)
     def test_winery_cli_rbd(
