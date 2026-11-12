@@ -78,6 +78,11 @@ def s3_to_boto3(s3_config: Dict[str, Any]):
             elif key == "aws_skip_signature":
                 if value:
                     boto3_config["config"] = Config(signature_version=UNSIGNED)
+            elif key == "aws_default_region":
+                # Not sure about this one, boto3 seems to support
+                # AWS_DEFAULT_REGION but not as a config entry...
+                if value:
+                    boto3_config["region_name"] = s3_config["aws_default_region"]
             else:
                 if key == "aws_endpoint_url":
                     key = "endpoint_url"
