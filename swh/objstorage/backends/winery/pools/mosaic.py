@@ -7,9 +7,11 @@ import logging
 import os
 from pathlib import Path
 import tempfile
-from typing import Iterator, Literal, Optional
+from typing import Any, Dict, Iterator, Literal, Optional
 
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from swh.mosaic import IdxDescription, MosaicCreator, MosaicReader, MosaicUpdater
@@ -66,6 +68,23 @@ class MosaicBackedPool(FileBackedPool):
         )  # type: ignore[return-value]
 
 
+def s3_to_boto3(s3_config: Dict[str, Any]):
+    "Convert a s3 config dict suitable for MosaicReader into a boto3 one"
+    boto3_config: Dict[str, Any] = {}
+    for key, value in s3_config.items():
+        if key.startswith("aws_"):
+            if key == "aws_allow_http":
+                boto3_config["use_ssl"] = not s3_config["aws_allow_http"]
+            elif key == "aws_skip_signature":
+                if value:
+                    boto3_config["config"] = Config(signature_version=UNSIGNED)
+            else:
+                if key == "aws_endpoint_url":
+                    key = "endpoint_url"
+                boto3_config[key] = value
+    return boto3_config
+
+
 class MosaicS3BackedPool(Pool):
     """
     swh-mosaic s3-backed pool for Winery.
@@ -77,11 +96,10 @@ class MosaicS3BackedPool(Pool):
         pool_name: str,
         shard_max_size: int,
         compression_level: int | None = None,
-        anonymous: bool = False,
         read_only: bool = False,
         image_extension: str = "",
         tmp_directory: Path | None = None,
-        boto3_config=None,
+        s3_config=None,
     ) -> None:
         self.pool_name = pool_name
         assert base_url.startswith("s3://")
@@ -122,14 +140,16 @@ class MosaicS3BackedPool(Pool):
                     f"Temporary directory {self.tmp_dir / self.pool_name} "
                     "is not accessible"
                 )
+        if s3_config is None:
+            s3_config = {}
+        boto3_config = s3_to_boto3(s3_config)
 
-        # for now credentials need to be specified via env vars (esp.
-        # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY) for the mosaic s3
-        # backend
-        if boto3_config is None:
-            boto3_config = {}
+        if "aws_allow_http" in s3_config:
+            # https://gitlab.softwareheritage.org/swh/devel/swh-mosaic/-/work_items/1
+            s3_config["aws_allow_http"] = str(s3_config["aws_allow_http"]).lower()
 
-        self.client = boto3.client("s3", **boto3_config)
+        self.mosaic_s3_config = s3_config
+        self.s3_client = boto3.client("s3", **boto3_config)
 
         self.compression_level = compression_level
         self.extension = image_extension
@@ -142,16 +162,24 @@ class MosaicS3BackedPool(Pool):
             return f"{self.tmp_dir / self.pool_name / (image + self.extension)}"
 
     def image_list(self) -> Iterator[str]:
-        # TODO: boto3 client.list_objects will only return up to 1000 entries, need to loop
-        yield from (
-            entry["Key"]
-            .removesuffix(self.extension)
-            .removeprefix(self.prefix)
-            .strip("/")
-            for entry in self.client.list_objects(
-                Bucket=self.bucket, Prefix=self.prefix
-            )["Contents"]
-        )
+        marker = ""  # for pagination
+        while True:
+            resp = self.s3_client.list_objects(
+                Bucket=self.bucket,
+                Prefix=self.prefix,
+                Marker=marker,
+            )
+            for entry in resp["Contents"]:
+                yield (
+                    entry["Key"]
+                    .removesuffix(self.extension)
+                    .removeprefix(self.prefix)
+                    .strip("/")
+                )
+            if resp["IsTruncated"]:
+                marker = resp["NextMarker"]
+            else:
+                break
 
     def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
         if (
@@ -160,7 +188,7 @@ class MosaicS3BackedPool(Pool):
         ):
             return "rw"
         try:
-            self.client.head_object(
+            self.s3_client.head_object(
                 Bucket=self.bucket, Key=f"{self.prefix}/{image}{self.extension}"
             )
             return "ro"
@@ -188,7 +216,7 @@ class MosaicS3BackedPool(Pool):
                 # means we have the local copy of the mosaic, not yet uploaded
                 # on s3, so let's do it
                 # TODO: handle hard put failure
-                self.client.upload_file(
+                self.s3_client.upload_file(
                     Bucket=self.bucket,
                     Key=f"{self.prefix}/{image}{self.extension}",
                     Filename=str(imgpath),
@@ -196,7 +224,7 @@ class MosaicS3BackedPool(Pool):
                 imgpath.unlink()
         if options == "rw":
             if self.image_mapped(image) == "ro":
-                self.client.download_file(
+                self.s3_client.download_file(
                     Bucket=self.bucket,
                     Key=f"{self.prefix}/{image}{self.extension}",
                     Filename=str(imgpath),
@@ -210,8 +238,11 @@ class MosaicS3BackedPool(Pool):
 
     def image_open(self, image: str) -> ImageReader:
         imgpath = self.image_path(image)
-        config = {"backend": "s3" if self.image_mapped(image) == "ro" else "mmap"}
-        reader = MosaicReader(imgpath, IdxDescription.SHA256FMPHGO, config)
+        if self.image_mapped(image) == "ro":
+            mosaic_config = self.mosaic_s3_config
+        else:
+            mosaic_config = {}
+        reader = MosaicReader(imgpath, IdxDescription.SHA256FMPHGO, mosaic_config)
         return reader
 
     def delete_object(self, image: str, obj_id: bytes) -> None:
@@ -241,7 +272,7 @@ class MosaicS3BackedPool(Pool):
 
     def image_import(self, image_path: str) -> None:
         image = os.path.splitext(os.path.basename(image_path))[0]
-        self.client.upload_file(
+        self.s3_client.upload_file(
             Bucket=self.bucket,
             Key=f"{self.prefix}/{image}{self.extension}",
             Filename=image_path,

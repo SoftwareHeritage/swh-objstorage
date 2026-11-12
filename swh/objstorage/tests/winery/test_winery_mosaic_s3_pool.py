@@ -4,13 +4,12 @@
 # See top-level LICENSE file for more information
 
 import logging
-import os
 
 import boto3
 import pytest
 
 from swh.mosaic import CompressionMethod, IdxDescription
-from swh.objstorage.backends.winery.pools.mosaic import MosaicS3BackedPool
+from swh.objstorage.backends.winery.pools.mosaic import MosaicS3BackedPool, s3_to_boto3
 from swh.objstorage.objstorage import objid_for_content
 
 from .test_objstorage_winery_mosaic import shards  # noqa
@@ -37,23 +36,18 @@ def moto_server():
 def mosaic_s3_config(moto_server):
     s3_bucket = "softwareheritage"
 
-    # configure rust aws client to use moto server
-    os.environ["AWS_ALLOW_HTTP"] = "true"
-    os.environ["AWS_ENDPOINT"] = moto_server
-    os.environ["AWS_SECRET_ACCESS_KEY"] = "foo"
-    os.environ["AWS_ACCESS_KEY_ID"] = "bar"
-
-    boto3_config = {
-        "endpoint_url": moto_server,
-        "aws_access_key_id": "bar",
-        "aws_secret_access_key": "foo",
+    s3_config = {
+        "aws_endpoint_url": moto_server,
+        "aws_access_key_id": "testing",
+        "aws_secret_access_key": "testing",
+        "aws_allow_http": True,
     }
-
+    boto3_config = s3_to_boto3(s3_config)
     s3 = boto3.resource("s3", **boto3_config)
     bucket = s3.Bucket(name=s3_bucket)
     bucket.create()
 
-    yield f"s3://{s3_bucket}", boto3_config
+    yield f"s3://{s3_bucket}", s3_config
 
     bucket.objects.all().delete()
     bucket.delete()
@@ -73,7 +67,7 @@ def image_pools(
     pool_names,
     mosaic_s3_config,
 ):
-    s3_uri, boto3_config = mosaic_s3_config
+    s3_uri, s3_config = mosaic_s3_config
     pools = []
     for pool_name in pool_names:
         if pool_name.endswith("-mosaic-s3"):
@@ -83,7 +77,7 @@ def image_pools(
                 shard_max_size=shard_max_size,
                 pool_name=pool_name,
                 compression_level=3,
-                boto3_config=boto3_config,
+                s3_config=s3_config,
             )
             pool.image_unmap_all()
             pool._settings_for_tests = {
@@ -93,7 +87,7 @@ def image_pools(
                 "pool_name": pool_name,
                 "compression_level": 3,
                 "shard_max_size": shard_max_size,
-                "boto3_config": boto3_config,
+                "s3_config": s3_config,
             }
         else:
             raise ValueError(f"Unsupported pool name: {pool_name}")
@@ -106,7 +100,7 @@ def image_pools(
 class TestWineryMosaicS3Pool:
 
     def test_packing(self, storage, winery_settings, shard_max_size, mosaic_s3_config):
-        mosaic_s3_uri, boto3_config = mosaic_s3_config
+        mosaic_s3_uri, s3_config = mosaic_s3_config
         nbytes = shard_max_size // 10
         # create 5 shards in the pool
         objids = []
@@ -154,6 +148,7 @@ class TestWineryMosaicS3Pool:
         )
         assert result.exit_code == 0
 
+        boto3_config = s3_to_boto3(s3_config)
         client = boto3.client("s3", **boto3_config)
         # mosaic files should be uploaded to s3 now
         for shard, _ in shard_list:

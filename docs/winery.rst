@@ -142,24 +142,24 @@ Winery currently support 4 types of pool to store read-only shard files:
   an S3 compatible storage. Provides the same features as the mosaic files
   backend, but requires specific configuration entries.
 
-  When reading objects from an s3-backed mosaic, read-only access is enough,
-  and is handled directly by the ``swh-mosaic`` module. The base configuration
-  is the ``base_url`` which is expected to be something like
-  ``s3://bucket/path``. To configure authentication or to allow unauthenticated
-  access, you need to define environment variables. The support for S3 being
-  handled by Rust's library `object_store <https://docs.rs/object_store>`_, the
+  When reading objects from an s3-backed mosaic, read-only access is
+  enough, and is handled directly by the ``swh-mosaic`` module. The
+  base configuration is the ``base_url`` which is expected to be
+  something like ``s3://bucket/path``.  The configuration for the s3
+  endpoint is done via an 's3_config' parameter. This dictionary is
+  passed almost directly to the MosaicReader constructor, thus should
+  support all the configuration parameters supported by the backend
+  Rust library `object_store <https://docs.rs/object_store>`_; the
   list of supported environment variables is `described here
   <https://docs.rs/object_store/latest/object_store/aws/struct.AmazonS3Builder.html#method.from_env>`_
 
-  For a RW pool, the packing process will happen in a local file which will
-  then be uploaded on the S3 backend. `boto3
-  <https://docs.aws.amazon.com/boto3/latest/>`_ is used to perform these RW
-  interactions with S3, so the configuration for this RW access to a bucket's
-  path need to be specified via any boto3 compatible method. The pool
-  configuration can include a ``boto3_config`` section (which is passed as it
-  to the `boto3.client()
-  <https://docs.aws.amazon.com/boto3/latest/reference/services/s3.html>`_
-  function).
+  For a RW pool, the packing process will happen in a local file which
+  will then be uploaded on the S3 backend. `boto3
+  <https://docs.aws.amazon.com/boto3/latest/>`_ is used to perform
+  these RW interactions with S3, so the configuration for this RW
+  access to a bucket's path need to be specified via any boto3
+  compatible method. The configuration of the boto3 client is built on
+  the ``s3_config`` mentioned above.
 
   Note that this pool also support object deletion from image files, but this
   involve downloading the image in the temporary directory, altering it, then
@@ -316,6 +316,18 @@ A multi-pool configuration could look like (partial config):
       pool_name: s3_mosaics
       compression_level: 5
       shard_max_size: 10_000_000_000
+      s3_config:
+        aws_allow_http: true
+        aws_endpoint_url: http://my-s3-server:3000/
+        aws_access_key_id: testing
+        aws_secret_access_key: testing
+    - ## Settings for a (RO) anonymous mosaic on s3 pool
+      type: mosaic-s3
+      base_url: s3://softwareheritage/winery
+      pool_name: s3_public_mosaics
+      shard_max_size: 10_000_000_000
+      s3_config:
+        aws_skip_signature: true
 
     # only this pool will be used for ingestion
     shards_active_pool: s3_mosaics

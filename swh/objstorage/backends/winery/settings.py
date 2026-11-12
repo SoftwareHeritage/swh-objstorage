@@ -156,12 +156,11 @@ def mosaic_s3_pool_settings_with_defaults(
         "pool_name": values.get("pool_name", "mosaics"),
         "base_url": values["base_url"],
         "compression_level": compression_level,
-        "anonymous": values.get("anonymous", False),
         "image_extension": values.get("image_extension", ""),
         "shard_max_size": values["shard_max_size"],
         "tmp_directory": values.get("tmp_directory"),
         "read_only": values.get("read_only", False),
-        "boto3_config": values.get("boto3_config"),
+        "s3_config": values.get("s3_config"),
     }
 
 
