@@ -149,10 +149,6 @@ class MosaicS3BackedPool(Pool):
             s3_config = {}
         boto3_config = s3_to_boto3(s3_config)
 
-        if "aws_allow_http" in s3_config:
-            # https://gitlab.softwareheritage.org/swh/devel/swh-mosaic/-/work_items/1
-            s3_config["aws_allow_http"] = str(s3_config["aws_allow_http"]).lower()
-
         self.mosaic_s3_config = s3_config
         self.s3_client = boto3.client("s3", **boto3_config)
 

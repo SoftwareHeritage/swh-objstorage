@@ -1,0 +1,2 @@
+boto3
+swh-mosaic >= 0.8.0

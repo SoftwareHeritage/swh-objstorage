@@ -59,11 +59,13 @@ files = ["requirements.txt", "requirements-swh.txt"]
 azure = ["requirements-azure.txt"]
 libcloud = ["requirements-libcloud.txt"]
 winery = ["requirements-winery.txt"]
+mosaic = ["requirements-mosaic.txt"]
 testing = [
     "requirements-test.txt",
     "requirements-azure.txt",
     "requirements-libcloud.txt",
     "requirements-winery.txt",
+    "requirements-mosaic.txt",
 ]
 
 [tool.hatch.build.targets.wheel]
