@@ -139,7 +139,7 @@ class ObjStorageTestFixture:
 
     def assertContentMatch(self, obj_id, expected_content):  # noqa
         content = self.storage.get(obj_id)
-        assert content == expected_content
+        assert content == expected_content, content
 
     def test_check_config(self):
         assert self.storage.check_config(check_write=False)
@@ -355,7 +355,8 @@ class ObjStorageTestFixture:
         url = self.storage.download_url(obj_id)
         if url is not None:
             decompress = decompressors[self.storage.compression]().decompress
-            assert decompress(requests.get(url).content) == content
+            c = decompress(requests.get(url).content)
+            assert c == content, (c, content)
 
             with pytest.raises(ObjNotFoundError):
                 self.storage.download_url(LAST_OBJID)

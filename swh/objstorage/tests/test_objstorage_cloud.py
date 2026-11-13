@@ -3,17 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from contextlib import closing
-import socket
 from typing import Optional
 
 from libcloud.common.types import InvalidCredsError
-from libcloud.storage.providers import get_driver
-from libcloud.storage.types import (
-    ContainerDoesNotExistError,
-    ObjectDoesNotExistError,
-    Provider,
-)
+from libcloud.storage.types import ContainerDoesNotExistError, ObjectDoesNotExistError
 import pytest
 
 from swh.objstorage.backends.libcloud import CloudObjStorage
@@ -22,10 +15,16 @@ from swh.objstorage.factory import get_objstorage
 from swh.objstorage.objstorage import decompressors
 
 from .objstorage_testing import ObjStorageTestFixture
-
-API_KEY = "API_KEY"
-API_SECRET_KEY = "API SECRET KEY"
-CONTAINER_NAME = "test_container"
+from .test_objstorage_s3 import (  # noqa  # fixtures
+    API_KEY,
+    API_SECRET_KEY,
+    CONTAINER_NAME,
+    garage_container,
+    garage_server,
+    moto_container,
+    moto_server,
+    s3_container,
+)
 
 
 @pytest.fixture
@@ -123,7 +122,7 @@ class TestCloudObjStorage(ObjStorageTestFixture):
     @pytest.fixture(autouse=True)
     def objstorage(self, cloud_provider_mock):
         self.storage = get_objstorage(
-            "s3",
+            "libcloud-s3",
             container_name=CONTAINER_NAME,
             api_key=API_KEY,
             api_secret_key=API_SECRET_KEY,
@@ -189,59 +188,34 @@ class TestCloudObjStoragePrefix(TestCloudObjStorage):
         assert object_path in container
 
 
-def _find_free_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
-
-
-try:
-    from moto.server import ThreadedMotoServer
-except ImportError:
-    moto_available = False
-else:
-    moto_available = True
-
-
-@pytest.fixture(scope="class")
-def moto_server():
-    container_name = CONTAINER_NAME
-    port = _find_free_port()
-    moto_config = {
-        "key": API_KEY,
-        "secret": API_SECRET_KEY,
-        "host": "localhost",
-        "port": port,
-        "secure": False,
-    }
-    server = ThreadedMotoServer(port=port)
-    server.start()
-
-    driver_cls = get_driver(Provider.S3)
-    driver = driver_cls(**moto_config)
-    container = driver.create_container(container_name=container_name)
-    yield moto_config, driver, container
-    driver.delete_container(container)
-    server.stop()
-
-
-@pytest.mark.skipif(not moto_available, reason="moto package is not installed")
 class TestMotoS3CloudObjStorage(ObjStorageTestFixture):
     compression = "none"
 
     @pytest.fixture
-    def swh_objstorage_config(self, moto_server):
-        moto_config, driver, container = moto_server
+    def swh_objstorage_config(self, moto_container):  # noqa  # shadowing
         yield {
-            "cls": "s3",
-            "container_name": container.name,
+            "cls": "libcloud-s3",
+            "container_name": CONTAINER_NAME,
             "compression": self.compression,
-            **moto_config,
+            **moto_container,
         }
-        for obj in driver.list_container_objects(container):
-            driver.delete_object(obj)
 
-    @pytest.mark.skip("Moto does not support signed download URLs")
+
+class TestGarageS3CloudObjStorage(ObjStorageTestFixture):
+    compression = "none"
+
+    @pytest.fixture
+    def swh_objstorage_config(self, garage_container):  # noqa  # shadowing
+        yield {
+            "cls": "libcloud-s3",
+            "container_name": CONTAINER_NAME,
+            "compression": self.compression,
+            **garage_container,
+        }
+
+    @pytest.mark.xfail(
+        reason="libcloud builds incorrect signatures with non-default ports: "
+        "https://github.com/apache/libcloud/pull/2222/files"
+    )
     def test_download_url(self):
-        pass
+        super().test_download_url()

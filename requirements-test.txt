@@ -1,6 +1,6 @@
 boto3
 boto3-stubs
-moto[server, s3]
+moto[server, s3] >= 5.2.5
 msgpack-types
 pytest >= 8.1
 pytest-aioresponses
