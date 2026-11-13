@@ -32,7 +32,8 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 "noop" = "swh.objstorage.backends.noop:NoopObjStorage"
 "azure" = "swh.objstorage.backends.azure:AzureCloudObjStorage"
 "azure-prefixed" = "swh.objstorage.backends.azure:PrefixedAzureCloudObjStorage"
-"s3" = "swh.objstorage.backends.libcloud:AwsCloudObjStorage"
+"libcloud-s3" = "swh.objstorage.backends.libcloud:AwsCloudObjStorage"
+"s3" = "swh.objstorage.backends.s3:S3CloudObjStorage"
 "swift" = "swh.objstorage.backends.libcloud:OpenStackCloudObjStorage"
 "winery" = "swh.objstorage.backends.winery.objstorage:WineryObjStorage"
 "mosaic" = "swh.objstorage.backends.mosaic:MosaicObjStorage"
@@ -58,11 +59,13 @@ files = ["requirements.txt", "requirements-swh.txt"]
 [tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
 azure = ["requirements-azure.txt"]
 libcloud = ["requirements-libcloud.txt"]
+s3 = ["requirements-s3.txt"]
 winery = ["requirements-winery.txt"]
 testing = [
     "requirements-test.txt",
     "requirements-azure.txt",
     "requirements-libcloud.txt",
+    "requirements-s3.txt",
     "requirements-winery.txt",
 ]
 
