@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -28,7 +28,7 @@ API_SECRET_KEY = "API SECRET KEY"
 CONTAINER_NAME = "test_container"
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def cloud_provider_mock(mocker):
     def _get_driver(self, **kwargs):
         return MockLibcloudDriver(**kwargs)
@@ -121,7 +121,7 @@ class TestCloudObjStorage(ObjStorageTestFixture):
     path_prefix: Optional[str] = None
 
     @pytest.fixture(autouse=True)
-    def objstorage(self):
+    def objstorage(self, cloud_provider_mock):
         self.storage = get_objstorage(
             "s3",
             container_name=CONTAINER_NAME,
@@ -154,10 +154,6 @@ class TestCloudObjStorage(ObjStorageTestFixture):
 
         if self.compression != "none":
             assert "trailing data found" in e.value.args[0]
-
-    @pytest.mark.skip("makes no sense to test this for the mocked libcloud")
-    def test_download_url(self):
-        pass
 
 
 @pytest.mark.all_compression_methods
@@ -245,3 +241,7 @@ class TestMotoS3CloudObjStorage(ObjStorageTestFixture):
         }
         for obj in driver.list_container_objects(container):
             driver.delete_object(obj)
+
+    @pytest.mark.skip("Moto does not support signed download URLs")
+    def test_download_url(self):
+        pass
