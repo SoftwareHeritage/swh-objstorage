@@ -1,3 +1,4 @@
+aioaws
 boto3
 boto3-stubs
 moto[server, s3] >= 5.2.5
