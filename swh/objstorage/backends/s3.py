@@ -8,9 +8,9 @@ import hashlib
 import logging
 from typing import Dict, Optional, Self
 
-from aioaws.core import AWSv4Auth
-from httpx2 import URL, AsyncClient, Response
+import aiohttp
 
+from swh.objstorage.aioaws import AWSv4Auth
 from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
@@ -42,15 +42,13 @@ class S3CloudObjStorage(ObjStorage):
         compression: CompressionFormat | None = None,
         path_prefix: Optional[str] = None,
         workaround_moto: bool = False,
+        connection_limit: int = 30,  # avg batch size + 20%
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.workaround_moto = workaround_moto
 
         self._async_loop = AsyncLoop()
-        self.http_client = self._async_loop.run_until_complete(
-            self._async_loop.enter_async_context(AsyncClient())
-        )
 
         if host is None:
             host = f"s3.{region}.amazonaws.com"
@@ -79,6 +77,14 @@ class S3CloudObjStorage(ObjStorage):
             self.path_prefix = path_prefix.rstrip("/") + "/"
         else:
             self.path_prefix = ""
+
+        async def create_connector() -> aiohttp.TCPConnector:
+            # aiohttp.TCPConnector is a sync function, but it needs to be initialized
+            # while an event loop is running
+            return aiohttp.TCPConnector(limit=connection_limit)
+
+        connector = self._async_loop.run_until_complete(create_connector())
+        self._session = aiohttp.ClientSession(connector=connector)
 
         self._entered = False
 
@@ -122,20 +128,20 @@ class S3CloudObjStorage(ObjStorage):
         url: str,
         headers: Dict[str, str] = {},
         content: Optional[bytes] = None,
-    ) -> Response:
-        return await self.http_client.request(
+    ) -> aiohttp.ClientResponse:
+        return await self._session.request(
             method,
             url,
             headers={
                 **self.auth.auth_headers(
-                    method,  # type: ignore[arg-type]  # expects Literal['GET', 'POST']
-                    URL(url),
+                    method,
+                    url,
                     data=content,
                     content_type=headers.get("content-type"),
                 ),
                 **headers,
             },
-            content=content,
+            data=content,
         )
 
     def check_config(self, *, check_write):
@@ -149,7 +155,7 @@ class S3CloudObjStorage(ObjStorage):
 
     async def _contains_async(self, obj_id: HashDict) -> bool:
         r = await self._request("HEAD", self._object_url(obj_id))
-        if r.status_code == 404:
+        if r.status == 404:
             return False
         return True
 
@@ -176,7 +182,7 @@ class S3CloudObjStorage(ObjStorage):
             headers={"content-type": "application/octet-stream"},
             content=content,
         )
-        if r.status_code != 200:
+        if r.status != 200:
             raise Exception(f"Unexpected POST status code: {r}")
 
     @timed
@@ -187,10 +193,10 @@ class S3CloudObjStorage(ObjStorage):
     async def _get_async(self, obj_id: HashDict) -> bytes:
         url = self._object_url(obj_id)
         r = await self._request("GET", url)
-        if r.status_code == 404:
+        if r.status == 404:
             raise ObjNotFoundError(obj_id)
-        elif r.status_code == 200:
-            return r.read()
+        elif r.status == 200:
+            return await r.read()
         else:
             raise Exception("Unexpected GET status code: {r}")
 
@@ -203,18 +209,7 @@ class S3CloudObjStorage(ObjStorage):
         if not await self._contains_async(obj_id):
             raise ObjNotFoundError(obj_id)
 
-        url = URL(self._object_url(obj_id))
-        headers = self.auth.auth_headers(
-            "DELETE",  # type: ignore[arg-type]  # expects Literal["GET", "POST"]
-            url,
-        )
-
-        r = await self.http_client.request(
-            "DELETE",
-            url,
-            headers=headers,
-        )
-
-        if r.status_code != 204:
+        r = await self._request("DELETE", self._object_url(obj_id))
+        if r.status != 204:
             raise Exception(f"Unexpected DELETE status code: {r}")
         return True

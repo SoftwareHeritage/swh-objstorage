@@ -59,14 +59,12 @@ files = ["requirements.txt", "requirements-swh.txt"]
 [tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
 azure = ["requirements-azure.txt"]
 libcloud = ["requirements-libcloud.txt"]
-s3 = ["requirements-s3.txt"]
 winery = ["requirements-winery.txt"]
 mosaic = ["requirements-mosaic.txt"]
 testing = [
     "requirements-test.txt",
     "requirements-azure.txt",
     "requirements-libcloud.txt",
-    "requirements-s3.txt",
     "requirements-winery.txt",
     "requirements-mosaic.txt",
 ]
