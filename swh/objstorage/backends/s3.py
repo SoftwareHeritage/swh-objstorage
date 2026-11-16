@@ -3,13 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import logging
 from typing import Dict, Optional, Self
 
-from aioaws.core import AwsClient, AWSv4Auth, RequestError
-from aioaws.s3 import S3Client, S3Config
+from aioaws.core import AWSv4Auth
 from httpx2 import URL, AsyncClient, Response
 
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -63,21 +62,12 @@ class S3CloudObjStorage(ObjStorage):
         self._host = host
         self._container = container_name
         self._secure = secure
-        config = S3Config(key, secret, region, container_name, host)
         self.auth = AWSv4Auth(
             aws_secret_key=secret,
             aws_access_key=key,
             region=region,
             service="s3",
         )
-        self.aws_client = AwsClient(self.http_client, config, "s3")
-        self.s3_client = S3Client(self.http_client, config)
-        if not secure:
-            assert self.aws_client.schema == "https"
-            assert self.s3_client._aws_client.schema == "https"
-            self.aws_client.schema = "http"
-            self.s3_client._aws_client.schema = "http"
-
         if compression is None:
             logger.warning(
                 "Deprecated: compression is undefined. "
@@ -195,28 +185,14 @@ class S3CloudObjStorage(ObjStorage):
         return self.decompress(obj, self._internal_id(obj_id))
 
     async def _get_async(self, obj_id: HashDict) -> bytes:
-        path = self._object_path(obj_id)
-        try:
-            r = await self.aws_client.get(path)
-            return r.read()
-        except RequestError as e:
-            if e.status == 404:
-                raise ObjNotFoundError(obj_id) from None
-            raise
-
-    def download_url(
-        self,
-        obj_id: HashDict,
-        content_disposition: Optional[str] = None,
-        expiry: Optional[timedelta] = None,
-    ) -> Optional[str]:
-        if obj_id not in self:
+        url = self._object_url(obj_id)
+        r = await self._request("GET", url)
+        if r.status_code == 404:
             raise ObjNotFoundError(obj_id)
-
-        return self.s3_client.signed_download_url(
-            self._object_path(obj_id).removeprefix("/"),
-            max_age=int(expiry.total_seconds()) if expiry is not None else 24 * 3600,
-        )
+        elif r.status_code == 200:
+            return r.read()
+        else:
+            raise Exception("Unexpected GET status code: {r}")
 
     def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission
