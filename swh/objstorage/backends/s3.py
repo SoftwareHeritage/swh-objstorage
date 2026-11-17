@@ -188,7 +188,7 @@ class S3CloudObjStorage(ObjStorage):
             content=content,
         )
         if r.status != 200:
-            raise Exception(f"Unexpected POST status code: {r}")
+            raise Exception(f"Unexpected PUT status code: {r}")
 
     @timed
     def get(self, obj_id: HashDict) -> bytes:
