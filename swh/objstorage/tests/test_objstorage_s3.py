@@ -3,23 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from contextlib import closing
+from contextlib import closing, contextmanager
 import os
 from pathlib import Path
 import shutil
 import socket
 import subprocess
 import time
-from typing import Optional
+from typing import Iterator, Optional
 
-from aioaws.s3 import S3Client, S3Config
-from httpx2 import AsyncClient
 from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
 from moto.server import ThreadedMotoServer
 import pytest
-
-from swh.objstorage.utils import AsyncLoop
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -33,6 +29,19 @@ def _find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+@contextmanager
+def delete_objects(config) -> Iterator[None]:
+    driver_cls = get_driver(Provider.S3)
+    driver = driver_cls(**config)
+    container = driver.get_container(container_name=CONTAINER_NAME)
+
+    try:
+        yield
+    finally:
+        for obj in driver.list_container_objects(container):
+            driver.delete_object(obj)
 
 
 @pytest.fixture(scope="class")
@@ -53,25 +62,18 @@ def moto_server():
     driver = driver_cls(**moto_config)
     container = driver.create_container(container_name=CONTAINER_NAME)
     try:
-        yield {
-            **moto_config,
-            "region": "us-east-1",
-        }, driver, container
+        yield moto_config
     finally:
-        for obj in driver.list_container_objects(container):
-            driver.delete_object(obj)
         driver.delete_container(container)
         server.stop()
 
 
 @pytest.fixture
 def moto_container(moto_server):
-    moto_config, driver, container = moto_server
+    config = moto_server
 
-    for obj in driver.list_container_objects(container):
-        driver.delete_object(obj)
-
-    yield moto_config
+    with delete_objects(config):
+        yield config
 
 
 @pytest.fixture(scope="class")
@@ -134,25 +136,10 @@ public_endpoint = "http://localhost:{port}"
 
 @pytest.fixture
 def garage_container(garage_server):
-    async def clean_bucket() -> None:
-        async with AsyncClient() as http_client:
-            config = S3Config(
-                garage_server["key"],
-                garage_server["secret"],
-                "us-east-1",
-                CONTAINER_NAME,
-                f"{garage_server['host']}:{garage_server['port']}/{CONTAINER_NAME}",
-            )
-            s3_client = S3Client(http_client, config)
-            s3_client._aws_client.schema = "http"
+    config = garage_server
 
-            async for obj in s3_client.list():
-                await s3_client.delete(obj)
-
-    async_loop = AsyncLoop()
-    async_loop.run_until_complete(clean_bucket())
-
-    yield garage_server
+    with delete_objects(config):
+        yield garage_server
 
 
 @pytest.fixture(params=["moto", "garage"])
