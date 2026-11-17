@@ -54,6 +54,7 @@ def moto_server():
         "port": port,
         "secure": False,
         "workaround_moto": True,
+        "container_name": CONTAINER_NAME,
     }
     server = ThreadedMotoServer(port=port)
     server.start()
@@ -128,6 +129,7 @@ public_endpoint = "http://localhost:{port}"
             "host": "localhost",
             "port": port,
             "secure": False,
+            "container_name": CONTAINER_NAME,
         }
 
     finally:
@@ -158,7 +160,6 @@ class TestMotoS3ObjStorage(ObjStorageTestFixture):
     def swh_objstorage_config(self, moto_container):
         yield {
             "cls": "s3",
-            "container_name": CONTAINER_NAME,
             "compression": self.compression,
             "path_prefix": self.path_prefix,
             **moto_container,
@@ -181,7 +182,6 @@ class TestGarageS3ObjStorage(ObjStorageTestFixture):
     def swh_objstorage_config(self, garage_container):
         yield {
             "cls": "s3",
-            "container_name": CONTAINER_NAME,
             "compression": self.compression,
             **garage_container,
         }

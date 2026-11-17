@@ -11,6 +11,14 @@ import pytest
 from swh.mosaic import CompressionMethod, IdxDescription
 from swh.objstorage.backends.winery.pools.mosaic import MosaicS3BackedPool, s3_to_boto3
 from swh.objstorage.objstorage import objid_for_content
+from swh.objstorage.tests.test_objstorage_s3 import (  # noqa
+    CONTAINER_NAME,
+    garage_container,
+    garage_server,
+    moto_container,
+    moto_server,
+    s3_container,
+)
 
 from .test_objstorage_winery_mosaic import shards  # noqa
 from .test_winery_cli import invoke
@@ -20,37 +28,18 @@ from .winery_objstorage_testing import TestWineryObjStorage as _TestWineryObjSto
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="module")
-def moto_server():
-    """Fixture to run a mocked AWS server for testing."""
-    from moto.server import ThreadedMotoServer
-
-    server = ThreadedMotoServer(port=0)
-    server.start()
-    host, port = server.get_host_and_port()
-    yield f"http://{host}:{port}"
-    server.stop()
-
-
 @pytest.fixture
-def mosaic_s3_config(moto_server):
-    s3_bucket = "softwareheritage"
+def mosaic_s3_config(s3_container):  # noqa
+    s3_bucket = s3_container["container_name"]
 
     s3_config = {
-        "aws_endpoint_url": moto_server,
-        "aws_access_key_id": "testing",
-        "aws_secret_access_key": "testing",
+        "aws_endpoint_url": "http://{host}:{port}".format(**s3_container),
+        "aws_access_key_id": s3_container["key"],
+        "aws_secret_access_key": s3_container["secret"],
         "aws_allow_http": True,
     }
-    boto3_config = s3_to_boto3(s3_config)
-    s3 = boto3.resource("s3", **boto3_config)
-    bucket = s3.Bucket(name=s3_bucket)
-    bucket.create()
 
     yield f"s3://{s3_bucket}", s3_config
-
-    bucket.objects.all().delete()
-    bucket.delete()
 
 
 @pytest.fixture
@@ -154,9 +143,7 @@ class TestWineryMosaicS3Pool:
         for shard, _ in shard_list:
             image_path = pool.image_path(shard)
             assert image_path.startswith("s3://")
-            assert client.head_object(
-                Bucket="softwareheritage", Key=f"{pool_name}/{shard}"
-            )
+            assert client.head_object(Bucket=CONTAINER_NAME, Key=f"{pool_name}/{shard}")
             img = pool.image_open(shard)
             assert img.indexes == [IdxDescription.SHA256FMPHGO]
             assert len(img) == 10
