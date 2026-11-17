@@ -150,15 +150,38 @@ def s3_container(request):
         return request.getfixturevalue("garage_container")
 
 
-class TestCloudObjStorage(ObjStorageTestFixture):
+class TestMotoS3ObjStorage(ObjStorageTestFixture):
     compression = "none"
     path_prefix: Optional[str] = None
 
     @pytest.fixture
-    def swh_objstorage_config(self, s3_container):
+    def swh_objstorage_config(self, moto_container):
         yield {
             "cls": "s3",
             "container_name": CONTAINER_NAME,
             "compression": self.compression,
-            **s3_container,
+            "path_prefix": self.path_prefix,
+            **moto_container,
+        }
+
+
+class TestCompressedS3ObjStorage(TestMotoS3ObjStorage):
+    compression = "gzip"
+
+
+class TestPrefixedS3ObjStorage(TestMotoS3ObjStorage):
+    path_prefix = "prefix/"
+
+
+class TestGarageS3ObjStorage(ObjStorageTestFixture):
+    compression = "none"
+    path_prefix: Optional[str] = None
+
+    @pytest.fixture
+    def swh_objstorage_config(self, garage_container):
+        yield {
+            "cls": "s3",
+            "container_name": CONTAINER_NAME,
+            "compression": self.compression,
+            **garage_container,
         }

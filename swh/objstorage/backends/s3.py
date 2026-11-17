@@ -163,6 +163,7 @@ class S3CloudObjStorage(ObjStorage):
     def add(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
     ) -> None:
+        content = self.compress(content)
         self._async_loop.run_until_complete(
             self._add_async(content, obj_id, check_presence)
         )
