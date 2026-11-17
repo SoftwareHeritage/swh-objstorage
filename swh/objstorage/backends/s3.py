@@ -84,7 +84,11 @@ class S3CloudObjStorage(ObjStorage):
             return aiohttp.TCPConnector(limit=connection_limit)
 
         connector = self._async_loop.run_until_complete(create_connector())
-        self._session = aiohttp.ClientSession(connector=connector)
+        self._session = self._async_loop.run_until_complete(
+            self._async_loop.enter_async_context(
+                aiohttp.ClientSession(connector=connector)
+            )
+        )
 
         self._entered = False
 
