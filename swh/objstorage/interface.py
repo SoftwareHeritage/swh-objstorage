@@ -8,7 +8,6 @@ from datetime import timedelta
 from typing import (
     Any,
     Dict,
-    Iterable,
     Iterator,
     List,
     Optional,
@@ -116,7 +115,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/missing")
-    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+    def missing(self, obj_ids: List[HashDict]) -> List[HashDict]:
         """Returns the subset of objects that are not already in the object storage"""
         ...
 
@@ -141,7 +140,7 @@ class ObjStorageInterface(Protocol):
     @remote_api_endpoint("content/add/batch")
     def add_batch(
         self,
-        contents: Iterable[Tuple[HashDict, bytes]],
+        contents: List[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage.
@@ -187,9 +186,7 @@ class ObjStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/get/batch")
-    def get_batch(
-        self, obj_ids: Iterable[HashDict]
-    ) -> Iterator[Tuple[HashDict, bytes]]:
+    def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage.
 
         Note: This function does have a default implementation in

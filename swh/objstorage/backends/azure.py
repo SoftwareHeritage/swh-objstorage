@@ -233,7 +233,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             return True
 
     @timed
-    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+    def missing(self, obj_ids: List[HashDict]) -> List[HashDict]:
         return self._async_loop.run_until_complete(self._missing_async(list(obj_ids)))
 
     async def _missing_async(self, obj_ids: List[HashDict]) -> List[HashDict]:
@@ -289,7 +289,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             return (1, len(content))
 
     async def _add_batch_async(
-        self, contents: Iterable[Tuple[HashDict, bytes]], check_presence: bool = True
+        self, contents: List[Tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
         try:
             results = await asyncio.gather(
@@ -312,7 +312,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
 
     @timed
     def add_batch(
-        self, contents: Iterable[Tuple[HashDict, bytes]], check_presence: bool = True
+        self, contents: List[Tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
         return self._async_loop.run_until_complete(
             self._add_batch_async(contents, check_presence)
@@ -365,9 +365,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             if item is not None:
                 yield item
 
-    def get_batch(
-        self, obj_ids: Iterable[HashDict]
-    ) -> Iterator[Tuple[HashDict, bytes]]:
+    def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
         return self._async_loop.iter_asynciterator(self._get_batch_async(obj_ids))
 

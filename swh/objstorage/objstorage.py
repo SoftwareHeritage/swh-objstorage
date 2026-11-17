@@ -9,17 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import functools
 import lzma
-from typing import (
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Protocol,
-    Tuple,
-)
+from typing import Callable, Dict, Iterator, List, Literal, Optional, Protocol, Tuple
 import zlib
 
 from swh.core import statsd
@@ -166,7 +156,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
             self.executor = ThreadPoolExecutor(max_workers=max_batch_workers)
             self.map_contents = self.executor.map
 
-    def missing(self, obj_ids: Iterable[HashDict]) -> List[HashDict]:
+    def missing(self, obj_ids: List[HashDict]) -> List[HashDict]:
         missing_obj_ids = []
         for obj_id in obj_ids:
             if obj_id not in self:
@@ -185,7 +175,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
 
     def add_batch(
         self,
-        contents: Iterable[Tuple[HashDict, bytes]],
+        contents: List[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
 
@@ -206,9 +196,7 @@ class ObjStorage(ObjStorageInterface, metaclass=abc.ABCMeta):
         except ObjNotFoundError:
             return None
 
-    def get_batch(
-        self, obj_ids: Iterable[HashDict]
-    ) -> Iterator[Tuple[HashDict, bytes]]:
+    def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         for obj_id, content in zip(obj_ids, self.map_contents(self._get, obj_ids)):
             if content is not None:
                 yield (obj_id, content)

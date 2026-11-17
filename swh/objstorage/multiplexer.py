@@ -393,7 +393,7 @@ class MultiplexerObjStorage(ObjStorage):
     @timed
     def add_batch(
         self,
-        contents: Iterable[Tuple[HashDict, bytes]],
+        contents: List[Tuple[HashDict, bytes]],
         check_presence: bool = True,
     ) -> Dict:
         """Add a batch of new objects to the object storage."""

@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable, Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from swh.core.api import RPCClient
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -50,9 +50,7 @@ class _RemoteObjStorage(RPCClient):
 
 class RemoteObjStorage(_RemoteObjStorage):
     @timed
-    def get_batch(
-        self, obj_ids: Iterable[HashDict]
-    ) -> Iterator[Tuple[HashDict, bytes]]:
+    def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         # return 2-tuples instead of 2-lists
         return map(tuple, super().get_batch(obj_ids))  # type: ignore[misc]
 
