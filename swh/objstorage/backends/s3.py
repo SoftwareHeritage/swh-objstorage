@@ -159,7 +159,7 @@ class S3CloudObjStorage(ObjStorage):
 
     async def _contains_async(self, obj_id: HashDict) -> bool:
         r = await self._request("HEAD", self._object_url(obj_id))
-        if r.status == 404:
+        if r.status != 200:
             return False
         return True
 
