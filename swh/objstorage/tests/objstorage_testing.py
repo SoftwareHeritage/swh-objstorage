@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import inspect
+import pprint
 from typing import Iterable, Optional
 
 import pytest
@@ -211,7 +212,6 @@ class ObjStorageTestFixture:
         expected = [(obj_id1, content1), (obj_id2, content2)]
         res.sort(key=lambda pair: pair[0]["sha1"])
         expected.sort(key=lambda pair: pair[0]["sha1"])
-        import pprint
 
         assert res == expected, pprint.pformat((res, expected))
 
