@@ -13,11 +13,8 @@ from swh.objstorage.backends.winery.pools.mosaic import MosaicS3BackedPool, s3_t
 from swh.objstorage.objstorage import objid_for_content
 from swh.objstorage.tests.test_objstorage_s3 import (  # noqa
     CONTAINER_NAME,
-    garage_container,
-    garage_server,
     moto_container,
     moto_server,
-    s3_container,
 )
 
 from .test_objstorage_winery_mosaic import shards  # noqa
@@ -29,13 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def mosaic_s3_config(s3_container):  # noqa
-    s3_bucket = s3_container["container_name"]
+def mosaic_s3_config(moto_container):  # noqa
+    s3_bucket = moto_container["container_name"]
 
     s3_config = {
-        "aws_endpoint_url": "http://{host}:{port}".format(**s3_container),
-        "aws_access_key_id": s3_container["key"],
-        "aws_secret_access_key": s3_container["secret"],
+        "aws_endpoint_url": "http://{host}:{port}".format(**moto_container),
+        "aws_access_key_id": moto_container["key"],
+        "aws_secret_access_key": moto_container["secret"],
         "aws_allow_http": True,
     }
 

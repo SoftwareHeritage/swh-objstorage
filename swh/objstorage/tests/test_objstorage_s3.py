@@ -4,12 +4,7 @@
 # See top-level LICENSE file for more information
 
 from contextlib import closing, contextmanager
-import os
-from pathlib import Path
-import shutil
 import socket
-import subprocess
-import time
 from typing import Iterator, Optional
 
 from libcloud.storage.providers import get_driver
@@ -77,81 +72,6 @@ def moto_container(moto_server):
         yield config
 
 
-@pytest.fixture(scope="class")
-def garage_server(tmpdir_factory):
-    executable = shutil.which("garage")
-    if executable is None:
-        raise pytest.skip("garage is not available")
-    tmpdir = Path(tmpdir_factory.mktemp("garage"))
-    port = _find_free_port()
-    rpc_port = _find_free_port()
-    conf = f"""
-metadata_dir = "{tmpdir}/meta"
-data_dir = "{tmpdir}/data"
-db_engine = "sqlite"
-
-replication_factor = 1
-
-rpc_bind_addr = "[::]:{rpc_port}"
-rpc_public_addr = "127.0.0.1:{rpc_port}"
-rpc_secret = "8739871279eb387ab2f54f5c99200a59f4886a9fb74b6fb3e5402df10fb0bfa5"
-
-[s3_api]
-s3_region = "us-east-1"
-api_bind_addr = "[::]:{port}"
-root_domain = "localhost"
-public_endpoint = "http://localhost:{port}"
-"""
-    conf_path = tmpdir / "config.toml"
-    conf_path.write_text(conf)
-    proc = subprocess.Popen(
-        [executable, "server", "--single-node", "--default-bucket"],
-        env={
-            "GARAGE_CONFIG_FILE": conf_path,
-            "GARAGE_DEFAULT_ACCESS_KEY": API_KEY,
-            "GARAGE_DEFAULT_SECRET_KEY": API_SECRET_KEY,
-            "GARAGE_DEFAULT_BUCKET": CONTAINER_NAME,
-            **os.environ,
-        },
-    )
-    while True:
-        s = socket.socket()
-        try:
-            s.connect(("localhost", port))
-        except ConnectionRefusedError:
-            time.sleep(0.01)
-        else:
-            break
-    try:
-        yield {
-            "key": API_KEY,
-            "secret": API_SECRET_KEY,
-            "host": "localhost",
-            "port": port,
-            "secure": False,
-            "container_name": CONTAINER_NAME,
-        }
-
-    finally:
-        proc.kill()
-
-
-@pytest.fixture
-def garage_container(garage_server):
-    config = garage_server
-
-    with delete_objects(config):
-        yield garage_server
-
-
-@pytest.fixture(params=["moto", "garage"])
-def s3_container(request):
-    if request.param == "moto":
-        return request.getfixturevalue("moto_container")
-    else:
-        return request.getfixturevalue("garage_container")
-
-
 class TestMotoS3ObjStorage(ObjStorageTestFixture):
     compression = "none"
     path_prefix: Optional[str] = None
@@ -172,16 +92,3 @@ class TestCompressedS3ObjStorage(TestMotoS3ObjStorage):
 
 class TestPrefixedS3ObjStorage(TestMotoS3ObjStorage):
     path_prefix = "prefix/"
-
-
-class TestGarageS3ObjStorage(ObjStorageTestFixture):
-    compression = "none"
-    path_prefix: Optional[str] = None
-
-    @pytest.fixture
-    def swh_objstorage_config(self, garage_container):
-        yield {
-            "cls": "s3",
-            "compression": self.compression,
-            **garage_container,
-        }

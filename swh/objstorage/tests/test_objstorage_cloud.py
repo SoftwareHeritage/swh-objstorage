@@ -19,11 +19,8 @@ from .test_objstorage_s3 import (  # noqa  # fixtures
     API_KEY,
     API_SECRET_KEY,
     CONTAINER_NAME,
-    garage_container,
-    garage_server,
     moto_container,
     moto_server,
-    s3_container,
 )
 
 
