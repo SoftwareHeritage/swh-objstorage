@@ -163,24 +163,15 @@ class MosaicS3BackedPool(Pool):
             return f"{self.tmp_dir / self.pool_name / (image + self.extension)}"
 
     def image_list(self) -> Iterator[str]:
-        marker = ""  # for pagination
-        while True:
-            resp = self.s3_client.list_objects(
-                Bucket=self.bucket,
-                Prefix=self.prefix,
-                Marker=marker,
-            )
-            for entry in resp["Contents"]:
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=self.prefix):
+            for entry in page["Contents"]:
                 yield (
                     entry["Key"]
                     .removesuffix(self.extension)
                     .removeprefix(self.prefix)
                     .strip("/")
                 )
-            if resp["IsTruncated"]:
-                marker = resp["NextMarker"]
-            else:
-                break
 
     def image_mapped(self, image: str) -> Optional[Literal["ro", "rw", "any"]]:
         if (
