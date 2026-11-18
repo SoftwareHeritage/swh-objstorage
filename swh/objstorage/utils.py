@@ -9,9 +9,13 @@ from typing import (
     AsyncContextManager,
     AsyncIterator,
     Awaitable,
+    Callable,
     Coroutine,
+    Dict,
     Iterator,
+    List,
     Self,
+    Tuple,
     TypeVar,
 )
 
@@ -78,3 +82,31 @@ class AsyncLoop:
             except StopAsyncIteration:
                 return
             yield res
+
+
+async def add_batch_async(
+    add_async: Callable[[bytes, HashDict, bool], Awaitable[Tuple[int, int]]],
+    contents: List[Tuple[HashDict, bytes]],
+    check_presence: bool = True,
+) -> Dict:
+    """Calls ``add_async`` with each content in the list, and builds a ``summary`` dict
+    from the pairs of ``(num_new_objects, num_added_bytes)`` it returns
+    (ie. ``(0, 0)`` for known objects, ``(1, _)`` for new ones)"""
+    try:
+        results = await asyncio.gather(
+            *[
+                add_async(content, obj_id, check_presence)
+                for (obj_id, content) in contents
+            ]
+        )
+
+        summary = {"object:add": 0, "object:add:bytes": 0}
+        for added, length in results:
+            summary["object:add"] += added
+            summary["object:add:bytes"] += length
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        raise
+    return summary
