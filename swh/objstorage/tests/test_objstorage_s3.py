@@ -48,7 +48,6 @@ def moto_server():
         "host": "localhost",
         "port": port,
         "secure": False,
-        "workaround_moto": True,
         "container_name": CONTAINER_NAME,
     }
     server = ThreadedMotoServer(port=port)

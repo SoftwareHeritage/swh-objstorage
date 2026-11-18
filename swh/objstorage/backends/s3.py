@@ -41,12 +41,10 @@ class S3CloudObjStorage(ObjStorage):
         secure: bool = True,
         compression: CompressionFormat | None = None,
         path_prefix: Optional[str] = None,
-        workaround_moto: bool = False,
         connection_limit: int = 30,  # avg batch size + 20%
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.workaround_moto = workaround_moto
 
         self._async_loop = AsyncLoop()
 
