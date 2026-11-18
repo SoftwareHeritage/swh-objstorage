@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2025  The Software Heritage developers
+# Copyright (C) 2016-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -210,7 +210,7 @@ class CloudObjStorage(ObjStorage, metaclass=abc.ABCMeta):
 class AwsCloudObjStorage(CloudObjStorage):
     """Amazon's S3 Cloud-based object storage"""
 
-    name: str = "s3"
+    name: str = "libcloud-s3"
 
     def _get_provider(self):
         return Provider.S3
