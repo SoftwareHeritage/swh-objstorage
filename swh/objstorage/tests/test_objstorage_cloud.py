@@ -199,3 +199,23 @@ class TestMotoS3CloudObjStorage(ObjStorageTestFixture):
             "compression": self.compression,
             **moto_container,
         }
+
+
+class TestGarageS3CloudObjStorage(ObjStorageTestFixture):
+    compression = "none"
+
+    @pytest.fixture
+    def swh_objstorage_config(self, garage_container):  # noqa  # shadowing
+        yield {
+            "cls": "libcloud-s3",
+            "container_name": CONTAINER_NAME,
+            "compression": self.compression,
+            **garage_container,
+        }
+
+    @pytest.mark.xfail(
+        reason="libcloud builds incorrect signatures with non-default ports: "
+        "https://github.com/apache/libcloud/pull/2222/files"
+    )
+    def test_download_url(self):
+        super().test_download_url()
