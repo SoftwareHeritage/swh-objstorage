@@ -328,7 +328,8 @@ class _BaseAzureCloudObjStorage(ObjStorage):
     @timed
     def get(self, obj_id: HashDict) -> bytes:
         """retrieve blob's content if found."""
-        return self._async_loop.run_until_complete(self._get_async(obj_id))
+        obj = self._async_loop.run_until_complete(self._get_async(obj_id))
+        return self.decompress(obj, self._internal_id(obj_id))
 
     async def _get_async(self, obj_id, container_clients=None):
         """Coroutine implementing ``get(obj_id)`` using azure-storage-blob's
@@ -344,9 +345,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         except ResourceNotFoundError:
             raise ObjNotFoundError(obj_id) from None
         else:
-            data = await download.content_as_bytes()
-
-        return self.decompress(data, hex_obj_id)
+            return await download.content_as_bytes()
 
     async def _get_async_or_none(self, obj_id) -> Optional[Tuple[HashDict, bytes]]:
         """Like ``get_async(obj_id)``, but returns tuples with the hash dict, and
@@ -365,9 +364,13 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             if item is not None:
                 yield item
 
+    @timed
     def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
-        return self._async_loop.iter_asynciterator(self._get_batch_async(obj_ids))
+        for obj_id, obj in self._async_loop.iter_asynciterator(
+            self._get_batch_async(obj_ids)
+        ):
+            yield (obj_id, self.decompress(obj, self._internal_id(obj_id)))
 
     def delete(self, obj_id: HashDict):
         """Delete an object."""
