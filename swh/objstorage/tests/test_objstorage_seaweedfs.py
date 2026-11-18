@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 import pytest
 from requests.utils import get_encoding_from_headers
 import requests_mock
-from requests_mock.contrib import fixture
 
 from swh.objstorage.backends.pathslicing import PathSlicer
 from swh.objstorage.constants import ID_HEXDIGEST_LENGTH_BY_ALGO
@@ -113,22 +112,14 @@ class FilerRequestsMock:
     MODE_DIR = 0o20000000771
     MODE_FILE = 0o660
 
-    def __init__(self, url):
+    def __init__(self, mocker, url):
         self.url = url
         self.root_path = urlparse(url).path
         self.content = PathDict()
-        self.requests_mock = fixture.Fixture()
-        self.requests_mock.setUp()
-        self.requests_mock.register_uri(
-            requests_mock.GET, requests_mock.ANY, content=self.get_cb
-        )
-        self.requests_mock.register_uri(
-            requests_mock.POST, requests_mock.ANY, content=self.post_cb
-        )
-        self.requests_mock.register_uri(
-            requests_mock.HEAD, requests_mock.ANY, content=self.head_cb
-        )
-        self.requests_mock.register_uri(
+        mocker.register_uri(requests_mock.GET, requests_mock.ANY, content=self.get_cb)
+        mocker.register_uri(requests_mock.POST, requests_mock.ANY, content=self.post_cb)
+        mocker.register_uri(requests_mock.HEAD, requests_mock.ANY, content=self.head_cb)
+        mocker.register_uri(
             requests_mock.DELETE, requests_mock.ANY, content=self.delete_cb
         )
 
@@ -235,9 +226,9 @@ class TestSeaweedObjStorage(ObjStorageTestFixture):
     slicing = ""
 
     @pytest.fixture
-    def swh_objstorage_config(self):
-        self.mock = FilerRequestsMock(url=self.url)
-        return {
+    def swh_objstorage_config(self, requests_mock):
+        self.mock = FilerRequestsMock(mocker=requests_mock, url=self.url)
+        yield {
             "cls": "seaweedfs",
             "url": self.url,
             "compression": self.compression,
