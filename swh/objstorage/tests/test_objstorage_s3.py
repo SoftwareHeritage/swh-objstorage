@@ -4,13 +4,19 @@
 # See top-level LICENSE file for more information
 
 from contextlib import closing, contextmanager
+import json
 import socket
-from typing import Iterator, Optional
+from typing import Iterator, Optional, cast
 
 from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
 from moto.server import ThreadedMotoServer
 import pytest
+
+from swh.objstorage.backends.s3 import S3CloudObjStorage
+from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.factory import get_objstorage
+from swh.objstorage.objstorage import objid_for_content
 
 from .objstorage_testing import ObjStorageTestFixture
 
@@ -91,3 +97,72 @@ class TestCompressedS3ObjStorage(TestMotoS3ObjStorage):
 
 class TestPrefixedS3ObjStorage(TestMotoS3ObjStorage):
     path_prefix = "prefix/"
+
+
+def test_moto_anonymous_reads(moto_container) -> None:
+    # Get a read-write objstorage
+    config = {"cls": "s3", **moto_container}
+    rw_objstorage = cast(S3CloudObjStorage, get_objstorage(**config))
+
+    # Allow anonymous reads
+    policy = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "PublicRead",
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": "s3:GetObject",
+                    "Resource": f"arn:aws:s3:::{CONTAINER_NAME}/*",
+                }
+            ],
+        }
+    ).encode()
+    r = rw_objstorage._async_loop.run_until_complete(
+        rw_objstorage._request(
+            "PUT",
+            f"http://{rw_objstorage._host}/{CONTAINER_NAME}?policy=",
+            content=policy,
+            headers={"content-type": "application/json"},
+        )
+    )
+    assert r.status == 200, rw_objstorage._async_loop.run_until_complete(r.read())
+    r = rw_objstorage._async_loop.run_until_complete(
+        rw_objstorage._request(
+            "PUT",
+            f"http://{rw_objstorage._host}/{CONTAINER_NAME}?acl=",
+            headers={"x-amz-acl": "public-read"},
+        )
+    )
+    assert r.status == 200, rw_objstorage._async_loop.run_until_complete(r.read())
+
+    # Get a read-only objstorage
+    config = {**config, "key": None, "secret": None}
+    ro_objstorage = get_objstorage(**config)
+
+    content = b"foo bar"
+    obj_id = objid_for_content(content)
+
+    # TODO: test this. we can't test on Moto (it unconditionally accepts) nor on Garage
+    # (it does not support bucket policies)
+    # with pytest.raises(
+    #     Exception, match="Unexpected PUT status code.*403 Forbidden"
+    # ):
+    #     ro_objstorage.add(content, obj_id)
+
+    # object not present
+    assert obj_id not in rw_objstorage
+    assert obj_id not in ro_objstorage
+    with pytest.raises(ObjNotFoundError):
+        ro_objstorage.get(obj_id)
+    assert list(ro_objstorage.get_batch([obj_id])) == []
+
+    # add object
+    rw_objstorage.add(content, obj_id)
+    assert obj_id in rw_objstorage
+
+    # object present
+    assert obj_id in ro_objstorage
+    assert ro_objstorage.get(obj_id) == content
+    assert list(ro_objstorage.get_batch([obj_id])) == [(obj_id, content)]

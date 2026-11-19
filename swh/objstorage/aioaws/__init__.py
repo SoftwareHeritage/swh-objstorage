@@ -39,20 +39,23 @@ class AWSv4Auth:
         url: str,
         *,
         data: bytes | None = None,
-        content_type: str | None = None,
+        headers: dict[str, str] | None,
     ) -> dict[str, str]:
         _, host, path, query, _ = urlsplit(url)
         now = datetime.now(tz=timezone.utc)
         data = data or b""
-        content_type = content_type or _CONTENT_TYPE
 
-        # WARNING! order is important here, headers need to be in alphabetical order
+        headers = headers or {}
+        headers = {k.lower(): v for (k, v) in headers.items()}
         headers = {
             "content-md5": base64.b64encode(hashlib.md5(data).digest()).decode(),
-            "content-type": content_type,
+            "content-type": _CONTENT_TYPE,  # default value
             "host": host,
             "x-amz-date": _aws4_x_amz_date(now),
+            **headers,
         }
+        # headers need to be in alphabetical order
+        headers = dict(sorted(headers.items()))
 
         payload_sha256_hash = hashlib.sha256(data).hexdigest()
         signed_headers, signature = self.aws4_signature(
