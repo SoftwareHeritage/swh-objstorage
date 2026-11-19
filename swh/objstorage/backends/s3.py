@@ -3,10 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import asyncio
 from datetime import datetime, timezone
 import hashlib
 import logging
-from typing import Dict, Optional, Self
+from typing import AsyncIterator, Dict, Iterator, List, Optional, Self, Tuple
 
 import aiohttp
 
@@ -15,7 +16,7 @@ from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
-from swh.objstorage.utils import AsyncLoop
+from swh.objstorage.utils import AsyncLoop, add_batch_async
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,19 @@ class S3CloudObjStorage(ObjStorage):
         self._host = host
         self._container = container_name
         self._secure = secure
-        self.auth = AWSv4Auth(
-            aws_secret_key=secret,
-            aws_access_key=key,
-            region=region,
-            service="s3",
-        )
+        if key is None:
+            if secret is not None:
+                raise ValueError("key is None, but secret is not")
+            self.auth: AWSv4Auth | None = None
+        else:
+            if secret is None:
+                raise ValueError("secret is not, but key is not")
+            self.auth = AWSv4Auth(
+                aws_secret_key=secret,
+                aws_access_key=key,
+                region=region,
+                service="s3",
+            )
         if compression is None:
             logger.warning(
                 "Deprecated: compression is undefined. "
@@ -131,18 +139,15 @@ class S3CloudObjStorage(ObjStorage):
         headers: Dict[str, str] = {},
         content: Optional[bytes] = None,
     ) -> aiohttp.ClientResponse:
+        if self.auth is not None:
+            headers = {
+                **self.auth.auth_headers(method, url, data=content, headers=headers),
+                **headers,
+            }
         return await self._session.request(
             method,
             url,
-            headers={
-                **self.auth.auth_headers(
-                    method,
-                    url,
-                    data=content,
-                    content_type=headers.get("content-type"),
-                ),
-                **headers,
-            },
+            headers=headers,
             data=content,
         )
 
@@ -170,9 +175,9 @@ class S3CloudObjStorage(ObjStorage):
 
     async def _add_async(
         self, content: bytes, obj_id: HashDict, check_presence: bool = True
-    ) -> None:
+    ) -> Tuple[int, int]:
         if check_presence and await self._contains_async(obj_id):
-            return
+            return (0, 0)
 
         def hash_content():
             return hashlib.md5(content, usedforsecurity=False).hexdigest()
@@ -185,6 +190,16 @@ class S3CloudObjStorage(ObjStorage):
         )
         if r.status != 200:
             raise Exception(f"Unexpected PUT status code: {r}")
+
+        return (1, len(content))
+
+    @timed
+    def add_batch(
+        self, contents: List[Tuple[HashDict, bytes]], check_presence: bool = True
+    ) -> Dict:
+        return self._async_loop.run_until_complete(
+            add_batch_async(self._add_async, contents, check_presence)
+        )
 
     @timed
     def get(self, obj_id: HashDict) -> bytes:
@@ -200,6 +215,31 @@ class S3CloudObjStorage(ObjStorage):
             return await r.read()
         else:
             raise Exception("Unexpected GET status code: {r}")
+
+    async def _get_async_or_none(self, obj_id) -> Optional[Tuple[HashDict, bytes]]:
+        """Like ``get_async(obj_id)``, but returns tuples with the hash dict, and
+        returns None instead of raising ResourceNotFoundError.
+        Used by ``get_batch`` so other blobs can be returned even if one is missing."""
+        try:
+            return (obj_id, await self._get_async(obj_id))
+        except ObjNotFoundError:
+            return None
+
+    @timed
+    def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
+        """Retrieve objects' raw content in bulk from storage, concurrently."""
+        for obj_id, obj in self._async_loop.iter_asynciterator(
+            self._get_batch_async(obj_ids)
+        ):
+            yield (obj_id, self.decompress(obj, self._internal_id(obj_id)))
+
+    async def _get_batch_async(self, obj_ids) -> AsyncIterator[Tuple[HashDict, bytes]]:
+        for fut in asyncio.as_completed(
+            [self._get_async_or_none(obj_id) for obj_id in obj_ids]
+        ):
+            item = await fut
+            if item is not None:
+                yield item
 
     def delete(self, obj_id: HashDict):
         super().delete(obj_id)  # Check delete permission

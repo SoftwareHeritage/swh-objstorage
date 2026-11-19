@@ -40,7 +40,7 @@ from swh.objstorage.constants import LiteralPrimaryHash
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.interface import HashDict
 from swh.objstorage.objstorage import CompressionFormat, ObjStorage, timed
-from swh.objstorage.utils import AsyncLoop
+from swh.objstorage.utils import AsyncLoop, add_batch_async
 
 logger = logging.getLogger(__name__)
 
@@ -288,34 +288,12 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         else:
             return (1, len(content))
 
-    async def _add_batch_async(
-        self, contents: List[Tuple[HashDict, bytes]], check_presence: bool = True
-    ) -> Dict:
-        try:
-            results = await asyncio.gather(
-                *[
-                    self._add_async(content, obj_id, check_presence)
-                    for (obj_id, content) in contents
-                ]
-            )
-
-            summary = {"object:add": 0, "object:add:bytes": 0}
-            for added, length in results:
-                summary["object:add"] += added
-                summary["object:add:bytes"] += length
-        except Exception:
-            import traceback
-
-            traceback.print_exc()
-            raise
-        return summary
-
     @timed
     def add_batch(
         self, contents: List[Tuple[HashDict, bytes]], check_presence: bool = True
     ) -> Dict:
         return self._async_loop.run_until_complete(
-            self._add_batch_async(contents, check_presence)
+            add_batch_async(self._add_async, contents, check_presence)
         )
 
     def restore(self, content: bytes, obj_id: HashDict) -> None:
@@ -328,7 +306,8 @@ class _BaseAzureCloudObjStorage(ObjStorage):
     @timed
     def get(self, obj_id: HashDict) -> bytes:
         """retrieve blob's content if found."""
-        return self._async_loop.run_until_complete(self._get_async(obj_id))
+        obj = self._async_loop.run_until_complete(self._get_async(obj_id))
+        return self.decompress(obj, self._internal_id(obj_id))
 
     async def _get_async(self, obj_id, container_clients=None):
         """Coroutine implementing ``get(obj_id)`` using azure-storage-blob's
@@ -344,9 +323,7 @@ class _BaseAzureCloudObjStorage(ObjStorage):
         except ResourceNotFoundError:
             raise ObjNotFoundError(obj_id) from None
         else:
-            data = await download.content_as_bytes()
-
-        return self.decompress(data, hex_obj_id)
+            return await download.content_as_bytes()
 
     async def _get_async_or_none(self, obj_id) -> Optional[Tuple[HashDict, bytes]]:
         """Like ``get_async(obj_id)``, but returns tuples with the hash dict, and
@@ -365,9 +342,13 @@ class _BaseAzureCloudObjStorage(ObjStorage):
             if item is not None:
                 yield item
 
+    @timed
     def get_batch(self, obj_ids: List[HashDict]) -> Iterator[Tuple[HashDict, bytes]]:
         """Retrieve objects' raw content in bulk from storage, concurrently."""
-        return self._async_loop.iter_asynciterator(self._get_batch_async(obj_ids))
+        for obj_id, obj in self._async_loop.iter_asynciterator(
+            self._get_batch_async(obj_ids)
+        ):
+            yield (obj_id, self.decompress(obj, self._internal_id(obj_id)))
 
     def delete(self, obj_id: HashDict):
         """Delete an object."""
