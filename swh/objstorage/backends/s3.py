@@ -59,12 +59,19 @@ class S3CloudObjStorage(ObjStorage):
         self._host = host
         self._container = container_name
         self._secure = secure
-        self.auth = AWSv4Auth(
-            aws_secret_key=secret,
-            aws_access_key=key,
-            region=region,
-            service="s3",
-        )
+        if key is None:
+            if secret is not None:
+                raise ValueError("key is None, but secret is not")
+            self.auth: AWSv4Auth | None = None
+        else:
+            if secret is None:
+                raise ValueError("secret is not, but key is not")
+            self.auth = AWSv4Auth(
+                aws_secret_key=secret,
+                aws_access_key=key,
+                region=region,
+                service="s3",
+            )
         if compression is None:
             logger.warning(
                 "Deprecated: compression is undefined. "
@@ -132,18 +139,15 @@ class S3CloudObjStorage(ObjStorage):
         headers: Dict[str, str] = {},
         content: Optional[bytes] = None,
     ) -> aiohttp.ClientResponse:
+        if self.auth is not None:
+            headers = {
+                **self.auth.auth_headers(method, url, data=content, headers=headers),
+                **headers,
+            }
         return await self._session.request(
             method,
             url,
-            headers={
-                **self.auth.auth_headers(
-                    method,
-                    url,
-                    data=content,
-                    content_type=headers.get("content-type"),
-                ),
-                **headers,
-            },
+            headers=headers,
             data=content,
         )
 
