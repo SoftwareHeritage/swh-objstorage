@@ -13,6 +13,7 @@ import subprocess
 import time
 from typing import Iterator, Optional, cast
 
+import aiohttp
 from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
 from moto.server import ThreadedMotoServer
@@ -259,3 +260,45 @@ def test_moto_anonymous_reads(moto_container) -> None:
     assert obj_id in ro_objstorage
     assert ro_objstorage.get(obj_id) == content
     assert list(ro_objstorage.get_batch([obj_id])) == [(obj_id, content)]
+
+
+def test_s3_retries(mocker, moto_container) -> None:
+    # Get a read-write objstorage
+    config = {"cls": "s3", **moto_container}
+    objstorage = cast(S3CloudObjStorage, get_objstorage(**config))
+
+    real_request = objstorage._session.request
+    i = 0
+
+    def crashy_request(*args, **kwargs):
+        nonlocal i
+        i += 1
+        if i % 3 == 0:
+            return real_request(*args, **kwargs)
+        elif i % 3 == 1:
+            raise aiohttp.ServerDisconnectedError("Mock error")
+        else:
+            raise aiohttp.ClientPayloadError("Mock error")
+
+    mock = mocker.patch.object(
+        objstorage._session, "request", side_effect=crashy_request
+    )
+
+    content = b"foo bar"
+    obj_id = objid_for_content(content)
+
+    # object not present (3 calls)
+    assert obj_id not in objstorage
+    with pytest.raises(ObjNotFoundError):
+        objstorage.get(obj_id)
+    assert list(objstorage.get_batch([obj_id])) == []
+
+    # add object (2 calls: 1 HEAD and 1 PUT)
+    objstorage.add(content, obj_id)
+
+    # object present (3 calls)
+    assert obj_id in objstorage
+    assert objstorage.get(obj_id) == content
+    assert list(objstorage.get_batch([obj_id])) == [(obj_id, content)]
+
+    assert mock.call_count == 8 * 3  # seven calls, each fails twice

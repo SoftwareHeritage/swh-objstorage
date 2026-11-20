@@ -9,6 +9,7 @@ click
 deprecated
 humanize
 msgpack
+tenacity
 
 # seaweedfs backend
 requests

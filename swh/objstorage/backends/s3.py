@@ -10,6 +10,7 @@ import logging
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Self, Tuple
 
 import aiohttp
+import tenacity
 
 from swh.objstorage.aioaws import AWSv4Auth
 from swh.objstorage.constants import LiteralPrimaryHash
@@ -132,6 +133,11 @@ class S3CloudObjStorage(ObjStorage):
         scheme = "https" if self._secure else "http"
         return scheme + "://" + self._host + self._object_path(obj_id)
 
+    @tenacity.retry(
+        retry=tenacity.retry_if_exception_type(aiohttp.ClientError),
+        wait=tenacity.wait_random_exponential(multiplier=1, max=10),
+        reraise=True,
+    )
     async def _request(
         self,
         method: str,
