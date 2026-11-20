@@ -65,7 +65,7 @@ class S3CloudObjStorage(ObjStorage):
             self.auth: AWSv4Auth | None = None
         else:
             if secret is None:
-                raise ValueError("secret is not, but key is not")
+                raise ValueError("secret is None, but key is not")
             self.auth = AWSv4Auth(
                 aws_secret_key=secret,
                 aws_access_key=key,

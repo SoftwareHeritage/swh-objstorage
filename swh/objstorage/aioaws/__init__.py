@@ -47,7 +47,6 @@ class AWSv4Auth:
 
         headers = headers or {}
         headers = {k.lower(): v for (k, v) in headers.items()}
-        # WARNING! order is important here, headers need to be in alphabetical order
         headers = {
             "content-md5": base64.b64encode(hashlib.md5(data).digest()).decode(),
             "content-type": _CONTENT_TYPE,  # default value
@@ -55,6 +54,7 @@ class AWSv4Auth:
             "x-amz-date": _aws4_x_amz_date(now),
             **headers,
         }
+        # headers need to be in alphabetical order
         headers = dict(sorted(headers.items()))
 
         payload_sha256_hash = hashlib.sha256(data).hexdigest()
